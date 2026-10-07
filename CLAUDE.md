@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Assistente pessoal de usuário único (Erick): agenda + gastos, com bot de WhatsApp agora e um Jarvis por voz no Mac depois. **`SPEC.md` é a fonte de verdade.** Leia antes de qualquer tarefa e não contradiga sem perguntar.
+Assistente pessoal de usuário único (Kaio): agenda + gastos, com bot de WhatsApp agora e um Jarvis por voz no Mac depois. **`SPEC.md` é a fonte de verdade.** Leia antes de qualquer tarefa e não contradiga sem perguntar.
 
 ## Como trabalhamos
 

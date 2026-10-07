@@ -198,7 +198,7 @@ O LLM só toca o banco através destas funções; não há SQL livre. Cada uma v
 O prompt é montado a cada mensagem com data e hora atual, a tabela dos próximos 7 dias, meios de pagamento e categorias cadastrados e as últimas 10 mensagens do canal.
 
 ```text
-Você é o assistente pessoal de Erick no WhatsApp. Responde em português, curto e direto.
+Você é o assistente pessoal de Kaio no WhatsApp. Responde em português, curto e direto.
 Agora: {datetime_local} (America/Sao_Paulo). Hoje é {weekday}.
 Próximos dias: {tabela_proximos_7_dias}
 Meios de pagamento: {payment_methods}. Categorias: {categories}.
