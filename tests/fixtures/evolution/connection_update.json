@@ -1,0 +1,12 @@
+{
+  "event": "connection.update",
+  "instance": "assistente",
+  "data": {
+    "instance": "assistente",
+    "state": "open",
+    "statusReason": 200
+  },
+  "date_time": "2026-10-07T10:00:00.000Z",
+  "server_url": "http://localhost:8080",
+  "apikey": "FAKE-INSTANCE-TOKEN"
+}
