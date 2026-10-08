@@ -36,7 +36,7 @@ def match_payment_methods(methods: list[PaymentMethod], text: str) -> list[Payme
         for pm in methods
         if wanted == normalize(pm.name) or wanted in {normalize(a) for a in pm.aliases or []}
     ]
-    # Nome exato só decide se não houver outro meio do mesmo banco (ex.: "Inter" x "Inter Débito").
+    # Nome exato só decide se não houver outro meio do mesmo banco (ex.: "Itaú" x "Itaú Débito").
     query = _tokens(text)
     partial = [pm for pm in methods if query and query <= _method_tokens(pm)]
     if len(exact) == 1 and len(partial) <= 1:

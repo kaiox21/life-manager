@@ -1,18 +1,22 @@
 # CLAUDE.md
 
-Assistente pessoal de usuário único (Kaio): agenda + gastos, com bot de WhatsApp agora e um Jarvis por voz no Mac depois. **`SPEC.md` é a fonte de verdade.** Leia antes de qualquer tarefa e não contradiga sem perguntar.
+Assistente pessoal de usuário único (Kaio): agenda + gastos, com bot de WhatsApp e um Jarvis no Mac. **Fonte de verdade: `openspec/specs/` (o quê) e `SPEC.md` (visão, decisões e porquê).** Leia os dois antes de qualquer tarefa e não contradiga sem perguntar.
 
-## Como trabalhamos
+## Como trabalhamos (OpenSpec, desde 08/10/2026)
 
-- **Uma fase por vez**, na ordem do roteiro do `SPEC.md`. Não implemente nada de fases futuras "já que está aqui".
-- **Antes de codar uma fase:** escreva o plano em `docs/fases/fase-N.md` (arquivos a criar, decisões, testes, dúvidas) e pare para aprovação.
-- **Ao terminar uma fase:** rode os testes, verifique cada critério de aceite do `SPEC.md` e registre em `docs/fases/fase-N.md` o que foi feito, o que ficou de fora e qualquer desvio da especificação.
-- Mudou uma decisão de desenho? Proponha a mudança no `SPEC.md` antes de mudar o código.
-- Dúvida que muda o comportamento para o usuário: pergunte. Detalhe técnico com padrão óbvio: decida e registre.
+- **Toda mudança é um change do OpenSpec** em `openspec/changes/<nome>/` (`proposal.md`, `design.md`, `tasks.md` e deltas em `specs/`). Use `/opsx:propose` para criar e `/opsx:apply` para implementar. Não implemente nada fora do change em andamento "já que está aqui".
+- **Antes de codar:** proposta, design, tarefas e deltas escritos e `openspec validate <nome> --strict` passando; pare para aprovação do Kaio.
+- **Durante:** marque as tarefas em `tasks.md` conforme forem feitas; fatos conferidos em documentação oficial vão para o `design.md` com data.
+- **Ao terminar:** rode os testes (e a prova, se mexeu em prompt, ferramenta ou modelo), faça o aceite real e arquive com `/opsx:archive` (os deltas entram em `openspec/specs`).
+- Mudou uma decisão de desenho ou um risco? Atualize o `SPEC.md` no mesmo change.
+- Dúvida que muda o comportamento para o usuário: pergunte. Detalhe técnico com padrão óbvio: decida e registre no `design.md`.
+- `docs/fases/` é o histórico das fases 1 a 7 (antes do OpenSpec); não crie fases novas lá.
 
 ## Comandos
 
 ```bash
+openspec list                # changes abertos (e --specs para as capacidades)
+openspec validate --all --strict
 uv sync                      # dependências
 uv run pytest                # testes unitários (rápidos, sem rede, sem LLM)
 uv run pytest -m eval        # prova contra o modelo real (custa centavos, precisa de AI_GATEWAY_API_KEY)
@@ -32,7 +36,7 @@ uv run alembic upgrade head
 4. **Dinheiro em centavos (`int`).** Nunca `float` para valores.
 5. **Datas com fuso.** Tudo `timezone-aware`, fuso `America/Sao_Paulo`. "Hoje" vem de uma função injetável (`clock`) para os testes poderem fixar a data.
 6. **Modelo por configuração.** Cliente `openai` com `base_url` do Vercel AI Gateway; nomes de modelo só via `.env` (`MODEL_CLASSIFIER`, `MODEL_PRIMARY`, `MODEL_ESCALATION`). Nunca nome de modelo fixo no código.
-7. **Roteamento por intenção:** o agente recebe só as ferramentas do grupo da intenção (coluna "Grupo" do `SPEC.md`).
+7. **Roteamento por intenção:** o agente recebe só as ferramentas do grupo da intenção (`openspec/specs/agente`, "Ferramentas por grupo").
 8. **Validação e escalada:** argumentos inválidos voltam ao modelo uma vez; dois fracassos escalam para `MODEL_ESCALATION`; terceiro fracasso pede para reformular.
 9. **Toda mensagem gera uma linha em `agent_runs`** com modelo, tokens, custo, latência, ferramentas chamadas e erro.
 10. **Exclusão é lógica** (`deleted_at`) para permitir "desfazer".
@@ -49,7 +53,7 @@ uv run alembic upgrade head
 ## Convenções de código
 
 - Python 3.12, `uv`, `ruff` (lint + format), type hints em tudo, Pydantic v2, SQLAlchemy 2 (estilo 2.0), Alembic para migrações.
-- Nomes das ferramentas e dos argumentos exatamente como no `SPEC.md` e em `tests/eval/casos.yaml` (em português: `lancar_gasto`, `total_fatura`...). O resto do código pode usar inglês.
+- Nomes das ferramentas e dos argumentos exatamente como em `openspec/specs` e em `tests/eval/casos.yaml` (em português: `lancar_gasto`, `total_fatura`...). O resto do código pode usar inglês.
 - Mensagens ao usuário em português do Brasil, curtas, sempre ecoando o que foi gravado.
 - Funções de ferramenta puras sempre que possível: recebem sessão de banco e `clock`, devolvem dict serializável.
 

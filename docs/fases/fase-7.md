@@ -94,7 +94,7 @@ docs/
 
 | Critério | Resultado |
 | --- | --- |
-| Gasto lançado pelo Claude Desktop aparece numa consulta pelo WhatsApp | **ok** em 08/10. Às 16:53, o Claude Desktop (via `mcp-remote`) chamou `lancar_gasto`: café, R$ 25,00, Inter Débito (`agent_runs.channel='desktop'`). Às 17:21, no WhatsApp, "quanto gastei?" → "hoje" → `buscar_gastos` listou "Café - R$25,00 - Inter Débito" no total de R$ 72,00. |
+| Gasto lançado pelo Claude Desktop aparece numa consulta pelo WhatsApp | **ok** em 08/10. Às 16:53, o Claude Desktop (via `mcp-remote`) chamou `lancar_gasto`: café, R$ 25,00, no débito (`agent_runs.channel='desktop'`). Às 17:21, no WhatsApp, "quanto gastei?" → "hoje" → `buscar_gastos` listou o café de R$ 25,00 no total de R$ 72,00. |
 
 ## Decisões e desvios
 

@@ -1,0 +1,35 @@
+schema: spec-driven
+
+context: |
+  Language: pt-BR
+  All artifacts must be written in pt-BR.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Gerenciador de Vida: assistente pessoal de usuário único (Kaio) para agenda e gastos.
+  Duas portas para o mesmo núcleo: bot de WhatsApp (celular; lançamentos, consultas e
+  lembretes proativos) e Jarvis no Mac (design próprio, texto e voz). O núcleo também
+  expõe as ferramentas por MCP. Visão, decisões e riscos: SPEC.md. Requisitos: openspec/specs.
+
+  Stack do núcleo: Python 3.12, uv, FastAPI, SQLAlchemy 2 + Alembic, Pydantic v2,
+  Postgres, cliente openai apontando para o Vercel AI Gateway, APScheduler,
+  faster-whisper, Evolution API v2 (Baileys) em Docker Compose. Jarvis: Python
+  (agente, cliente MCP, ferramentas locais) + Tauri 2 com React/Vite/TS.
+
+  Regras não negociáveis (CLAUDE.md): só app/channel conhece a Evolution; o LLM só toca
+  o banco pelas ferramentas; o LLM nunca faz contas; dinheiro em centavos (int); datas
+  com fuso America/Sao_Paulo e clock injetável; modelos só via .env; exclusão lógica;
+  toda mensagem gera agent_runs; testes unitários sem rede nem LLM; a prova
+  (tests/eval/casos.yaml, somente leitura) roda a cada mudança de prompt, ferramenta
+  ou modelo e precisa de pelo menos 90%.
+
+  Dados reais (cartões, pessoas, telefone) nunca vão para o repositório, que é público.
+
+rules:
+  proposal:
+    - Dizer o que muda para o usuário e o que fica de fora (Non-goals)
+    - Citar decisões do SPEC.md que a mudança altera
+  design:
+    - Registrar fatos conferidos em documentação oficial, com data
+  tasks:
+    - Incluir rodar uv run pytest, ruff, e a prova (uv run pytest -m eval) quando mexer em prompt, ferramenta ou modelo
+    - Terminar com o aceite real e a atualização do relatório
