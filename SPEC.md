@@ -396,6 +396,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [x] Calendário do Google que recebe o espelho: **principal** (decidido em 08/10/2026), com os avisos do Google desligados nos eventos do bot (`reminders.useDefault=false`); quem avisa é o bot (fase 5)
 - [x] Serviço de transcrição: **`faster-whisper` local** (modelo `small`, int8), no Mac e no VPS (decidido em 08/10/2026)
 - [ ] Cinco primeiras ações do Jarvis além de agenda e gastos (fase 8)
+  - Pedido de 08/10/2026: **roteador de modelos por dificuldade**, construído junto com o Jarvis. O classificador devolve também a dificuldade (sem chamada extra), combinada com sinais fixos (foto, data relativa, alteração ou remoção, dependência do histórico). Uma tabela no `.env` diz qual modelo atende cada faixa, e a escalada continua como rede de segurança. A tabela sai da prova (acerto, custo e latência por faixa). Depende de créditos pagos no gateway.
   - Pedido de 08/10/2026: acompanhar as sessões do Claude Code abertas nos terminais (ver o estado e ser avisado quando uma sessão termina ou espera resposta). Só leitura e avisos; sem enviar comandos. Exige mudar a regra "nenhuma ferramenta executa shell" só para ferramentas locais do Jarvis.
 
 **Decididas:** VPS Oracle pay-as-you-go; chip novo no celular com WhatsApp Business; Vercel AI Gateway com escalada para modelo chinês mais forte; categorias Alimentação, Mercado, Transporte, Casa, Saúde, Lazer, Educação, Assinaturas, Outros; política de gravação direta com "desfazer" e exceções.
