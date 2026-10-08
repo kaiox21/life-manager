@@ -1,6 +1,6 @@
 # Fase 2 — Gastos por texto
 
-Status: **código implementado; escolha do modelo pendente** (08/10/2026). Plano aprovado em 07/10/2026.
+Status: **concluída em 08/10/2026**, com escalada provisória (ver "Decisão provisória"). Plano aprovado em 07/10/2026.
 
 Objetivo (do `SPEC.md`): tabelas, seeds de categorias e cartões, ferramentas de gasto, classificador, laço do agente, `agent_runs` e o executor da prova.
 
@@ -149,8 +149,52 @@ Proposta ao `SPEC.md` antes de codar: acrescentar à "Regra da fatura" a frase s
 
 Os US$ 5 do AI Gateway são do **plano gratuito**: `claude-haiku-5.5`, `qwen3.8-flash`, `glm-5.3-flash` e `deepseek-v4-flash` devolvem 403 ("Free tier users do not have access to this model"). O BYOK da Anthropic também exige créditos comprados. Só `gpt-5-nano` e `gemini-2.5-flash-lite` rodam.
 
-## Pendente
+## Placar (08/10/2026, rodada 2, depois das correções do prompt e do juiz)
 
-- Escolher os modelos pelo placar e preencher `MODEL_*` no `.env`.
-- Reconstruir o app, rodar a seed real e fazer o aceite pelo WhatsApp.
-- Relatório final desta fase.
+| Modelo (classificador = principal) | Classificador | Agente (40 casos) | Custo da rodada |
+| --- | --- | --- | --- |
+| `openai/gpt-5-nano` | 51/56 | **38/40 (95%)** | US$ 0,031 |
+| `google/gemini-2.5-flash-lite` (rodada 1) | 51/52 | 23/36 (64%) | US$ 0,008 |
+| `claude-haiku-5.5`, `qwen3.8-flash`, `glm-5.3-flash`, `deepseek-v4-flash` | bloqueados pelo plano gratuito | — | — |
+
+Falhas do `gpt-5-nano`:
+- g13: perguntou a data em vez de usar hoje.
+- f04: filtro de conteúdo da Azure. Com `ALLOWED_PROVIDERS=openai` o filtro some; o agente se recusa a apagar e só a intenção sai "gasto".
+- Classificador: 3 casos de agenda saíram como "pessoa", e f02 saiu como "agenda". Na rodada 1, a agenda ficou 16/16, então há variação do modelo. **Resolver na fase 3.**
+
+## Decisão provisória (08/10/2026, aprovada pelo Kaio)
+
+`MODEL_CLASSIFIER = MODEL_PRIMARY = MODEL_ESCALATION = openai/gpt-5-nano` e `ALLOWED_PROVIDERS=openai`.
+- **Sem escalada de verdade**: dois fracassos levam a "Pode reformular?".
+- Revisar quando houver créditos pagos no gateway: rodar os outros candidatos e escolher uma escalada mais forte (Claude via BYOK é opção, mas muda a decisão "modelo chinês" do `SPEC.md`).
+
+App reconstruído (migração `0002` aplicada). Seed real carregada com:
+`docker compose exec -T app python -m app.db.seed /dev/stdin < data/meios_pagamento.yaml`
+
+# Relatório da fase 2
+
+## Critérios de aceite
+
+| Critério | Resultado |
+| --- | --- |
+| "gastei 47 no almoço no Nubank" grava | **ok** em 08/10 10:17 pelo WhatsApp ("GASTEI 47 NO ALMOCO - CREDITO NUBANK"). Linha de 4700 centavos, Nubank, Alimentação, `spent_on` 08/10, `statement_month` 2026-11-01. Resposta ecoou valor, meio, categoria, data, vencimento e "desfazer". |
+| "total da fatura do Nubank" bate com a soma à mão | **ok** em 08/10 10:20. Bot: R$ 47,00, 1 lançamento, vence 08/11, fecha 31/10. Soma à mão no banco (`sum(amount_cents)` do Nubank com `statement_month` 2026-11-01): 4700. |
+| Testes da regra de fatura (fechamento, virada de ano, parcelas) | **ok**: `tests/unit/test_billing.py`, mais fevereiro, bissexto e "último dia do mês". |
+| Modelo escolhido acerta ≥ 90% da prova | **ok**: `gpt-5-nano`, 38/40 (95%) nos casos fora de agenda. |
+
+161 testes unitários passando, sem rede. Os dois `agent_runs` do aceite registram intenção, modelo, ferramenta, argumentos, tokens, custo (~US$ 0,0012 cada) e latência.
+
+## Desvios e observações
+
+1. **Prova avaliada em 40 casos, não 56**: agenda e pessoa só passam pelo classificador até a fase 3 (decisão 10 do plano).
+2. **Escalada provisória** igual ao modelo principal: o plano gratuito do gateway bloqueia os outros modelos.
+3. **Prompt com faturas abertas por cartão**, além da tabela de datas pedida no `SPEC.md`. O modelo copia `mes_vencimento` em vez de calcular, o que segue a regra "o LLM nunca faz contas".
+4. **Classificador por chamada de ferramenta forçada** (enum), não por texto livre.
+5. **Latência alta**: ~20 s por mensagem, porque o `gpt-5-nano` raciocina por padrão (2,6 mil tokens de saída num gasto simples). Testar `REASONING_EFFORT=minimal` com a prova antes de ativar.
+6. **Dados reais** só no banco local e em `data/` (fora do git); o repositório usa cartões fictícios com a mesma forma.
+
+## Fica para depois
+
+- Créditos pagos no gateway → rodar os demais candidatos e definir uma escalada real.
+- Classificador confunde aniversário de parente ("pessoa" x "agenda"): resolver na fase 3, quando a agenda entrar.
+- g13 (pergunta a data em vez de usar hoje): observar no uso real.
