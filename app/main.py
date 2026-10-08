@@ -6,11 +6,14 @@ from typing import Any
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.llm import LLM, GatewayLLM
+from app.agent.service import Models
 from app.channel.evolution import EvolutionClient, parse_webhook
-from app.config import Settings, get_settings
+from app.clock import Clock, system_clock
+from app.config import Settings, get_settings, provider_list
 from app.db.base import make_engine, make_sessionmaker
 from app.db.repo import register_incoming
-from app.handler import BOT_MARK, Sender, handle_incoming
+from app.handler import BOT_MARK, Deps, Sender, handle_incoming
 from app.security import is_owner, secret_matches
 
 log = logging.getLogger(__name__)
@@ -20,6 +23,8 @@ def create_app(
     settings: Settings | None = None,
     sessions: async_sessionmaker[AsyncSession] | None = None,
     sender: Sender | None = None,
+    llm: LLM | None = None,
+    clock: Clock = system_clock,
 ) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level)
@@ -28,21 +33,38 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = None
         client = None
+        gateway = None
         if app.state.sessions is None:
             engine = make_engine(settings.database_url)
             app.state.sessions = make_sessionmaker(engine)
         if app.state.sender is None:
             client = EvolutionClient(settings)
             app.state.sender = client
+        if app.state.llm is None:
+            gateway = GatewayLLM(
+                api_key=settings.ai_gateway_api_key.get_secret_value(),
+                base_url=settings.ai_gateway_base_url,
+                allowed_providers=provider_list(settings.allowed_providers),
+                reasoning_effort=settings.reasoning_effort,
+            )
+            app.state.llm = gateway
         yield
         if client:
             await client.aclose()
+        if gateway:
+            await gateway.aclose()
         if engine:
             await engine.dispose()
 
     app = FastAPI(title="life-manager", lifespan=lifespan)
     app.state.sessions = sessions
     app.state.sender = sender
+    app.state.llm = llm
+    models = Models(
+        classifier=settings.model_classifier or settings.model_primary,
+        primary=settings.model_primary,
+        escalation=settings.model_escalation or settings.model_primary,
+    )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -93,14 +115,16 @@ def create_app(
         if message_id is None:
             return {"status": "ignored", "reason": "duplicate"}
 
-        background.add_task(
-            handle_incoming,
-            msg,
+        deps = Deps(
             owner_phone=settings.owner_phone,
             sender=request.app.state.sender,
             sessions=sessions,
+            llm=request.app.state.llm,
+            models=models,
             self_chat_mode=settings.self_chat_mode,
+            clock=clock,
         )
+        background.add_task(handle_incoming, msg, message_id, deps)
         return {"status": "accepted"}
 
     return app

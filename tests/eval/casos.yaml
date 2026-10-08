@@ -8,6 +8,8 @@
 #                      (gasto | consulta_gasto | agenda | pessoa | confirmacao | fora_do_escopo)
 #   espera.tool        PRIMEIRA ferramenta que o agente deve chamar
 #   espera.args        argumentos que precisam bater exatamente; os não listados não são verificados
+#   espera.args.payment_method  comparado DEPOIS da resolução pelos mesmos name/aliases da
+#                      ferramenta (em total_fatura, só meios de crédito): "Itaú" ali vira "Itaú Crédito".
 #   espera.contem      trechos de texto que só precisam aparecer (sem diferenciar maiúsculas e acentos).
 #                      Em lancar_gasto, a chave `texto` é buscada em description + merchant.
 #                      Em criar_evento, a chave `title` é buscada no título.
@@ -23,13 +25,15 @@
 # Ao carregar com PyYAML, datas sem aspas viram datetime.date: normalize tudo para
 # string ISO antes de comparar com os argumentos devolvidos pelo modelo.
 #
-# >>> SUBSTITUIR: os cartões abaixo são exemplos. Troque pelos seus reais
-# >>> e recalcule os casos de fatura (marcados com "fatura" na nota).
+# Os cartões abaixo são FICTÍCIOS (o repositório é público); os reais ficam só no banco local.
+# Têm a mesma forma do uso real: um crédito que fecha no último dia do mês (closing_day 31),
+# outro crédito e um débito no mesmo banco desse outro. Casos de fatura estão marcados na nota.
 
 fixtures:
   meios_pagamento:
-    - {name: Nubank, kind: credito, closing_day: 3, due_day: 10}
-    - {name: Itaú, kind: credito, closing_day: 25, due_day: 5}
+    - {name: Nubank, kind: credito, closing_day: 31, due_day: 8}
+    - {name: Itaú Crédito, kind: credito, closing_day: 25, due_day: 5}
+    - {name: Itaú Débito, kind: debito}
     - {name: Pix, kind: pix}
     - {name: Dinheiro, kind: dinheiro}
   pessoas:
@@ -39,7 +43,7 @@ fixtures:
 
 casos:
 
-  # ---------------------------------------------------------------- GASTOS (21)
+  # ---------------------------------------------------------------- GASTOS (23)
 
   - id: g01
     msg: "gastei 47,90 no almoço no nubank"
@@ -58,11 +62,11 @@ casos:
       contem: {texto: uber}
 
   - id: g03
-    msg: "mercado 312,45 no itaú"
+    msg: "mercado 312,45 no itaú crédito"
     intent: gasto
     espera:
       tool: lancar_gasto
-      args: {amount_cents: 31245, payment_method: Itaú, category: Mercado}
+      args: {amount_cents: 31245, payment_method: Itaú Crédito, category: Mercado}
 
   - id: g04
     msg: "paguei 120 de gasolina em dinheiro"
@@ -80,11 +84,11 @@ casos:
       args: {amount_cents: 18000, payment_method: Nubank, category: Alimentação, spent_on: 2026-10-06}
 
   - id: g06
-    msg: "comprei um tênis de 600 em 3x no itaú"
+    msg: "comprei um tênis de 600 em 3x no itaú crédito"
     intent: gasto
     espera:
       tool: lancar_gasto
-      args: {amount_cents: 60000, payment_method: Itaú, installments: 3}
+      args: {amount_cents: 60000, payment_method: Itaú Crédito, installments: 3}
       contem: {texto: tênis}
     nota: "Valor total, não da parcela. Acima de R$ 500: a ferramenta deve devolver pendência de confirmação."
 
@@ -133,11 +137,11 @@ casos:
       args: {amount_cents: 23000, payment_method: Pix, category: Casa}
 
   - id: g13
-    msg: "R$ 1.200 do curso de inglês no itaú em 6 vezes"
+    msg: "R$ 1.200 do curso de inglês no itaú crédito em 6 vezes"
     intent: gasto
     espera:
       tool: lancar_gasto
-      args: {amount_cents: 120000, payment_method: Itaú, category: Educação, installments: 6}
+      args: {amount_cents: 120000, payment_method: Itaú Crédito, category: Educação, installments: 6}
     nota: "Ponto como separador de milhar."
 
   - id: g14
@@ -155,11 +159,11 @@ casos:
       args: {amount_cents: 1500, payment_method: Pix, category: Transporte, spent_on: 2026-10-07}
 
   - id: g16
-    msg: "anota aí: 89,90 spotify família no itaú"
+    msg: "anota aí: 89,90 spotify família no itaú crédito"
     intent: gasto
     espera:
       tool: lancar_gasto
-      args: {amount_cents: 8990, payment_method: Itaú, category: Assinaturas}
+      args: {amount_cents: 8990, payment_method: Itaú Crédito, category: Assinaturas}
       contem: {texto: spotify}
 
   - id: g17
@@ -172,9 +176,10 @@ casos:
   - id: g18
     msg: "gastei 9,50 num café, débito"
     intent: gasto
-    espera: pergunta
-    proibido: [lancar_gasto]
-    nota: "Não existe meio 'débito' cadastrado; deve perguntar qual usar ou se quer cadastrar."
+    espera:
+      tool: lancar_gasto
+      args: {amount_cents: 950, payment_method: Itaú Débito, category: Alimentação}
+    nota: "Só existe um débito cadastrado (Itaú Débito); 'débito' resolve direto."
 
   - id: g19
     msg: "desfaz"
@@ -189,11 +194,26 @@ casos:
       tool: desfazer_ultimo
 
   - id: g21
-    msg: "cadastra meu cartão inter, crédito, fecha dia 15 e vence dia 22"
+    msg: "cadastra meu cartão c6, crédito, fecha dia 5 e vence dia 15"
     intent: gasto
     espera:
       tool: gerenciar_meio_pagamento
-      args: {name: Inter, kind: credito, closing_day: 15, due_day: 22}
+      args: {kind: credito, closing_day: 5, due_day: 15}
+      contem: {name: c6}
+
+  - id: g22
+    msg: "padaria 12 no itaú"
+    intent: gasto
+    espera: pergunta
+    proibido: [lancar_gasto]
+    nota: "Há Itaú Crédito e Itaú Débito; deve perguntar qual."
+
+  - id: g23
+    msg: "farmácia 45,90 no débito do itaú"
+    intent: gasto
+    espera:
+      tool: lancar_gasto
+      args: {amount_cents: 4590, payment_method: Itaú Débito, category: Saúde}
 
   # ------------------------------------------------------ CONSULTAS DE GASTO (10)
 
@@ -203,15 +223,15 @@ casos:
     espera:
       tool: total_fatura
       args: {payment_method: Nubank, mes_vencimento: 2026-11}
-    nota: "fatura — Nubank fechou dia 3, então a fatura aberta é a que vence em 10/11."
+    nota: "fatura — Nubank fecha no último dia do mês: a fatura aberta fecha 31/10 e vence 08/11."
 
   - id: c02
     msg: "quanto deu a fatura do itaú que venceu dia 5?"
     intent: consulta_gasto
     espera:
       tool: total_fatura
-      args: {payment_method: Itaú, mes_vencimento: 2026-10}
-    nota: "fatura"
+      args: {payment_method: Itaú Crédito, mes_vencimento: 2026-10}
+    nota: "fatura — venceu 05/10; 'itaú' em fatura só pode ser o crédito."
 
   - id: c03
     msg: "total da fatura do nubank de novembro"
@@ -224,11 +244,11 @@ casos:
     msg: "e no itaú?"
     historico:
       - {role: user, content: "quanto tá a fatura do nubank?"}
-      - {role: assistant, content: "A fatura do Nubank que vence em 10/11 está em R$ 1.234,56, com 18 lançamentos."}
+      - {role: assistant, content: "A fatura do Nubank que vence em 08/11 está em R$ 1.234,56, com 18 lançamentos."}
     intent: consulta_gasto
     espera:
       tool: total_fatura
-      args: {payment_method: Itaú, mes_vencimento: 2026-11}
+      args: {payment_method: Itaú Crédito, mes_vencimento: 2026-11}
     nota: "fatura — testa uso do histórico. Itaú fecha dia 25, aberta vence em 05/11."
 
   - id: c05
@@ -406,7 +426,7 @@ casos:
 
   - id: k01
     msg: "sim"
-    pendente: {tool_name: lancar_gasto, summary: "R$ 600,00 em 3x no Itaú — Tênis. Confirma?"}
+    pendente: {tool_name: lancar_gasto, summary: "R$ 600,00 em 3x no Itaú Crédito — Tênis. Confirma?"}
     intent: confirmacao
     espera:
       tool: confirmar_pendente
@@ -414,7 +434,7 @@ casos:
 
   - id: k02
     msg: "não"
-    pendente: {tool_name: lancar_gasto, summary: "R$ 600,00 em 3x no Itaú — Tênis. Confirma?"}
+    pendente: {tool_name: lancar_gasto, summary: "R$ 600,00 em 3x no Itaú Crédito — Tênis. Confirma?"}
     intent: confirmacao
     espera:
       tool: confirmar_pendente

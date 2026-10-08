@@ -5,6 +5,7 @@ import pytest
 
 from app.main import create_app
 from tests.conftest import OWNER, SECRET, load_payload
+from tests.fakes import ScriptedLLM
 
 
 @pytest.fixture
@@ -21,11 +22,11 @@ async def _post(app, fixture: str) -> httpx.Response:
         )
 
 
-async def test_mensagem_para_si_mesmo_ganha_eco_com_marca(self_chat_settings, sender, sessions):
-    app = create_app(self_chat_settings, sessions=sessions, sender=sender)
+async def test_mensagem_para_si_mesmo_responde_com_marca(self_chat_settings, sender, sessions):
+    app = create_app(self_chat_settings, sessions=sessions, sender=sender, llm=ScriptedLLM())
     resp = await _post(app, "text_from_me.json")
     assert resp.json() == {"status": "accepted"}
-    assert [(m.to, m.text) for m in sender.sent] == [(OWNER, "🤖 oi")]
+    assert [(m.to, m.text) for m in sender.sent] == [(OWNER, "🤖 Oi!")]
 
 
 @pytest.mark.parametrize(
@@ -46,7 +47,7 @@ async def test_modo_provisorio_ignora(self_chat_settings, sender, fixture, motiv
 
 
 async def test_resposta_do_bot_nao_gera_laco(self_chat_settings, sender, sessions):
-    app = create_app(self_chat_settings, sessions=sessions, sender=sender)
+    app = create_app(self_chat_settings, sessions=sessions, sender=sender, llm=ScriptedLLM())
     await _post(app, "text_from_me.json")
     await _post(app, "bot_reply_self_chat.json")  # a resposta voltando pelo webhook
     assert len(sender.sent) == 1

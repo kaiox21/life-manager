@@ -166,7 +166,7 @@ create table pending_actions (
 
 Tabelas auxiliares: `agent_runs` (seção Modelo de IA) e `sent_reminders` (seção Lembretes).
 
-**Regra da fatura.** Ao gravar um gasto no crédito: se o dia da compra for menor que `closing_day`, a compra entra na fatura que vence no próximo `due_day`; caso contrário, na seguinte. Parcelas geram N linhas com `statement_month` avançando um mês cada. Essa regra mora numa função Python testada (`app/domain/billing.py`), nunca no LLM.
+**Regra da fatura.** Ao gravar um gasto no crédito: se o dia da compra for menor que `closing_day`, a compra entra na fatura que vence no próximo `due_day`; caso contrário, na seguinte. Parcelas geram N linhas com `statement_month` avançando um mês cada. Se `closing_day` (ou `due_day`) passa do último dia do mês, vale o último dia: "fecha no último dia do mês" é gravado como `closing_day = 31`. Essa regra mora numa função Python testada (`app/domain/billing.py`), nunca no LLM.
 
 ## Ferramentas do agente
 
@@ -187,7 +187,7 @@ O LLM só toca o banco através destas funções; não há SQL livre. Cada uma v
 | `gerenciar_pessoa` | pessoa | `name, relation?, aliases?` | pessoa criada/encontrada | não |
 | `confirmar_pendente` | confirmacao | `pending_id, decisao (sim\|nao)` | resultado da ação | — |
 
-**Resolução de referências.** "minha irmã" → busca em `people` por `relation`/`aliases`; se não existir, o agente pergunta o nome antes de criar o evento. "Nubank" → casa com `name`/`aliases` de `payment_methods`; ambíguo ou inexistente, pergunta.
+**Resolução de referências.** "minha irmã" → busca em `people` por `relation`/`aliases`; se não existir, o agente pergunta o nome antes de criar o evento. "Nubank" → casa com `name`/`aliases` de `payment_methods`; ambíguo ou inexistente, pergunta. Crédito e débito do mesmo banco sem especificar ("no Itaú", havendo Itaú Crédito e Itaú Débito) contam como ambíguos; `total_fatura` só considera meios de crédito.
 
 **Fluxo de confirmação.** Ferramentas que exigem confirmação não gravam: criam um `pending_actions` e devolvem o resumo. A próxima mensagem "sim"/"não" é tratada por `confirmar_pendente`. Pendências expiram em 30 minutos.
 
@@ -394,5 +394,6 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Calendário do Google que recebe o espelho: principal ou dedicado "Assistente" (fase 3)
 - [ ] Serviço de transcrição no VPS (fase 4)
 - [ ] Cinco primeiras ações do Jarvis além de agenda e gastos (fase 8)
+  - Pedido de 08/10/2026: acompanhar as sessões do Claude Code abertas nos terminais (ver o estado e ser avisado quando uma sessão termina ou espera resposta). Só leitura e avisos; sem enviar comandos. Exige mudar a regra "nenhuma ferramenta executa shell" só para ferramentas locais do Jarvis.
 
 **Decididas:** VPS Oracle pay-as-you-go; chip novo no celular com WhatsApp Business; Vercel AI Gateway com escalada para modelo chinês mais forte; categorias Alimentação, Mercado, Transporte, Casa, Saúde, Lazer, Educação, Assinaturas, Outros; política de gravação direta com "desfazer" e exceções.

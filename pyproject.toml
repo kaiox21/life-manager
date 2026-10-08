@@ -7,9 +7,11 @@ dependencies = [
     "alembic>=1.13",
     "fastapi>=0.115",
     "httpx>=0.27",
+    "openai>=3.26.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
+    "pyyaml>=6.0.3",
     "sqlalchemy[asyncio]>=2.0",
     "uvicorn[standard]>=0.30",
 ]
@@ -19,6 +21,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.uv]
@@ -40,3 +43,8 @@ markers = [
     "eval: prova contra o modelo real (custa dinheiro, precisa de AI_GATEWAY_API_KEY)",
 ]
 addopts = "-m 'not eval'"
+
+[tool.ruff.lint.per-file-ignores]
+# Texto do prompt copiado do SPEC.md; quebrar as linhas mudaria o prompt.
+"app/agent/prompt.py" = ["E501"]
+"app/agent/intent.py" = ["E501"]

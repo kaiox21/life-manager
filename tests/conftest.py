@@ -1,6 +1,7 @@
 import json
 import os
 from collections.abc import AsyncIterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,12 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.agent.tools.base import ToolContext
+from app.clock import TZ, fixed_clock
 from app.config import Settings
+from app.db import models  # noqa: F401  (registra as tabelas)
+from app.db.base import Base
+from app.db.seed import seed_categories, seed_payment_methods
 from app.types import OutgoingMessage
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -81,6 +87,30 @@ def migrated_db() -> str:
 async def sessions(migrated_db: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     engine = create_async_engine(migrated_db, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.execute(text("truncate messages"))
+        tables = ", ".join(Base.metadata.tables)
+        await conn.execute(text(f"truncate {tables} cascade"))
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
+
+
+TEST_METHODS = [
+    {"name": "Nubank", "kind": "credito", "closing_day": 31, "due_day": 8},
+    {"name": "Itaú Crédito", "kind": "credito", "closing_day": 25, "due_day": 5},
+    {"name": "Itaú Débito", "kind": "debito"},
+    {"name": "Pix", "kind": "pix"},
+]
+NOW = datetime(2026, 10, 7, 12, 0, tzinfo=TZ)
+
+
+@pytest.fixture
+async def seeded(sessions: async_sessionmaker[AsyncSession]) -> async_sessionmaker[AsyncSession]:
+    async with sessions.begin() as s:
+        await seed_categories(s)
+        await seed_payment_methods(s, TEST_METHODS)
+    return sessions
+
+
+@pytest.fixture
+async def ctx(seeded: async_sessionmaker[AsyncSession]) -> AsyncIterator[ToolContext]:
+    async with seeded.begin() as s:
+        yield ToolContext(session=s, clock=fixed_clock(NOW))

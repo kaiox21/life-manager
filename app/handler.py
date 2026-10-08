@@ -1,10 +1,14 @@
-"""Processamento em background de uma mensagem já aceita. Fase 1: eco."""
+"""Processamento em background de uma mensagem já aceita."""
 
 import logging
+from dataclasses import dataclass
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.llm import LLM
+from app.agent.service import Models, answer
+from app.clock import Clock, system_clock
 from app.db.repo import log_outgoing
 from app.types import IncomingMessage, OutgoingMessage
 
@@ -18,23 +22,42 @@ class Sender(Protocol):
     async def send_text(self, out: OutgoingMessage) -> str | None: ...
 
 
-async def handle_incoming(
-    msg: IncomingMessage,
-    *,
-    owner_phone: str,
-    sender: Sender,
-    sessions: async_sessionmaker[AsyncSession],
-    self_chat_mode: bool = False,
-) -> None:
+@dataclass
+class Deps:
+    owner_phone: str
+    sender: Sender
+    sessions: async_sessionmaker[AsyncSession]
+    llm: LLM
+    models: Models
+    self_chat_mode: bool = False
+    clock: Clock = system_clock
+
+
+async def handle_incoming(msg: IncomingMessage, message_id: object, deps: Deps) -> None:
     if not msg.text:
         return
-    prefix = BOT_MARK if self_chat_mode else ""
-    reply = OutgoingMessage(to=owner_phone, text=f"{prefix}{msg.text}")
+    prefix = BOT_MARK if deps.self_chat_mode else ""
     try:
-        wa_id = await sender.send_text(reply)
+        async with deps.sessions.begin() as session:
+            reply = await answer(
+                llm=deps.llm,
+                models=deps.models,
+                session=session,
+                clock=deps.clock,
+                text=msg.text,
+                message_id=message_id,  # type: ignore[arg-type]
+                strip_prefix=prefix,
+            )
+    except Exception:
+        log.exception("falha ao processar %s", msg.wa_message_id)
+        reply = "Tive um problema para responder agora. Tenta de novo em instantes?"
+
+    out = OutgoingMessage(to=deps.owner_phone, text=f"{prefix}{reply}")
+    try:
+        wa_id = await deps.sender.send_text(out)
     except Exception:
         log.exception("falha ao enviar resposta para %s", msg.wa_message_id)
         return
-    async with sessions.begin() as session:
-        await log_outgoing(session, wa_id, reply.text)
+    async with deps.sessions.begin() as session:
+        await log_outgoing(session, wa_id, out.text)
     log.info("resposta enviada para %s", msg.wa_message_id)

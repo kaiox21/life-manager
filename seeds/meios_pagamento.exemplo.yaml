@@ -1,0 +1,8 @@
+# Copie para data/meios_pagamento.yaml (fora do git) com os seus meios reais e rode:
+#   uv run python -m app.db.seed
+# closing_day 31 = fecha no último dia do mês.
+meios_pagamento:
+  - {name: Nubank, kind: credito, closing_day: 31, due_day: 8}
+  - {name: Itaú Crédito, kind: credito, closing_day: 25, due_day: 5}
+  - {name: Itaú Débito, kind: debito}
+  - {name: Pix, kind: pix}
