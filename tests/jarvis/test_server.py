@@ -1,0 +1,81 @@
+import asyncio
+import json
+import stat
+
+import pytest
+from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
+
+from jarvis import events
+from jarvis.server import JarvisServer, write_session
+
+
+class EchoBrain:
+    def __init__(self) -> None:
+        self.confirmations: list[tuple[str, bool]] = []
+
+    async def ask(self, rid, text, emit):
+        await emit(events.step(rid, "pensando…"))
+        await emit(events.card(rid, {"kind": "texto", "text": text}))
+        await emit(events.done(rid, f"eco: {text}"))
+
+    async def resolve_confirmation(self, confirm_id, accepted):
+        self.confirmations.append((confirm_id, accepted))
+
+
+class BrokenBrain(EchoBrain):
+    async def ask(self, rid, text, emit):
+        raise RuntimeError("boom")
+
+
+async def _collect(ws, until="done"):
+    out = []
+    while True:
+        msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+        out.append(msg)
+        if msg["type"] in (until, "error"):
+            return out
+
+
+async def test_sem_token_e_recusado():
+    server = JarvisServer(EchoBrain(), token="certo")
+    async with server.run(session_file=None) as port:
+        with pytest.raises(InvalidStatus):
+            async with connect(f"ws://127.0.0.1:{port}/?token=errado"):
+                pass
+
+
+async def test_pergunta_gera_eventos_em_ordem():
+    brain = EchoBrain()
+    server = JarvisServer(brain, token="tk")
+    async with (
+        server.run(session_file=None) as port,
+        connect(f"ws://127.0.0.1:{port}/?token=tk") as ws,
+    ):
+        await ws.send(json.dumps({"type": "ask", "id": "r1", "text": "oi"}))
+        msgs = await _collect(ws)
+        assert [m["type"] for m in msgs] == ["step", "card", "done"]
+        assert msgs[-1] == {"type": "done", "id": "r1", "text": "eco: oi"}
+        await ws.send(
+            json.dumps({"type": "confirm", "id": "r1", "confirm_id": "c1", "accepted": True})
+        )
+        await asyncio.sleep(0.05)
+    assert brain.confirmations == [("c1", True)]
+
+
+async def test_falha_do_cerebro_vira_evento_de_erro():
+    server = JarvisServer(BrokenBrain(), token="tk")
+    async with (
+        server.run(session_file=None) as port,
+        connect(f"ws://127.0.0.1:{port}/?token=tk") as ws,
+    ):
+        await ws.send(json.dumps({"type": "ask", "id": "r2", "text": "x"}))
+        (msg,) = await _collect(ws)
+        assert msg["type"] == "error"
+
+
+def test_arquivo_de_sessao_so_para_o_dono(tmp_path):
+    path = tmp_path / "Jarvis" / "session.json"
+    write_session(51234, "segredo", path)
+    assert json.loads(path.read_text())["port"] == 51234
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

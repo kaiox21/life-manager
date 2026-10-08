@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Ações permitidas
-O Jarvis SHALL oferecer só estas ações locais: `abrir_app(nome)`, `buscar_arquivo(texto)` (Spotlight, na pasta pessoal, até 20 resultados), `rodar_atalho(nome)` (só da lista permitida), `controlar_musica(acao)` (tocar, pausar, próxima), `timer(minutos, texto)` (notificação do Mac) e `area_transferencia(acao)` (ler pede confirmação).
+O Jarvis SHALL oferecer só estas ações locais: `abrir_app(nome)`, `buscar_arquivo(texto)` (Spotlight, na pasta pessoal, até 20 resultados), `rodar_atalho(nome)` (só da lista permitida), `controlar_musica(acao)` (tocar, pausar, próxima, no Spotify), `timer(minutos, texto)` (notificação do Mac) e `area_transferencia(acao)` (ler pede confirmação).
 
 #### Scenario: Atalho fora da lista
 - **WHEN** o modelo pede `rodar_atalho("Apagar tudo")` e ele não está na lista permitida
@@ -12,4 +12,4 @@ As ações locais SHALL executar comandos fixos com argumentos validados (sem `s
 
 #### Scenario: Argumento malicioso
 - **WHEN** `abrir_app` recebe `Safari; rm -rf ~`
-- **THEN** nada é executado além de tentar abrir um app com esse nome literal, que não existe
+- **THEN** o nome é recusado na validação e nenhum comando é executado

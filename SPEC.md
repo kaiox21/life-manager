@@ -100,6 +100,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Chip dedicado para sair do modo provisório.
 - [ ] Teste real da foto de recibo (adiado pelo Kaio).
 - [ ] **Roteador de modelos por dificuldade** (pedido de 08/10/2026), junto com o Jarvis. O classificador devolve também a dificuldade, sem chamada extra, combinada com sinais fixos. Uma tabela no `.env` liga cada faixa a um modelo, com a escalada como rede de segurança. A tabela sai da prova (acerto, custo e latência por faixa).
+- [ ] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): modo tela cheia no estilo holográfico, com orbe central e agenda, gastos, relógio e log em volta. Change futuro `jarvis-painel`, depois do HUD.
 - [ ] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): ver o estado e ser avisado quando uma sessão termina ou espera resposta. Só leitura e avisos.
 
 **Decididas (resumo):**

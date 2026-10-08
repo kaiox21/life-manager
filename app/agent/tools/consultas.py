@@ -166,7 +166,13 @@ async def resumo_gastos(ctx: ToolContext, args: ResumoGastosArgs) -> dict[str, A
         "total": brl(int(grand_total)),
         "total_centavos": int(grand_total),
         "grupos": [
-            {"grupo": r.grupo, "total": brl(int(r.total)), "lancamentos": r.n} for r in rows
+            {
+                "grupo": r.grupo,
+                "total": brl(int(r.total)),
+                "total_centavos": int(r.total),
+                "lancamentos": r.n,
+            }
+            for r in rows
         ],
     }
 

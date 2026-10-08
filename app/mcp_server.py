@@ -14,6 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError as McpToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field, ValidationError
+from pydantic_core import to_jsonable_python
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.service import build_prompt
@@ -61,7 +62,8 @@ def _wrap(
 ) -> Callable[..., Awaitable[str]]:
     async def call(**raw: Any) -> str:
         sessions = get_sessions()
-        entry: dict[str, Any] = {"name": tool.name, "model": "mcp", "args": raw}
+        # O SDK já converteu datas etc. em objetos Python: guardar em forma serializável (JSONB).
+        entry: dict[str, Any] = {"name": tool.name, "model": "mcp", "args": to_jsonable_python(raw)}
         try:
             args = tool.args_model.model_validate(raw)
         except ValidationError as exc:
@@ -77,7 +79,7 @@ def _wrap(
                     result = await tool.fn(ctx, args)
             except ToolError as exc:
                 result = exc.payload  # erro de domínio: o cliente repassa ao usuário
-            entry.update(ok=True, result=result)
+            entry.update(ok=True, result=to_jsonable_python(result))
             session.add(
                 AgentRun(
                     channel="desktop", intent=tool.groups[0], model="mcp", tools_called=[entry]

@@ -21,6 +21,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "sqlalchemy[asyncio]>=2.0",
     "uvicorn[standard]>=0.30",
+    "websockets>=15",
 ]
 
 [dependency-groups]
@@ -50,10 +51,12 @@ asyncio_default_test_loop_scope = "session"
 markers = [
     "eval: prova contra o modelo real (custa dinheiro, precisa de AI_GATEWAY_API_KEY)",
     "whisper: transcrição real com faster-whisper (baixa o modelo; só no macOS, usa `say`)",
+    "integracao: fala com o núcleo rodando no Docker (localhost:8000)",
 ]
-addopts = "-m 'not eval and not whisper'"
+addopts = "-m 'not eval and not whisper and not integracao'"
 
 [tool.ruff.lint.per-file-ignores]
 # Texto do prompt copiado do SPEC.md; quebrar as linhas mudaria o prompt.
 "app/agent/prompt.py" = ["E501"]
 "app/agent/intent.py" = ["E501"]
+"jarvis/agent.py" = ["E501"]

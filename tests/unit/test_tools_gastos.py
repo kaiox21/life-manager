@@ -349,7 +349,12 @@ async def test_resumo_por_categoria_e_dia(ctx):
         ctx, ResumoGastosArgs(de=date(2026, 9, 1), ate=date(2026, 9, 30), agrupar_por="categoria")
     )
     assert out["total_centavos"] == 1500 + 8990 + 31245
-    assert out["grupos"][0] == {"grupo": "Mercado", "total": "R$ 312,45", "lancamentos": 1}
+    assert out["grupos"][0] == {
+        "grupo": "Mercado",
+        "total": "R$ 312,45",
+        "total_centavos": 31245,
+        "lancamentos": 1,
+    }
     out = await resumo_gastos(
         ctx, ResumoGastosArgs(de=date(2026, 10, 1), ate=date(2026, 10, 7), agrupar_por="dia")
     )

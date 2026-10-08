@@ -72,6 +72,22 @@ async def test_lancar_gasto_grava_e_registra_canal_desktop(server, seeded):
     assert run.channel == "desktop" and run.tools_called[0]["name"] == "lancar_gasto"
 
 
+async def test_ferramenta_com_datas(server, seeded):
+    # o SDK converte as datas em objetos date antes de chamar a ferramenta
+    _payload(
+        await server.call_tool(
+            "lancar_gasto", {"amount_cents": 1000, "description": "pão", "payment_method": "pix"}
+        )
+    )
+    out = _payload(
+        await server.call_tool("buscar_gastos", {"de": "2026-10-07", "ate": "2026-10-07"})
+    )
+    assert out["total_centavos"] == 1000
+    runs = await _all(seeded, AgentRun)
+    busca = [r for r in runs if r.tools_called[0]["name"] == "buscar_gastos"]
+    assert busca[0].tools_called[0]["args"]["de"] == "2026-10-07"  # gravado como texto ISO
+
+
 async def test_validacao_do_modelo_original(server, seeded):
     # chamada direta levanta; pelo transporte HTTP vira resultado com is_error e esta mensagem
     with pytest.raises(McpToolError, match="crédito precisa de closing_day"):

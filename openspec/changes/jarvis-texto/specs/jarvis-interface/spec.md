@@ -15,7 +15,7 @@ O HUD SHALL mostrar os estados digitando, pensando (orbe pulsando e passos como 
 - **THEN** o passo "consultando a agenda…" aparece antes da resposta
 
 ### Requirement: Respostas em cartões
-Resultados das ferramentas SHALL aparecer como cartões tipados (agenda, gastos, fatura, gráfico, texto), desenhados com os números vindos das ferramentas, nunca calculados pela interface nem pelo modelo.
+Resultados das ferramentas SHALL aparecer como cartões tipados (agenda, gastos, fatura, gráfico, arquivos, texto), desenhados com os números vindos das ferramentas, nunca calculados pela interface nem pelo modelo.
 
 #### Scenario: Fatura
 - **WHEN** a resposta usa `total_fatura`

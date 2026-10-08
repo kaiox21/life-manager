@@ -28,7 +28,14 @@ O núcleo roda em Docker no Mac (o deploy no VPS está pausado) e expõe `/mcp` 
 5. **Ferramentas locais com comandos fixos** (`subprocess` com lista de argumentos, sem shell):
    - `rodar_atalho` só com lista permitida;
    - ler a área de transferência pede confirmação na interface.
-6. **Estilo visual padrão "Jarvis sóbrio"**: vidro escuro, acento ciano, orbe que respira e pulsa, SF Pro, modo claro e escuro do sistema. Tokens em `theme.css` para trocar fácil.
+6. **Estilo visual "holográfico azul"** (referência do Kaio em `jarvis-ui/referencias-visuais/`, fora do git, 08/10/2026), que substitui o "Jarvis sóbrio" inicial:
+   - fundo azul-marinho profundo sobre o vidro nativo, grade sutil e cantoneiras de HUD;
+   - linhas e textos em ciano/azul elétrico com brilho;
+   - orbe de partículas com anéis concêntricos marcados e girando;
+   - rótulos em fonte monoespaçada maiúscula, cabeçalho com relógio e estado, passos como log com horário, números grandes com brilho nos cartões.
+   - **Sempre escuro**: o visual não tem versão clara.
+   - O painel de tela cheia ("central de comando") é um change futuro, `jarvis-painel`.
+   - Movimento reduzido respeitado (anéis e partículas param).
 7. **Registro**: cada conversa do Jarvis grava no próprio núcleo, via MCP (`agent_runs`, `channel='desktop'`), e num log local do Jarvis para as ferramentas locais.
 
 Fatos conferidos em 08/10/2026:
@@ -44,7 +51,8 @@ Fatos conferidos em 08/10/2026:
 
 ## Open Questions
 
-- Pode instalar o Rust (`rustup`)? (Senão, cai para `pywebview` + `rumps`.)
-- ⌥Espaço está bom?
-- Quais Atalhos da Apple ficam na lista permitida (pode começar vazia)?
-- Apple Music ou Spotify?
+Respondidas em 08/10/2026:
+- Rust: **instalado** (rustup 1.99, perfil mínimo; `~/.cargo/env` no `~/.zprofile`).
+- Atalho: **⌥Espaço**, configurável. "Só Espaço" foi descartado porque sequestraria a barra de espaço em todos os apps.
+- Atalhos da Apple permitidos: **nenhum** no início (lista vazia em configuração).
+- Música: **Spotify** (AppleScript do app Spotify).
