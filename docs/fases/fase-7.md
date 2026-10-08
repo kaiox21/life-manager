@@ -1,6 +1,6 @@
 # Fase 7 — Núcleo vira MCP
 
-Status: **em implementação** (08/10/2026). Plano aprovado em 08/10/2026. Padrões para as dúvidas sem resposta: OpenSpec reavaliado na fase 8; Claude Desktop e Claude Code documentados; Tailscale instalado junto com o VPS.
+Status: **concluída em 08/10/2026** (sem a parte do Tailscale, que espera o VPS da fase 6). Plano aprovado em 08/10/2026. Padrões para as dúvidas sem resposta: OpenSpec reavaliado na fase 8; Claude Desktop e Claude Code documentados; Tailscale instalado junto com o VPS.
 
 Contexto: a fase 6 está aberta, à espera da Oracle liberar a VM. O Kaio pediu para adiantar o Jarvis, e a fase 7 é a base dele. Ela pode ser desenvolvida e aceita no Mac agora; a parte do Tailscale e do VPS fecha quando a fase 6 terminar.
 
@@ -71,3 +71,34 @@ docs/
 1. **OpenSpec no Jarvis**: eu tinha sugerido avaliar no começo da fase 7. Proposta: **não** agora. A fase 7 é pequena e cabe no fluxo atual (`SPEC.md` + `docs/fases`). Reavaliar na fase 8, quando o app do Mac (voz, ferramentas locais, roteador, sessões do Claude Code) começar e houver várias frentes em paralelo.
 2. **Quais clientes você vai usar**: Claude Desktop, Claude Code ou os dois? Configuro e documento os dois por padrão.
 3. **Tailscale**: posso instalar no Mac agora (`brew install --cask tailscale`, login com Google/GitHub)? Ou deixamos para quando o VPS existir?
+
+---
+
+# Relatório da fase 7
+
+## O que foi feito
+
+- `app/mcp_server.py`: `MCPServer` (SDK `mcp` 2.3) com as 12 ferramentas do agente mais `contexto` (só leitura).
+  - O schema vem dos mesmos modelos Pydantic, por uma assinatura gerada; a chamada revalida com o modelo original (`extra=forbid` e validadores).
+  - Erro de domínio (meio ambíguo etc.) volta como resultado. Erro de validação volta como erro legível, pelo `ToolError` do SDK (exceção genérica seria escondida).
+  - Cada chamada grava `agent_runs` com `channel='desktop'` e dispara o sync do Google Calendar.
+- `contexto`: o mesmo material do prompt do WhatsApp (data, tabela de datas, faturas abertas, cartões, categorias, pessoas, agenda da semana), sem persona nem regras (`data_only`).
+- Montado no FastAPI em `/mcp`:
+  - token `MCP_TOKEN` (sem token o MCP fica desligado);
+  - proteção de host (`MCP_ALLOWED_HOSTS`);
+  - o `session_manager` do SDK roda no lifespan.
+- `docs/mcp.md` com a configuração do Claude Code e do Claude Desktop.
+- 227 testes unitários, mais o teste de ponta a ponta por HTTP real com o cliente oficial (13 ferramentas, `contexto`, `total_fatura` com dados reais).
+
+## Critério de aceite
+
+| Critério | Resultado |
+| --- | --- |
+| Gasto lançado pelo Claude Desktop aparece numa consulta pelo WhatsApp | **ok** em 08/10. Às 16:53, o Claude Desktop (via `mcp-remote`) chamou `lancar_gasto`: café, R$ 25,00, Inter Débito (`agent_runs.channel='desktop'`). Às 17:21, no WhatsApp, "quanto gastei?" → "hoje" → `buscar_gastos` listou "Café - R$25,00 - Inter Débito" no total de R$ 72,00. |
+
+## Decisões e desvios
+
+- **Claude Code desconectado** a pedido do Kaio. Com escopo de usuário, o MCP aparecia em todas as sessões, inclusive as de trabalho. Fica configurado só no Claude Desktop, com o conector desligado por padrão nas conversas.
+- **Conta Claude compartilhada com o trabalho**: o histórico de conversas é da conta. Conversas que usam o conector ficam visíveis para quem usa a mesma conta. Recomendação registrada: conta pessoal separada.
+- **Celular**: o Claude do celular só usa conectores remotos (da conta inteira, pela nuvem da Anthropic, exigindo o núcleo exposto com HTTPS e OAuth). Isso contraria o `SPEC.md`, então não foi feito. O acesso pelo celular continua sendo o bot do WhatsApp.
+- **Tailscale**: fica para quando houver VPS (fase 6 pausada).
