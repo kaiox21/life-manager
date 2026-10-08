@@ -211,7 +211,7 @@ def _prev_month(d: date) -> date:
 TOOLS = [
     Tool(
         "buscar_gastos",
-        "consulta_gasto",
+        ("consulta_gasto",),
         "Lista gastos com filtros e devolve a soma (calculada no banco). Ex.: 'quanto gastei "
         "com mercado esse mês' -> de='2026-10-01', ate=hoje, category='Mercado'.",
         BuscarGastosArgs,
@@ -219,7 +219,7 @@ TOOLS = [
     ),
     Tool(
         "total_fatura",
-        "consulta_gasto",
+        ("consulta_gasto",),
         "Total de uma fatura de cartão de crédito pelo mês de VENCIMENTO (AAAA-MM). "
         "Use a tabela de faturas abertas do prompt para 'fatura atual'.",
         TotalFaturaArgs,
@@ -227,7 +227,7 @@ TOOLS = [
     ),
     Tool(
         "resumo_gastos",
-        "consulta_gasto",
+        ("consulta_gasto",),
         "Totais agrupados por categoria, meio ou dia num período. Ex.: 'quanto gastei em "
         "setembro por categoria' -> de='2026-09-01', ate='2026-09-30', agrupar_por='categoria'.",
         ResumoGastosArgs,

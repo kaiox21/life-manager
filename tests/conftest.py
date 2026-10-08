@@ -17,6 +17,7 @@ from app.clock import TZ, fixed_clock
 from app.config import Settings
 from app.db import models  # noqa: F401  (registra as tabelas)
 from app.db.base import Base
+from app.db.models import Person
 from app.db.seed import seed_categories, seed_payment_methods
 from app.types import OutgoingMessage
 
@@ -107,6 +108,9 @@ async def seeded(sessions: async_sessionmaker[AsyncSession]) -> async_sessionmak
     async with sessions.begin() as s:
         await seed_categories(s)
         await seed_payment_methods(s, TEST_METHODS)
+        s.add_all(
+            [Person(name="Mariana", relation="irmã"), Person(name="Carlos", relation="chefe")]
+        )
     return sessions
 
 

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app.agent.intent import parse_intent
-from app.agent.loop import GIVE_UP, NOT_YET, run_agent
+from app.agent.loop import GIVE_UP, run_agent
 from app.agent.service import Models, answer
 from app.clock import fixed_clock
 from app.db.models import AgentRun, Expense, Message, PendingAction
@@ -177,11 +177,30 @@ async def test_ferramenta_de_outro_grupo_conta_como_falha(seeded):
     assert "não serve" in run.tools_called[0]["error"]
 
 
-async def test_agenda_ainda_nao_disponivel_sem_chamar_agente(seeded):
-    llm = ScriptedLLM(cls("agenda"))
-    out = await _answer(seeded, llm, "dentista sexta 14h")
-    assert out == NOT_YET
-    assert len(llm.calls) == 1  # só o classificador
+async def test_agenda_recebe_ferramentas_de_agenda_e_pessoa(seeded):
+    llm = ScriptedLLM(cls("agenda"), reply("Que horas?"))
+    await _answer(seeded, llm, "dentista sexta")
+    offered = {t["function"]["name"] for t in llm.calls[1]["tools"]}
+    assert offered == {
+        "criar_evento",
+        "buscar_eventos",
+        "atualizar_evento",
+        "remover_evento",
+        "gerenciar_pessoa",
+    }
+
+
+async def test_agenda_sem_consultar_escala(seeded):
+    llm = ScriptedLLM(
+        cls("agenda"),
+        reply("É dia 31/10."),
+        call("buscar_eventos", {"person": "Mariana"}),
+        reply("Não achei."),
+    )
+    await _answer(seeded, llm, "quando é o aniversário dela?")
+    (run,) = await _all(seeded, AgentRun)
+    assert run.escalated
+    assert [t["name"] for t in run.tools_called] == ["buscar_eventos"]
 
 
 async def test_fora_do_escopo_sem_ferramentas(seeded):

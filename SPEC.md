@@ -184,7 +184,7 @@ O LLM só toca o banco através destas funções; não há SQL livre. Cada uma v
 | `buscar_gastos` | consulta_gasto | `de?, ate?, category?, payment_method?, query?, limite?` | lista + soma (calculada em SQL) | — |
 | `total_fatura` | consulta_gasto | `payment_method, mes_vencimento (AAAA-MM)` | total, nº de lançamentos, maiores itens | — |
 | `resumo_gastos` | consulta_gasto | `de, ate, agrupar_por (categoria\|meio\|dia)` | agregados em SQL | — |
-| `gerenciar_pessoa` | pessoa | `name, relation?, aliases?` | pessoa criada/encontrada | não |
+| `gerenciar_pessoa` | pessoa, agenda | `name, relation?, aliases?` | pessoa criada/encontrada | não |
 | `confirmar_pendente` | confirmacao | `pending_id, decisao (sim\|nao)` | resultado da ação | — |
 
 **Resolução de referências.** "minha irmã" → busca em `people` por `relation`/`aliases`; se não existir, o agente pergunta o nome antes de criar o evento. "Nubank" → casa com `name`/`aliases` de `payment_methods`; ambíguo ou inexistente, pergunta. Crédito e débito do mesmo banco sem especificar ("no Itaú", havendo Itaú Crédito e Itaú Débito) contam como ambíguos; `total_fatura` só considera meios de crédito.
@@ -317,7 +317,7 @@ Fora do MVP: shell arbitrário, apagar arquivos, enviar e-mail ou mensagem. Exec
 - **Segredos:** em `.env`, fora do git. Nunca logar chaves nem conteúdo de `.env`.
 - **Backup:** `pg_dump` diário cifrado para armazenamento externo, retenção de 30 dias.
 - **Dados para terceiros:** mensagens, fotos e áudios passam pela Vercel e pelo fornecedor do modelo. Usar o filtro `only` do gateway para limitar a fornecedores aceitos.
-- **Google Calendar:** *service account* com o calendário compartilhado com ela ("fazer alterações nos eventos"); evita tokens OAuth de modo de teste que expiram.
+- **Google Calendar:** *service account* com o calendário compartilhado com ela ("fazer alterações nos eventos"); evita tokens OAuth de modo de teste que expiram. A chave vai no `.env` em base64 (`GOOGLE_SERVICE_ACCOUNT_JSON`), porque o Docker Desktop não monta arquivos da pasta do projeto no macOS.
 
 ## Roteiro de implementação
 
@@ -391,7 +391,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Cartões reais com dia de fechamento e vencimento (bloqueia fase 2)
 - [ ] Ajustar as frases dos 54 casos ao jeito real de falar (bloqueia fase 2)
 - [ ] Escolher `MODEL_PRIMARY` e `MODEL_ESCALATION` pelo placar da prova (fase 2)
-- [ ] Calendário do Google que recebe o espelho: principal ou dedicado "Assistente" (fase 3)
+- [x] Calendário do Google que recebe o espelho: **principal** (decidido em 08/10/2026), com os avisos do Google desligados nos eventos do bot (`reminders.useDefault=false`); quem avisa é o bot (fase 5)
 - [ ] Serviço de transcrição no VPS (fase 4)
 - [ ] Cinco primeiras ações do Jarvis além de agenda e gastos (fase 8)
   - Pedido de 08/10/2026: acompanhar as sessões do Claude Code abertas nos terminais (ver o estado e ser avisado quando uma sessão termina ou espera resposta). Só leitura e avisos; sem enviar comandos. Exige mudar a regra "nenhuma ferramenta executa shell" só para ferramentas locais do Jarvis.

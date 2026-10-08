@@ -136,3 +136,52 @@ class AgentRun(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Person(Base):
+    __tablename__ = "people"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    relation: Mapped[str | None] = mapped_column(Text)
+    aliases: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{}'"), default=list
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Event(Base):
+    __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint(
+            "kind in ('compromisso','prova','aniversario','prazo','lembrete')",
+            name="events_kind_check",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    all_day: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
+    rrule: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    person_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("people.id"))
+    remind_minutes: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer), server_default=text("'{1440}'"), default=lambda: [1440]
+    )
+    gcal_event_id: Mapped[str | None] = mapped_column(Text)
+    gcal_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

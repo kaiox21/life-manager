@@ -10,6 +10,7 @@ from app.agent.llm import LLM
 from app.agent.service import Models, answer
 from app.clock import Clock, system_clock
 from app.db.repo import log_outgoing
+from app.integrations.gcal import CalendarClient, sync_pending
 from app.types import IncomingMessage, OutgoingMessage
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class Deps:
     models: Models
     self_chat_mode: bool = False
     clock: Clock = system_clock
+    calendar: CalendarClient | None = None
 
 
 async def handle_incoming(msg: IncomingMessage, message_id: object, deps: Deps) -> None:
@@ -61,3 +63,23 @@ async def handle_incoming(msg: IncomingMessage, message_id: object, deps: Deps) 
     async with deps.sessions.begin() as session:
         await log_outgoing(session, wa_id, out.text)
     log.info("resposta enviada para %s", msg.wa_message_id)
+    await sync_calendar(deps)
+
+
+async def sync_calendar(deps: Deps) -> None:
+    """Espelha no Google Calendar o que mudou na agenda. Falha aqui não afeta a conversa."""
+    if deps.calendar is None:
+        return
+    try:
+        report = await sync_pending(deps.sessions, deps.calendar)
+    except Exception:
+        log.exception("sync com o Google Calendar falhou")
+        return
+    if report.created or report.updated or report.deleted or report.failed:
+        log.info(
+            "calendar: %d criados, %d atualizados, %d removidos, %d falhas",
+            report.created,
+            report.updated,
+            report.deleted,
+            len(report.failed),
+        )

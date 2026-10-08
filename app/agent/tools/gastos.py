@@ -217,7 +217,7 @@ async def gerenciar_meio_pagamento(
 TOOLS = [
     Tool(
         "lancar_gasto",
-        "gasto",
+        ("gasto",),
         "Lança um gasto. Ex.: 'gastei 47,90 no almoço no nubank' -> amount_cents=4790, "
         "description='almoço', payment_method='Nubank', category='Alimentação'. "
         "Compra parcelada: amount_cents é o TOTAL e installments o nº de parcelas.",
@@ -226,14 +226,14 @@ TOOLS = [
     ),
     Tool(
         "desfazer_ultimo",
-        "gasto",
+        ("gasto",),
         "Desfaz (apaga) o último gasto lançado, com todas as parcelas.",
         SemArgs,
         desfazer_ultimo,
     ),
     Tool(
         "gerenciar_meio_pagamento",
-        "gasto",
+        ("gasto",),
         "Cadastra ou atualiza cartão/meio de pagamento. Ex.: 'cartão inter, crédito, fecha "
         "dia 15 e vence dia 22' -> name='Inter', kind='credito', closing_day=15, due_day=22.",
         GerenciarMeioPagamentoArgs,

@@ -3,7 +3,7 @@
 Uso:  docker compose --profile test up -d postgres-test
       MODEL_PRIMARY=openai/gpt-5-nano uv run pytest -m eval -q
 Compara só a PRIMEIRA chamada de ferramenta válida (a que seria executada), seguindo o
-cabeçalho de casos.yaml. Na fase 2 os casos de agenda só avaliam o classificador.
+cabeçalho de casos.yaml. Desde a fase 3 todos os casos avaliam classificador e agente.
 """
 
 import json
@@ -25,18 +25,19 @@ from app.agent.llm import GatewayLLM
 from app.agent.loop import run_agent
 from app.agent.service import build_prompt
 from app.agent.tools import ALL_TOOLS, ToolContext
+from app.agent.tools.pessoas import match_people
 from app.agent.tools.resolve import match_payment_methods, normalize
 from app.clock import TZ, fixed_clock
 from app.config import get_settings, provider_list
 from app.db.base import Base
-from app.db.models import PaymentMethod, PendingAction
+from app.db.models import PaymentMethod, PendingAction, Person
 from app.db.seed import seed_categories, seed_payment_methods
 
 pytestmark = pytest.mark.eval
 
 CASES_FILE = Path(__file__).parent / "casos.yaml"
 DEFAULT_TODAY = "2026-10-07"
-AGENT_SKIPPED_INTENTS = {"agenda", "pessoa"}  # ferramentas chegam na fase 3
+AGENT_SKIPPED_INTENTS: set[str] = set()  # desde a fase 3 todos os grupos têm ferramentas
 REPORT_DIR = Path("data/eval")
 
 
@@ -108,6 +109,9 @@ async def _setup(session: AsyncSession, case: dict[str, Any], now: datetime) -> 
     fx = DATA["fixtures"]
     await seed_categories(session, fx["categorias"])
     await seed_payment_methods(session, fx["meios_pagamento"])
+    session.add_all(
+        Person(name=p["name"], relation=p.get("relation")) for p in fx.get("pessoas") or []
+    )
     if pend := case.get("pendente"):
         session.add(
             PendingAction(
@@ -140,6 +144,10 @@ async def _check_call(session, case, name: str, args: dict[str, Any]) -> tuple[b
         got = args.get(key)
         if key == "payment_method" and isinstance(got, str):
             got = await _resolved_method(session, got, name)
+        if key == "person" and isinstance(got, str):
+            people = list((await session.scalars(select(Person))).all())
+            found = match_people(people, got)
+            got = found[0].name if len(found) == 1 else f"<{got}: {len(found)} opções>"
         if _norm(got) != _norm(want):
             return False, f"{key}={got!r}, esperado {want!r}"
     for key, piece in (espera.get("contem") or {}).items():

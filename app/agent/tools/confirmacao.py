@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import Field
 from sqlalchemy import select
 
+from app.agent.tools.agenda import CriarEventoArgs, delete_event, record_event
 from app.agent.tools.base import Tool, ToolArgs, ToolContext
 from app.agent.tools.gastos import LancarGastoArgs, record_expense
 from app.db.models import PendingAction
@@ -64,12 +65,24 @@ async def _exec_lancar_gasto(ctx: ToolContext, raw: dict[str, Any]) -> dict[str,
     return await record_expense(ctx, LancarGastoArgs.model_validate(raw))
 
 
-EXECUTORS = {"lancar_gasto": _exec_lancar_gasto}
+async def _exec_criar_evento(ctx: ToolContext, raw: dict[str, Any]) -> dict[str, Any]:
+    return await record_event(ctx, CriarEventoArgs.model_validate(raw))
+
+
+async def _exec_remover_evento(ctx: ToolContext, raw: dict[str, Any]) -> dict[str, Any]:
+    return await delete_event(ctx, uuid.UUID(raw["event_id"]))
+
+
+EXECUTORS = {
+    "lancar_gasto": _exec_lancar_gasto,
+    "criar_evento": _exec_criar_evento,
+    "remover_evento": _exec_remover_evento,
+}
 
 TOOLS = [
     Tool(
         "confirmar_pendente",
-        "confirmacao",
+        ("confirmacao",),
         "Confirma (decisao='sim') ou cancela (decisao='nao') a ação aguardando confirmação.",
         ConfirmarPendenteArgs,
         confirmar_pendente,

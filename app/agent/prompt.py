@@ -24,7 +24,9 @@ EXTRA_RULES = """Mais regras:
 - Crédito e débito do mesmo banco sem dizer qual: pergunte. Ex.: "no itaú" havendo Itaú Crédito e Itaú Débito.
 - Gasto sem meio de pagamento dito: pergunte qual meio, a não ser que só exista um.
 - "status": "aguardando_confirmacao": mostre o resumo e peça "sim" ou "não"; nada foi gravado ainda.
-- Você não envia mensagens a outras pessoas e não apaga dados em massa."""
+- Você não envia mensagens a outras pessoas e não apaga dados em massa.
+- Pergunta sobre a agenda ("quando é...", "o que tenho...") sempre passa por buscar_eventos, mesmo que a resposta pareça estar no histórico: o evento pode ter mudado.
+- Nunca mostre ids internos (event_id, pending_id) ao usuário."""
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,8 @@ def build_system_prompt(
     categories: list[str],
     owner_name: str = "Kaio",
     pending_summary: str | None = None,
+    upcoming: list[str] | None = None,
+    people: list[str] | None = None,
 ) -> str:
     local = now.astimezone(TZ)
     today = local.date()
@@ -108,6 +112,9 @@ def build_system_prompt(
         f"Meios de pagamento: {methods_text(methods)}.",
         f"Faturas:\n{open_statements_text(today, methods)}",
         f"Categorias: {', '.join(categories)}.",
+        "Agenda dos próximos 7 dias:\n"
+        + ("\n".join(f"- {u}" for u in upcoming) if upcoming else "- nada"),
+        f"Pessoas cadastradas: {', '.join(people) if people else 'nenhuma'}.",
     ]
     if pending_summary:
         parts.append(f"Aguardando confirmação do usuário: {pending_summary}")

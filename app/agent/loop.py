@@ -18,7 +18,6 @@ log = logging.getLogger(__name__)
 MAX_ITERATIONS = 6
 MAX_VALIDATION_FAILURES = 2
 GIVE_UP = "Não consegui entender. Pode reformular?"
-NOT_YET = "Agenda e pessoas chegam na próxima versão; por enquanto cuido só de gastos."
 
 # Respostas que afirmam ter gravado algo sem ter chamado ferramenta.
 _CLAIMS_WRITE = re.compile(r"\b(lancei|lançado|registrei|registrado|anotei|gravei|gravado)\b", re.I)
@@ -69,10 +68,6 @@ async def run_agent(
 ) -> AgentOutcome:
     """Roda o agente. Com stop_at_first_tool (prova), devolve a 1ª chamada válida sem executá-la."""
     outcome = AgentOutcome(reply=GIVE_UP)
-    if intent in ("agenda", "pessoa"):
-        outcome.reply = NOT_YET
-        return outcome
-
     tools = tools_for(intent) if intent != "fora_do_escopo" else []
     base_messages = [
         {"role": "system", "content": system_prompt},
@@ -210,8 +205,8 @@ async def _run_call(
 def _should_have_called_tool(intent: Intent, reply: str) -> bool:
     if intent == "consulta_gasto":
         return "?" not in reply  # responder valores sem consultar = inventar
-    if intent == "confirmacao":
-        return "?" not in reply
+    if intent in ("confirmacao", "agenda"):
+        return "?" not in reply  # agenda: responder sem consultar = dado possivelmente velho
     if intent == "gasto":
         return bool(_CLAIMS_WRITE.search(reply))
     return False

@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     allowed_providers: str = ""  # separados por vírgula; vazio = sem filtro
     reasoning_effort: str = ""  # vazio = padrão do modelo
 
+    # Google Calendar (espelho da agenda). JSON da service account em base64 (ou caminho).
+    google_service_account_json: SecretStr = SecretStr("")
+    google_service_account_file: str = ""
+    google_calendar_id: str = ""
+
     tz: str = "America/Sao_Paulo"
     log_level: str = "INFO"
 

@@ -14,6 +14,7 @@ from app.config import Settings, get_settings, provider_list
 from app.db.base import make_engine, make_sessionmaker
 from app.db.repo import register_incoming
 from app.handler import BOT_MARK, Deps, Sender, handle_incoming
+from app.integrations.gcal import CalendarClient, calendar_from_settings, sync_pending
 from app.security import is_owner, secret_matches
 
 log = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def create_app(
     sender: Sender | None = None,
     llm: LLM | None = None,
     clock: Clock = system_clock,
+    calendar: CalendarClient | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level)
@@ -48,6 +50,14 @@ def create_app(
                 reasoning_effort=settings.reasoning_effort,
             )
             app.state.llm = gateway
+        if app.state.calendar is None:
+            app.state.calendar = calendar_from_settings(settings)
+        if app.state.calendar is not None:
+            log.info("Google Calendar configurado; sincronizando pendências")
+            try:
+                await sync_pending(app.state.sessions, app.state.calendar)
+            except Exception:
+                log.exception("sync inicial com o Google Calendar falhou")
         yield
         if client:
             await client.aclose()
@@ -60,6 +70,7 @@ def create_app(
     app.state.sessions = sessions
     app.state.sender = sender
     app.state.llm = llm
+    app.state.calendar = calendar
     models = Models(
         classifier=settings.model_classifier or settings.model_primary,
         primary=settings.model_primary,
@@ -123,6 +134,7 @@ def create_app(
             models=models,
             self_chat_mode=settings.self_chat_mode,
             clock=clock,
+            calendar=request.app.state.calendar,
         )
         background.add_task(handle_incoming, msg, message_id, deps)
         return {"status": "accepted"}

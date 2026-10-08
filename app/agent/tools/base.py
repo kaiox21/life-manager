@@ -44,7 +44,7 @@ ToolFn = Callable[[ToolContext, Any], Awaitable[dict[str, Any]]]
 @dataclass(frozen=True)
 class Tool:
     name: str
-    group: Group
+    groups: tuple[Group, ...]
     description: str
     args_model: type[ToolArgs]
     fn: ToolFn = field(repr=False)

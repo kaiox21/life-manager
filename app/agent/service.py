@@ -3,6 +3,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -13,10 +14,11 @@ from app.agent.llm import LLM
 from app.agent.loop import AgentOutcome, run_agent
 from app.agent.prompt import MethodInfo, build_system_prompt
 from app.agent.tools import ToolContext
+from app.agent.tools.agenda import BuscarEventosArgs, buscar_eventos
 from app.agent.tools.confirmacao import ConfirmarPendenteArgs, confirmar_pendente, open_pending
 from app.agent.tools.resolve import normalize
-from app.clock import Clock
-from app.db.models import AgentRun, Category, Message, PaymentMethod
+from app.clock import Clock, today
+from app.db.models import AgentRun, Category, Message, PaymentMethod, Person
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +67,24 @@ async def build_prompt(ctx: ToolContext, pending_summary: str | None) -> str:
     categories = list(
         (await ctx.session.scalars(select(Category.name).order_by(Category.name))).all()
     )
-    return build_system_prompt(ctx.clock(), methods, categories, pending_summary=pending_summary)
+    people = [
+        f"{p.name} ({p.relation})" if p.relation else p.name
+        for p in await ctx.session.scalars(select(Person).order_by(Person.name))
+    ]
+    hoje = today(ctx.clock)
+    week = await buscar_eventos(ctx, BuscarEventosArgs(de=hoje, ate=hoje + timedelta(days=7)))
+    upcoming = [
+        f"{e['data']} {e['hora']}: {e['titulo']}" + (f" ({e['pessoa']})" if "pessoa" in e else "")
+        for e in week["eventos"]
+    ]
+    return build_system_prompt(
+        ctx.clock(),
+        methods,
+        categories,
+        pending_summary=pending_summary,
+        upcoming=upcoming,
+        people=people,
+    )
 
 
 def _direct_reply(result: dict[str, Any]) -> str:
