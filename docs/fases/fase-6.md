@@ -4,7 +4,7 @@ Status: **em implementação** (08/10/2026). Plano aprovado em 08/10/2026 ("segu
 
 Padrões enquanto as dúvidas não forem respondidas:
 - servidor: Oracle, com Hetzner como plano B;
-- backup: via `rclone` (serve para R2, B2 ou Google Drive; o destino é configurado na hora);
+- backup: **Google Drive** via `rclone` (escolha do Kaio em 08/10/2026; `BACKUP_DEST=gdrive:life-manager-backup`);
 - alerta: ntfy.
 
 Objetivo (do `SPEC.md`): deploy no VPS, backup, logs e alerta quando a instância da Evolution desconectar (`CONNECTION_UPDATE`).
@@ -105,3 +105,12 @@ tests/unit/
    - **ntfy** (recomendado): app de notificação no celular, grátis, um POST simples, tópico secreto.
    - Bot do Telegram.
    - E-mail.
+
+## Andamento (08/10/2026)
+
+- Código e scripts prontos (commit `740f83b`).
+- Conta Oracle criada; chave SSH do Kaio gerada (com senha) em `~/.ssh/id_ed25519`.
+- Bloqueio atual: a conta Oracle está em "provisioning"; antes disso, a primeira tentativa deu "Out of capacity" para A1.Flex 4/24 em AD-1.
+  - Plano: tentar 1 OCPU / 6 GB quando liberar; persistindo, Hetzner.
+  - A criação inline da rede não deixou marcar o IP público: adicionar um IP efêmero depois de criar a VM.
+- Enquanto isso, o Kaio pediu para começar o Jarvis (fase 7); a fase 6 fica aberta até o aceite.
