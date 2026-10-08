@@ -86,7 +86,9 @@ async def inherited_source(session: AsyncSession, exclude_id: uuid.UUID | None) 
     return "texto"
 
 
-async def build_prompt(ctx: ToolContext, pending_summary: str | None) -> str:
+async def build_prompt(
+    ctx: ToolContext, pending_summary: str | None, data_only: bool = False
+) -> str:
     methods = [
         MethodInfo(pm.name, pm.kind, pm.closing_day, pm.due_day)
         for pm in (
@@ -117,6 +119,7 @@ async def build_prompt(ctx: ToolContext, pending_summary: str | None) -> str:
         pending_summary=pending_summary,
         upcoming=upcoming,
         people=people,
+        data_only=data_only,
     )
 
 

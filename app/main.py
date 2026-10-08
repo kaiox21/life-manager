@@ -1,10 +1,12 @@
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.llm import LLM, GatewayLLM
@@ -18,6 +20,7 @@ from app.db.repo import register_incoming
 from app.handler import BOT_MARK, Deps, Sender, handle_incoming
 from app.integrations.gcal import CalendarClient, calendar_from_settings, sync_pending
 from app.integrations.transcribe import FasterWhisper, Transcriber
+from app.mcp_server import build_mcp, mcp_http_app
 from app.scheduler import build_scheduler
 from app.security import is_owner, secret_matches
 
@@ -87,7 +90,10 @@ def create_app(
                 healthcheck_url=settings.healthcheck_url,
             )
             scheduler.start()
-        yield
+        async with contextlib.AsyncExitStack() as stack:
+            if app.state.mcp is not None:
+                await stack.enter_async_context(app.state.mcp.session_manager.run())
+            yield
         if scheduler:
             scheduler.shutdown(wait=False)
         if client:
@@ -97,7 +103,31 @@ def create_app(
         if engine:
             await engine.dispose()
 
+    mcp = None
+    if settings.mcp_token.get_secret_value():
+
+        async def after_write() -> None:
+            if app.state.calendar is not None:
+                await sync_pending(app.state.sessions, app.state.calendar)
+
+        mcp = build_mcp(
+            get_sessions=lambda: app.state.sessions, clock=clock, after_write=after_write
+        )
+
     app = FastAPI(title="life-manager", lifespan=lifespan)
+    if mcp is not None:
+        app.mount("/mcp", mcp_http_app(mcp, provider_list(settings.mcp_allowed_hosts)))
+        mcp_token = settings.mcp_token.get_secret_value()
+
+        @app.middleware("http")
+        async def mcp_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
+            if request.url.path.startswith("/mcp"):
+                auth = request.headers.get("authorization", "")
+                if not secret_matches(auth.removeprefix("Bearer ").strip(), mcp_token):
+                    return JSONResponse({"error": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+    app.state.mcp = mcp
     app.state.sessions = sessions
     app.state.sender = sender
     app.state.llm = llm

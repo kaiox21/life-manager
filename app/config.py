@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     alert_ntfy_token: SecretStr = SecretStr("")
     healthcheck_url: str = ""  # ex.: https://hc-ping.com/<uuid>
 
+    # Fase 7: ferramentas do núcleo por MCP em /mcp. Sem token, o MCP fica desligado.
+    mcp_token: SecretStr = SecretStr("")
+    # Hosts aceitos (proteção contra DNS rebinding); no VPS, acrescentar o nome/IP do Tailscale.
+    mcp_allowed_hosts: str = "127.0.0.1:*,localhost:*"
+
     tz: str = "America/Sao_Paulo"
     log_level: str = "INFO"
 

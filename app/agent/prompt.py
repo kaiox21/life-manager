@@ -104,12 +104,20 @@ def build_system_prompt(
     pending_summary: str | None = None,
     upcoming: list[str] | None = None,
     people: list[str] | None = None,
+    data_only: bool = False,
 ) -> str:
+    """data_only: só os dados (ferramenta `contexto` do MCP), sem persona nem regras."""
     local = now.astimezone(TZ)
     today = local.date()
-    parts = [
-        f"Você é o assistente pessoal de {owner_name} no WhatsApp. "
-        "Responde em português, curto e direto.",
+    parts = (
+        [
+            f"Você é o assistente pessoal de {owner_name} no WhatsApp. "
+            "Responde em português, curto e direto.",
+        ]
+        if not data_only
+        else []
+    )
+    parts += [
         f"Agora: {local:%d/%m/%Y %H:%M} (America/Sao_Paulo). Hoje é {WEEKDAYS[today.weekday()]}.",
         f"Datas:\n{date_table(today)}",
         f"Meios de pagamento: {methods_text(methods)}.",
@@ -121,5 +129,6 @@ def build_system_prompt(
     ]
     if pending_summary:
         parts.append(f"Aguardando confirmação do usuário: {pending_summary}")
-    parts += [RULES, EXTRA_RULES]
+    if not data_only:
+        parts += [RULES, EXTRA_RULES]
     return "\n\n".join(parts)
