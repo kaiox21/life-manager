@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,9 +16,15 @@ from app.db.base import make_engine, make_sessionmaker
 from app.db.repo import register_incoming
 from app.handler import BOT_MARK, Deps, Sender, handle_incoming
 from app.integrations.gcal import CalendarClient, calendar_from_settings, sync_pending
+from app.integrations.transcribe import FasterWhisper, Transcriber
 from app.security import is_owner, secret_matches
 
 log = logging.getLogger(__name__)
+
+
+def _log_task_error(task: asyncio.Task[None]) -> None:
+    if not task.cancelled() and task.exception():
+        log.error("tarefa em segundo plano falhou: %r", task.exception())
 
 
 def create_app(
@@ -27,6 +34,7 @@ def create_app(
     llm: LLM | None = None,
     clock: Clock = system_clock,
     calendar: CalendarClient | None = None,
+    transcriber: Transcriber | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level)
@@ -50,6 +58,12 @@ def create_app(
                 reasoning_effort=settings.reasoning_effort,
             )
             app.state.llm = gateway
+        if app.state.transcriber is None and settings.transcribe_backend == "faster-whisper":
+            whisper = FasterWhisper(settings.whisper_model, settings.whisper_cache_dir)
+            app.state.transcriber = whisper
+            # Carrega o modelo em segundo plano para o 1º áudio não esperar.
+            warmup = asyncio.create_task(whisper.warmup())
+            warmup.add_done_callback(_log_task_error)
         if app.state.calendar is None:
             app.state.calendar = calendar_from_settings(settings)
         if app.state.calendar is not None:
@@ -71,6 +85,7 @@ def create_app(
     app.state.sender = sender
     app.state.llm = llm
     app.state.calendar = calendar
+    app.state.transcriber = transcriber
     models = Models(
         classifier=settings.model_classifier or settings.model_primary,
         primary=settings.model_primary,
@@ -117,7 +132,7 @@ def create_app(
         if not is_owner(msg.sender, settings.owner_phone):
             log.info("remetente fora da allowlist ignorado (%s)", msg.wa_message_id)
             return {"status": "ignored", "reason": "not_owner"}
-        if msg.type != "text":
+        if msg.type not in ("text", "audio", "image"):
             return {"status": "ignored", "reason": "unsupported_type"}
 
         sessions: async_sessionmaker[AsyncSession] = request.app.state.sessions
@@ -135,6 +150,7 @@ def create_app(
             self_chat_mode=settings.self_chat_mode,
             clock=clock,
             calendar=request.app.state.calendar,
+            transcriber=request.app.state.transcriber,
         )
         background.add_task(handle_incoming, msg, message_id, deps)
         return {"status": "accepted"}

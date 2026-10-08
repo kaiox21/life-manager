@@ -31,7 +31,7 @@ def test_outros_numeros_barrados(numero):
         ("text_group.json", "group_or_broadcast"),
         ("status_broadcast.json", "group_or_broadcast"),
         ("text_from_me.json", "from_me"),
-        ("audio_owner.json", "unsupported_type"),
+        ("video_owner.json", "unsupported_type"),
         ("connection_update.json", "not_a_message"),
     ],
 )

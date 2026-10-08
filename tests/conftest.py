@@ -19,7 +19,7 @@ from app.db import models  # noqa: F401  (registra as tabelas)
 from app.db.base import Base
 from app.db.models import Person
 from app.db.seed import seed_categories, seed_payment_methods
-from app.types import OutgoingMessage
+from app.types import Media, OutgoingMessage
 
 FIXTURES = Path(__file__).parent / "fixtures"
 OWNER = "5561999998888"
@@ -45,12 +45,18 @@ def settings() -> Settings:
 
 
 class FakeSender:
-    def __init__(self) -> None:
+    def __init__(self, media_b64: str | None = None) -> None:
         self.sent: list[OutgoingMessage] = []
+        self.media_b64 = media_b64
+        self.fetched: list[Media] = []
 
     async def send_text(self, out: OutgoingMessage) -> str | None:
         self.sent.append(out)
         return f"BOT{len(self.sent):04d}"
+
+    async def fetch_media(self, media: Media) -> str | None:
+        self.fetched.append(media)
+        return self.media_b64
 
 
 @pytest.fixture

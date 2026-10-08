@@ -81,6 +81,8 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
     env_file: .env
+    volumes:
+      - whisper_models:/data/whisper  # modelo do faster-whisper (baixa uma vez)
     ports:
       - "127.0.0.1:8000:8000"  # só /health em dev
     healthcheck:
@@ -110,6 +112,7 @@ configs:
       CREATE DATABASE evolution;
 
 volumes:
+  whisper_models:
   evolution_instances:
   postgres_data:
   redis_data:

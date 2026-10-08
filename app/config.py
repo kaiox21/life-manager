@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     google_service_account_file: str = ""
     google_calendar_id: str = ""
 
+    # Transcrição (fase 4): faster-whisper local
+    transcribe_backend: str = "faster-whisper"
+    whisper_model: str = "small"
+    whisper_cache_dir: str = "/data/whisper"
+
     tz: str = "America/Sao_Paulo"
     log_level: str = "INFO"
 

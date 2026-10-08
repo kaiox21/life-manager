@@ -1,5 +1,6 @@
 """Pessoas citadas ("minha irmã", "meu chefe") e a ferramenta gerenciar_pessoa."""
 
+import re
 from typing import Any
 
 from pydantic import Field
@@ -14,7 +15,8 @@ _POSSESSIVES = ("minha ", "meu ", "da minha ", "do meu ", "a minha ", "o meu ", 
 
 
 def _strip_possessive(text: str) -> str:
-    t = normalize(text)
+    # "Carlos (chefe)" -> "carlos": o prompt lista as pessoas assim e o modelo às vezes copia.
+    t = normalize(re.sub(r"\s*\(.*?\)", "", text))
     for prefix in sorted(_POSSESSIVES, key=len, reverse=True):
         if t.startswith(prefix):
             return t[len(prefix) :].strip()

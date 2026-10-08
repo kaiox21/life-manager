@@ -8,7 +8,7 @@ import httpx
 
 from app.config import Settings
 from app.security import is_owner, normalize_phone
-from app.types import IncomingMessage, MessageType, OutgoingMessage
+from app.types import IncomingMessage, Media, MessageType, OutgoingMessage
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +33,24 @@ def _extract_text(message: dict[str, Any]) -> tuple[MessageType, str | None]:
     if "imageMessage" in message:
         return "image", (message["imageMessage"] or {}).get("caption")
     return "other", None
+
+
+def _extract_media(key: dict[str, Any], message: dict[str, Any]) -> Media | None:
+    for field_name, default_mime in (("audioMessage", "audio/ogg"), ("imageMessage", "image/jpeg")):
+        if field_name not in message:
+            continue
+        info = message[field_name] or {}
+        try:
+            seconds = int(info.get("seconds"))
+        except (TypeError, ValueError):
+            seconds = None
+        return Media(
+            mimetype=(info.get("mimetype") or default_mime).split(";")[0].strip(),
+            data_b64=message.get("base64") or None,
+            seconds=seconds,
+            ref={"key": key, "message": {k: v for k, v in message.items() if k != "base64"}},
+        )
+    return None
 
 
 def _parse_timestamp(raw: Any) -> datetime | None:
@@ -64,7 +82,8 @@ def parse_webhook(payload: dict[str, Any]) -> IncomingMessage | None:
         "status@"
     )
     sender_jid = (key.get("participant") or chat_jid) if is_group else chat_jid
-    msg_type, text = _extract_text(data.get("message") or {})
+    message = data.get("message") or {}
+    msg_type, text = _extract_text(message)
 
     return IncomingMessage(
         wa_message_id=wa_id,
@@ -76,6 +95,7 @@ def parse_webhook(payload: dict[str, Any]) -> IncomingMessage | None:
         type=msg_type,
         text=text,
         sent_at=_parse_timestamp(data.get("messageTimestamp")),
+        media=_extract_media(key, message) if msg_type in ("audio", "image") else None,
     )
 
 
@@ -101,6 +121,18 @@ class EvolutionClient:
         )
         resp.raise_for_status()
         return (resp.json().get("key") or {}).get("id")
+
+    async def fetch_media(self, media: Media) -> str | None:
+        """Baixa de novo o arquivo de uma mensagem (quando o webhook veio sem base64)."""
+        if not media.ref:
+            return None
+        resp = await self._http.post(
+            self._url(f"/chat/getBase64FromMediaMessage/{self._settings.evolution_instance}"),
+            headers=self._headers(),
+            json={"message": media.ref, "convertToMp4": False},
+        )
+        resp.raise_for_status()
+        return resp.json().get("base64") or None
 
     async def create_instance(self) -> dict[str, Any]:
         s = self._settings

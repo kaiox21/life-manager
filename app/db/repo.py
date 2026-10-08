@@ -17,7 +17,7 @@ async def register_incoming(session: AsyncSession, msg: IncomingMessage) -> uuid
             channel="whatsapp",
             direction="in",
             type=msg.type,
-            body=msg.text,
+            body=msg.text,  # áudio: preenchido depois com a transcrição
         )
         .on_conflict_do_nothing(index_elements=[Message.wa_message_id])
         .returning(Message.id)

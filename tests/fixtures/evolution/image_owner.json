@@ -1,0 +1,29 @@
+{
+  "event": "messages.upsert",
+  "instance": "assistente",
+  "data": {
+    "key": {
+      "remoteJid": "5561999998888@s.whatsapp.net",
+      "fromMe": false,
+      "id": "3EB0A1B2C3D4E5F60020"
+    },
+    "pushName": "Kaio",
+    "status": "DELIVERY_ACK",
+    "message": {
+      "imageMessage": {
+        "mimetype": "image/png",
+        "caption": ""
+      },
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP4z8DwHwAFAAIBpfXI0QAAAABJRU5ErkJggg=="
+    },
+    "messageType": "imageMessage",
+    "messageTimestamp": 1791374400,
+    "instanceId": "00000000-0000-0000-0000-000000000000",
+    "source": "android"
+  },
+  "destination": "http://app:8000/webhook/evolution",
+  "date_time": "2026-10-07T10:00:00.000Z",
+  "sender": "5561900001111@s.whatsapp.net",
+  "server_url": "http://localhost:8080",
+  "apikey": "FAKE-INSTANCE-TOKEN"
+}

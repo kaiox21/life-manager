@@ -1,10 +1,19 @@
 """Tipos próprios do canal. O resto do código nunca vê o formato da Evolution API."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 MessageType = Literal["text", "audio", "image", "other"]
+
+
+@dataclass(frozen=True, slots=True)
+class Media:
+    mimetype: str
+    data_b64: str | None  # None quando o webhook não trouxe o arquivo
+    seconds: int | None = None  # duração do áudio
+    # Referência opaca para o canal baixar o arquivo de novo, se data_b64 faltar.
+    ref: dict[str, Any] = field(default_factory=dict, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +27,7 @@ class IncomingMessage:
     type: MessageType
     text: str | None
     sent_at: datetime | None
+    media: Media | None = None
 
 
 @dataclass(frozen=True, slots=True)

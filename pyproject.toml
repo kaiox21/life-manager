@@ -5,7 +5,9 @@ description = "Assistente pessoal de agenda e gastos (WhatsApp + Jarvis)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.13",
+    "av>=15,<17",
     "fastapi>=0.115",
+    "faster-whisper>=1.2.1",
     "google-api-python-client>=2.201.0",
     "google-auth>=2.61.0",
     "httpx>=0.27",
@@ -45,8 +47,9 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 markers = [
     "eval: prova contra o modelo real (custa dinheiro, precisa de AI_GATEWAY_API_KEY)",
+    "whisper: transcrição real com faster-whisper (baixa o modelo; só no macOS, usa `say`)",
 ]
-addopts = "-m 'not eval'"
+addopts = "-m 'not eval and not whisper'"
 
 [tool.ruff.lint.per-file-ignores]
 # Texto do prompt copiado do SPEC.md; quebrar as linhas mudaria o prompt.

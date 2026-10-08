@@ -15,7 +15,8 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY alembic.ini ./
 COPY app ./app
 
-RUN useradd --create-home --uid 1000 appuser
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /data/whisper && chown -R appuser /data
 USER appuser
 
 EXPOSE 8000

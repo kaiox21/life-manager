@@ -65,6 +65,7 @@ async def run_agent(
     primary_model: str,
     escalation_model: str,
     stop_at_first_tool: bool = False,
+    user_content: str | list[dict[str, Any]] | None = None,
 ) -> AgentOutcome:
     """Roda o agente. Com stop_at_first_tool (prova), devolve a 1ª chamada válida sem executá-la."""
     outcome = AgentOutcome(reply=GIVE_UP)
@@ -72,7 +73,7 @@ async def run_agent(
     base_messages = [
         {"role": "system", "content": system_prompt},
         *history,
-        {"role": "user", "content": text},
+        {"role": "user", "content": user_content if user_content is not None else text},
     ]
     for model in (primary_model, escalation_model):
         outcome.escalated = model != primary_model

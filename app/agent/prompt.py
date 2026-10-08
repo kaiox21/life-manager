@@ -26,7 +26,10 @@ EXTRA_RULES = """Mais regras:
 - "status": "aguardando_confirmacao": mostre o resumo e peça "sim" ou "não"; nada foi gravado ainda.
 - Você não envia mensagens a outras pessoas e não apaga dados em massa.
 - Pergunta sobre a agenda ("quando é...", "o que tenho...") sempre passa por buscar_eventos, mesmo que a resposta pareça estar no histórico: o evento pode ter mudado.
-- Nunca mostre ids internos (event_id, pending_id) ao usuário."""
+- Nunca mostre ids internos (event_id, pending_id) ao usuário.
+- Não pergunte o que dá para deduzir: a categoria você escolhe pela descrição; gasto sem data é de hoje. Pergunte só o que falta de verdade (valor, meio de pagamento ambíguo).
+- Aniversário ou evento de alguém que não está em "Pessoas cadastradas": pergunte o nome antes de criar; nunca crie sem a pessoa.
+- Foto de recibo, cupom fiscal ou comprovante de Pix: leia estabelecimento (merchant), valor TOTAL pago, data da compra (spent_on) e, se aparecer, o meio de pagamento; escolha a categoria. Se o meio não estiver claro, pergunte qual dos cadastrados usar antes de lançar. Depois chame lancar_gasto: o sistema pede confirmação ao usuário. Imagem que não é recibo: diga que só leio recibos e comprovantes."""
 
 
 @dataclass(frozen=True)

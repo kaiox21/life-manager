@@ -191,7 +191,9 @@ O LLM só toca o banco através destas funções; não há SQL livre. Cada uma v
 
 **Fluxo de confirmação.** Ferramentas que exigem confirmação não gravam: criam um `pending_actions` e devolvem o resumo. A próxima mensagem "sim"/"não" é tratada por `confirmar_pendente`. Pendências expiram em 30 minutos.
 
-**Recibo.** A foto vai ao modelo como imagem (o modelo escolhido precisa aceitar imagem). O modelo extrai os campos e chama `lancar_gasto` com `source='foto'`, o que dispara a confirmação.
+**Recibo.** A foto vai ao modelo como imagem (o modelo escolhido precisa aceitar imagem). O modelo extrai os campos e chama `lancar_gasto` com `source='foto'`, o que dispara a confirmação. Print de comprovante de Pix vale como recibo. Se o bot precisar perguntar algo (ex.: qual cartão), a resposta do usuário herda `source` da foto ou do áudio, e a confirmação continua obrigatória.
+
+**Mídia não é guardada.** Fotos e áudios são processados em memória e descartados; ficam só a transcrição e o que foi lido do recibo (`messages.media_path` fica vazio). Decidido em 08/10/2026.
 
 ## Prompt de sistema e regras do agente
 
@@ -392,7 +394,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Ajustar as frases dos 54 casos ao jeito real de falar (bloqueia fase 2)
 - [ ] Escolher `MODEL_PRIMARY` e `MODEL_ESCALATION` pelo placar da prova (fase 2)
 - [x] Calendário do Google que recebe o espelho: **principal** (decidido em 08/10/2026), com os avisos do Google desligados nos eventos do bot (`reminders.useDefault=false`); quem avisa é o bot (fase 5)
-- [ ] Serviço de transcrição no VPS (fase 4)
+- [x] Serviço de transcrição: **`faster-whisper` local** (modelo `small`, int8), no Mac e no VPS (decidido em 08/10/2026)
 - [ ] Cinco primeiras ações do Jarvis além de agenda e gastos (fase 8)
   - Pedido de 08/10/2026: acompanhar as sessões do Claude Code abertas nos terminais (ver o estado e ser avisado quando uma sessão termina ou espera resposta). Só leitura e avisos; sem enviar comandos. Exige mudar a regra "nenhuma ferramenta executa shell" só para ferramentas locais do Jarvis.
 

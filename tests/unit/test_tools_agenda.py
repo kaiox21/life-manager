@@ -67,6 +67,11 @@ def test_dia_inteiro_normaliza_para_meia_noite():
     assert args.starts_at == datetime(2026, 10, 31, 0, tzinfo=TZ)
 
 
+async def test_pessoa_copiada_do_prompt_com_relacao(ctx):
+    out = await criar_evento(ctx, evento(person="Carlos (chefe)", title="Reunião"))
+    assert out["evento"]["pessoa"] == "Carlos"
+
+
 async def test_pessoa_nao_cadastrada_pede_nome(ctx):
     with pytest.raises(ToolError) as err:
         await criar_evento(ctx, evento(kind="aniversario", person="minha mãe"))

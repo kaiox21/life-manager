@@ -141,7 +141,7 @@ tests/
 
 Rodada de 08/10, antes do último ajuste de prompt; custo US$ 0,04; ~40 s por caso.
 
-A rodada depois do ajuste caiu por falha de conexão a partir do 9º caso (instabilidade de rede no Mac; o gateway e o saldo estavam ok). Está sendo refeita, e o placar entra aqui quando terminar.
+A rodada depois do ajuste caiu por falha de conexão a partir do 9º caso (instabilidade de rede no Mac; o gateway e o saldo estavam ok). Refeita: 49/56 (88%); as falhas levaram às correções da fase 4 ("Carlos (chefe)" e perguntas desnecessárias). Depois delas: **53/56 (95%)** (ver `fase-4.md`).
 
 ## Desvios
 
