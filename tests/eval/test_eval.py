@@ -164,46 +164,66 @@ async def test_caso(case: dict[str, Any], llm: GatewayLLM, eval_sessions) -> Non
         async with session.begin():
             await _setup(session, case, now)
         ctx = ToolContext(session=session, clock=fixed_clock(now))
-        async with session.begin():
-            cls = await classify(
-                llm, s.model_classifier or s.model_primary, case["msg"], history, pending_summary
-            )
-            result = Result(
-                id=case["id"],
-                group=case["intent"],
-                intent_ok=cls.intent == case["intent"],
-                agent_ok=None,
-                got_intent=cls.intent,
-                got="—",
-                cost=cls.cost_usd,
-            )
-            if case["intent"] not in AGENT_SKIPPED_INTENTS:
-                out = await run_agent(
-                    llm=llm,
-                    ctx=ctx,
-                    intent=cls.intent,
-                    system_prompt=await build_prompt(ctx, pending_summary),
-                    history=history,
-                    text=case["msg"],
-                    primary_model=s.model_primary,
-                    escalation_model=s.model_escalation or s.model_primary,
-                    stop_at_first_tool=True,
-                )
-                result.cost += out.cost_usd
-                result.escalated = out.escalated
-                result.agent_ok, result.got, result.detail = await _judge(session, case, out)
+        try:
+            await _run_case(session, ctx, case, llm, s, history, pending_summary, hoje)
+        except Exception as exc:  # noqa: BLE001 - erro do fornecedor conta como falha no placar
             await session.rollback()
-    BOARD.results.append(result)
-
+            detail = f"erro do fornecedor: {exc.__class__.__name__}: {str(exc)[:120]}"
+            BOARD.results.append(
+                Result(
+                    id=case["id"],
+                    group=case["intent"],
+                    intent_ok=False,
+                    agent_ok=False,
+                    got_intent="?",
+                    got="—",
+                    detail=detail,
+                )
+            )
+            pytest.fail(detail)
+    result = BOARD.results[-1]
     problems = []
     if not result.intent_ok:
-        problems.append(f"intenção {cls.intent!r} (raw {cls.raw!r}), esperado {case['intent']!r}")
+        problems.append(f"intenção {result.got_intent!r}, esperado {case['intent']!r}")
     if result.agent_ok is False:
         problems.append(result.detail)
     assert not problems, " | ".join(problems)
 
 
-async def _judge(session, case, out) -> tuple[bool, str, str]:
+async def _run_case(session, ctx, case, llm, s, history, pending_summary, hoje) -> None:
+    async with session.begin():
+        cls = await classify(
+            llm, s.model_classifier or s.model_primary, case["msg"], history, pending_summary
+        )
+        result = Result(
+            id=case["id"],
+            group=case["intent"],
+            intent_ok=cls.intent == case["intent"],
+            agent_ok=None,
+            got_intent=cls.intent,
+            got="—",
+            cost=cls.cost_usd,
+        )
+        if case["intent"] not in AGENT_SKIPPED_INTENTS:
+            out = await run_agent(
+                llm=llm,
+                ctx=ctx,
+                intent=cls.intent,
+                system_prompt=await build_prompt(ctx, pending_summary),
+                history=history,
+                text=case["msg"],
+                primary_model=s.model_primary,
+                escalation_model=s.model_escalation or s.model_primary,
+                stop_at_first_tool=True,
+            )
+            result.cost += out.cost_usd
+            result.escalated = out.escalated
+            result.agent_ok, result.got, result.detail = await _judge(session, case, out, hoje)
+        await session.rollback()
+    BOARD.results.append(result)
+
+
+async def _judge(session, case, out, hoje: date) -> tuple[bool, str, str]:
     espera = case["espera"]
     first = out.first_call
     got = (
@@ -222,6 +242,8 @@ async def _judge(session, case, out) -> tuple[bool, str, str]:
     if not first:
         return False, got, f"não chamou {espera['tool']}"
     validated = ALL_TOOLS[first.name].args_model.model_validate(first.args).model_dump(mode="json")
+    if first.name == "lancar_gasto" and validated.get("spent_on") is None:
+        validated["spent_on"] = hoje.isoformat()  # omitido = hoje, como a ferramenta faz
     ok, why = await _check_call(session, case, first.name, validated)
     return ok, got, why
 

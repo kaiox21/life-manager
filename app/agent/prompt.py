@@ -42,7 +42,7 @@ def _day(d: date) -> str:
 def date_table(today: date) -> str:
     lines = [f"- hoje: {_day(today)}", f"- ontem: {_day(today - timedelta(days=1))}"]
     lines.append(f"- amanhã: {_day(today + timedelta(days=1))}")
-    lines.append("- últimos 7 dias:")
+    lines.append("- dias anteriores:")
     lines += [f"  - {_day(today - timedelta(days=i))}" for i in range(7, 1, -1)]
     lines.append("- próximos 7 dias:")
     lines += [f"  - {_day(today + timedelta(days=i))}" for i in range(2, 9)]
@@ -52,6 +52,7 @@ def date_table(today: date) -> str:
     next_monday = today + timedelta(days=7 - today.weekday())
     this_monday = today - timedelta(days=today.weekday())
     lines += [
+        f"- últimos 7 dias (incluindo hoje): {(today - timedelta(days=6)).isoformat()} a {today.isoformat()}",
         f"- este mês até hoje: {month_start.isoformat()} a {today.isoformat()}",
         f"- mês passado: {prev_end.replace(day=1).isoformat()} a {prev_end.isoformat()}",
         f"- esta semana: {this_monday.isoformat()} a {(this_monday + timedelta(days=6)).isoformat()}",

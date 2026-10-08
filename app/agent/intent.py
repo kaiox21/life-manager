@@ -14,7 +14,7 @@ INTENTS: tuple[str, ...] = get_args(Intent)
 PROMPT = """Classifique a última mensagem do usuário para um assistente pessoal de agenda e gastos.
 Chame a função classificar com uma destas intenções:
 - gasto: lançar, corrigir ou desfazer um gasto; cadastrar cartão/meio de pagamento. Ex.: "uber 23 pix", "desfaz", "lança 30".
-- consulta_gasto: perguntar sobre gastos, totais, faturas. Ex.: "quanto tá a fatura do nubank?", "e no itaú?" (depois de falar de fatura).
+- consulta_gasto: perguntar sobre gastos, totais, faturas. Toda pergunta "quanto gastei...?" é consulta. Ex.: "quanto tá a fatura do nubank?", "quanto gastei com mercado esse mês?", "e no itaú?" (depois de falar de fatura).
 - agenda: compromissos, provas, aniversários, prazos, lembretes; criar, buscar, mudar ou cancelar. Ex.: "dentista sexta 14h", "o que tenho amanhã?".
 - pessoa: cadastrar ou corrigir dados de uma pessoa ("minha mãe se chama Ana").
 - confirmacao: resposta sim/não a algo que o assistente pediu para confirmar.
