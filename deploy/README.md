@@ -21,7 +21,7 @@ Guarde uma cópia num lugar seguro (ex.: gerenciador de senhas): sem ela, os bac
 2. Faça o **upgrade para Pay As You Go** (continua grátis dentro da cota; evita a VM ser recolhida por ociosidade).
 3. *Compute → Instances → Create instance*:
    - imagem **Canonical Ubuntu 24.04**;
-   - shape **VM.Standard.A1.Flex** (Ampere), **2–4 OCPU, 12–24 GB**;
+   - shape **VM.Standard.A1.Flex** (Ampere), **no máximo 2 OCPU e 12 GB** (cota Always Free desde 15/06/2026; acima disso, conta Pay As You Go é cobrada);
    - em *Add SSH keys*, cole a sua `id_ed25519.pub`.
 4. Se aparecer "Out of capacity", tente outro *availability domain* ou mais tarde.
    Persistindo: **Hetzner** CAX11 (ARM, Ubuntu 24.04), com os mesmos passos daqui para frente.

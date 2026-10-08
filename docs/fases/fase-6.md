@@ -1,6 +1,6 @@
 # Fase 6 — Endurecimento e deploy
 
-Status: **em implementação** (08/10/2026). Plano aprovado em 08/10/2026 ("segue a fase 6").
+Status: **pausada** (08/10/2026). Decisão do Kaio: o bot fica no Mac por enquanto; o deploy num VPS fica para depois (a Oracle está sem capacidade ARM em São Paulo). O código, os scripts e o backup testado continuam valendo para quando for retomada. Plano aprovado em 08/10/2026 ("segue a fase 6").
 
 Padrões enquanto as dúvidas não forem respondidas:
 - servidor: Oracle, com Hetzner como plano B;
@@ -74,7 +74,9 @@ tests/unit/
    - A sessão do WhatsApp: escaneio o QR de novo no VPS (mais simples e seguro do que copiar a sessão).
    - Ordem e checklist no `deploy/README.md`.
 8. **Firewall**: security list da Oracle e `iptables`/`ufw` só com a porta 22; SSH só com chave, sem senha.
-9. **Whisper no VPS**: o modelo `small` baixa uma vez no volume. O VPS ARM tem CPU suficiente (4 OCPU / 24 GB na cota gratuita).
+9. **Whisper no VPS**: o modelo `small` baixa uma vez no volume. O VPS ARM tem CPU suficiente.
+   - Correção de 08/10/2026: desde 15/06/2026 a cota grátis é **2 OCPU / 12 GB**, não 4/24.
+   - Com a conta paga, passar disso gera cobrança: criar com no máximo 2/12.
 10. **Hetzner como plano B** (do `SPEC.md`): se a Oracle não tiver capacidade ARM em São Paulo, os scripts são os mesmos (CAX11, ARM, ~€4/mês). Só muda o `bootstrap.sh` do firewall.
 
 ## Testes
