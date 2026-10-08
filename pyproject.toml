@@ -5,6 +5,7 @@ description = "Assistente pessoal de agenda e gastos (WhatsApp + Jarvis)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.13",
+    "apscheduler>=3.10,<4",
     "av>=15,<17",
     "fastapi>=0.115",
     "faster-whisper>=1.2.1",

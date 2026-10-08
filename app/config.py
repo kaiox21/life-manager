@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     whisper_model: str = "small"
     whisper_cache_dir: str = "/data/whisper"
 
+    scheduler_enabled: bool = True  # lembretes proativos (fase 5)
+
     tz: str = "America/Sao_Paulo"
     log_level: str = "INFO"
 

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -185,3 +186,25 @@ class Event(Base):
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SentReminder(Base):
+    """Aviso já enviado (ou reservado para envio). A chave única impede reenvio."""
+
+    __tablename__ = "sent_reminders"
+    __table_args__ = (
+        UniqueConstraint(
+            "kind", "ref_id", "occurrence_at", "minutes_before", name="sent_reminders_once"
+        ),
+        CheckConstraint("kind in ('evento','resumo','fatura')", name="sent_reminders_kind_check"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    # Evento ou cartão; no resumo do dia usa-se um UUID fixo (NULL quebraria a chave única).
+    ref_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    occurrence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    minutes_before: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

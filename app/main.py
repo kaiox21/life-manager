@@ -17,6 +17,7 @@ from app.db.repo import register_incoming
 from app.handler import BOT_MARK, Deps, Sender, handle_incoming
 from app.integrations.gcal import CalendarClient, calendar_from_settings, sync_pending
 from app.integrations.transcribe import FasterWhisper, Transcriber
+from app.scheduler import build_scheduler
 from app.security import is_owner, secret_matches
 
 log = logging.getLogger(__name__)
@@ -72,7 +73,19 @@ def create_app(
                 await sync_pending(app.state.sessions, app.state.calendar)
             except Exception:
                 log.exception("sync inicial com o Google Calendar falhou")
+        scheduler = None
+        if settings.scheduler_enabled:
+            scheduler = build_scheduler(
+                sessions=app.state.sessions,
+                sender=app.state.sender,
+                owner_phone=settings.owner_phone,
+                clock=clock,
+                prefix=BOT_MARK if settings.self_chat_mode else "",
+            )
+            scheduler.start()
         yield
+        if scheduler:
+            scheduler.shutdown(wait=False)
         if client:
             await client.aclose()
         if gateway:

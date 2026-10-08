@@ -274,7 +274,7 @@ Três jobs agendados com APScheduler dentro do próprio processo FastAPI; mensag
 | Lembrete de evento | A cada 5 min | Eventos cujo `starts_at - remind_minutes` caiu na janela |
 | Fechamento de fatura | 09:00, 2 dias antes de cada `closing_day` | Total parcial da fatura daquele cartão |
 
-Para não reenviar: tabela `sent_reminders (event_id, occurrence_at, minutes_before)` com chave única. Próxima ocorrência de eventos recorrentes calculada a partir do `rrule` com `python-dateutil`.
+Para não reenviar: tabela `sent_reminders (kind, ref_id, occurrence_at, minutes_before)` com chave única, que serve aos três jobs (`kind` = `evento`, `resumo` ou `fatura`; generalizada em 08/10/2026). Eventos de dia inteiro contam a antecedência a partir das 09:00 do dia (o padrão de 1 dia avisa às 09:00 da véspera). O resumo do dia não é enviado quando não há nada; o aviso de fatura vai mesmo com total zero. Lembrete atrasado (app fora do ar) ainda é enviado até 6 h depois, se o evento não começou. Próxima ocorrência de eventos recorrentes calculada a partir do `rrule` com `python-dateutil`.
 
 ## Jarvis no Mac
 
