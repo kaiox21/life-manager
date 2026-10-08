@@ -13,6 +13,7 @@ from app.types import IncomingMessage, Media, MessageType, OutgoingMessage
 log = logging.getLogger(__name__)
 
 UPSERT_EVENT = "messages.upsert"
+CONNECTION_EVENT = "connection.update"
 
 
 class ForbiddenDestinationError(Exception):
@@ -58,6 +59,15 @@ def _parse_timestamp(raw: Any) -> datetime | None:
         return datetime.fromtimestamp(int(raw), tz=UTC)
     except (TypeError, ValueError):
         return None
+
+
+def parse_connection_update(payload: dict[str, Any]) -> str | None:
+    """Estado da instância num evento CONNECTION_UPDATE ('open', 'connecting', 'close')."""
+    if str(payload.get("event", "")).lower().replace("_", ".") != CONNECTION_EVENT:
+        return None
+    data = payload.get("data")
+    state = data.get("state") if isinstance(data, dict) else None
+    return str(state) if state else None
 
 
 def parse_webhook(payload: dict[str, Any]) -> IncomingMessage | None:

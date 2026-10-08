@@ -1,0 +1,18 @@
+# Produção (VPS). Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Portas continuam só em 127.0.0.1: acesso ao manager da Evolution por túnel SSH
+# (ssh -L 8080:localhost:8080 vps). Nada exposto na internet além do SSH.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  evolution-api:
+    logging: *logging
+  postgres:
+    logging: *logging
+  redis:
+    logging: *logging
+  app:
+    logging: *logging

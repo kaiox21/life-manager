@@ -32,7 +32,7 @@ def test_outros_numeros_barrados(numero):
         ("status_broadcast.json", "group_or_broadcast"),
         ("text_from_me.json", "from_me"),
         ("video_owner.json", "unsupported_type"),
-        ("connection_update.json", "not_a_message"),
+        ("connection_update.json", "connection_update"),
     ],
 )
 async def test_webhook_ignora_sem_responder(settings, sender, fixture, motivo):

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = True  # lembretes proativos (fase 5)
 
+    # Fase 6: alertas fora do WhatsApp e dead man's switch
+    alert_ntfy_url: str = ""  # ex.: https://ntfy.sh/<tópico-secreto-longo>
+    alert_ntfy_token: SecretStr = SecretStr("")
+    healthcheck_url: str = ""  # ex.: https://hc-ping.com/<uuid>
+
     tz: str = "America/Sao_Paulo"
     log_level: str = "INFO"
 

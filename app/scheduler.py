@@ -7,6 +7,7 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.alerts import ConnectionMonitor, heartbeat
 from app.clock import TZ, Clock
 from app.reminders import jobs
 from app.reminders.delivery import SendsText, deliver
@@ -23,6 +24,9 @@ def build_scheduler(
     owner_phone: str,
     clock: Clock,
     prefix: str = "",
+    monitor: ConnectionMonitor | None = None,
+    connection_state: Callable[[], Awaitable[str | None]] | None = None,
+    healthcheck_url: str = "",
 ) -> AsyncIOScheduler:
     async def run(job: Job) -> None:
         try:
@@ -49,4 +53,24 @@ def build_scheduler(
         next_run_time=datetime.now(TZ),  # recupera atrasos logo que o app sobe
     )
     scheduler.add_job(run, "cron", args=[jobs.statement_alerts], hour=9, minute=0, id="fatura")
+
+    if monitor is not None and connection_state is not None:
+
+        async def check_connection() -> None:
+            try:
+                state = await connection_state()
+            except Exception:
+                state = None  # a Evolution nem respondeu
+            await monitor.observe(state, clock())
+
+        scheduler.add_job(check_connection, "interval", minutes=1, id="conexao")
+    if healthcheck_url:
+        scheduler.add_job(
+            heartbeat,
+            "interval",
+            args=[healthcheck_url],
+            minutes=5,
+            id="heartbeat",
+            next_run_time=datetime.now(TZ),
+        )
     return scheduler

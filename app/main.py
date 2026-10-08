@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.llm import LLM, GatewayLLM
 from app.agent.service import Models
-from app.channel.evolution import EvolutionClient, parse_webhook
+from app.alerts import ConnectionMonitor, LogNotifier, Notifier, NtfyNotifier
+from app.channel.evolution import EvolutionClient, parse_connection_update, parse_webhook
 from app.clock import Clock, system_clock
 from app.config import Settings, get_settings, provider_list
 from app.db.base import make_engine, make_sessionmaker
@@ -81,6 +82,9 @@ def create_app(
                 owner_phone=settings.owner_phone,
                 clock=clock,
                 prefix=BOT_MARK if settings.self_chat_mode else "",
+                monitor=app.state.monitor,
+                connection_state=getattr(app.state.sender, "connection_state", None),
+                healthcheck_url=settings.healthcheck_url,
             )
             scheduler.start()
         yield
@@ -99,6 +103,12 @@ def create_app(
     app.state.llm = llm
     app.state.calendar = calendar
     app.state.transcriber = transcriber
+    notifier: Notifier = (
+        NtfyNotifier(settings.alert_ntfy_url, settings.alert_ntfy_token.get_secret_value())
+        if settings.alert_ntfy_url
+        else LogNotifier()
+    )
+    app.state.monitor = ConnectionMonitor(notifier)
     models = Models(
         classifier=settings.model_classifier or settings.model_primary,
         primary=settings.model_primary,
@@ -124,6 +134,11 @@ def create_app(
             return {"status": "ignored", "reason": "invalid_json"}
         if not isinstance(payload, dict):
             return {"status": "ignored", "reason": "invalid_json"}
+
+        state = parse_connection_update(payload)
+        if state is not None:
+            background.add_task(request.app.state.monitor.observe, state, clock())
+            return {"status": "ignored", "reason": "connection_update"}
 
         msg = parse_webhook(payload)
         if msg is None:
