@@ -19,7 +19,7 @@ openspec list                # changes abertos (e --specs para as capacidades)
 openspec validate --all --strict
 uv sync                      # dependências
 uv run pytest                # testes unitários (rápidos, sem rede, sem LLM)
-uv run pytest -m eval        # prova contra o modelo real (custa centavos, precisa de AI_GATEWAY_API_KEY)
+uv run pytest -m eval        # prova contra o modelo real (custa centavos; precisa da chave do LLM_PROVIDER)
 uv run ruff check . && uv run ruff format .
 docker compose up -d         # evolution-api, postgres, redis, app
 docker compose logs -f app
@@ -35,7 +35,7 @@ uv run alembic upgrade head
 3. **O LLM nunca faz contas.** Somas, totais, fatura e parcelas são SQL ou Python. A regra da fatura vive em `app/domain/billing.py`, com testes cobrindo fechamento, virada de ano e parcelas.
 4. **Dinheiro em centavos (`int`).** Nunca `float` para valores.
 5. **Datas com fuso.** Tudo `timezone-aware`, fuso `America/Sao_Paulo`. "Hoje" vem de uma função injetável (`clock`) para os testes poderem fixar a data.
-6. **Modelo por configuração.** Cliente `openai` com `base_url` do Vercel AI Gateway; nomes de modelo só via `.env` (`MODEL_CLASSIFIER`, `MODEL_PRIMARY`, `MODEL_ESCALATION`). Nunca nome de modelo fixo no código.
+6. **Modelo por configuração.** `LLM_PROVIDER` escolhe o adaptador em `app/agent/llm.py`: `anthropic` (SDK oficial `anthropic`, o padrão em uso) ou `gateway` (cliente `openai` com `base_url` do Vercel AI Gateway). Nomes de modelo só via `.env` (`MODEL_CLASSIFIER`, `MODEL_PRIMARY`, `MODEL_ESCALATION`) e preços em `MODEL_PRICES`. Nunca nome de modelo fixo no código.
 7. **Roteamento por intenção:** o agente recebe só as ferramentas do grupo da intenção (`openspec/specs/agente`, "Ferramentas por grupo").
 8. **Validação e escalada:** argumentos inválidos voltam ao modelo uma vez; dois fracassos escalam para `MODEL_ESCALATION`; terceiro fracasso pede para reformular.
 9. **Toda mensagem gera uma linha em `agent_runs`** com modelo, tokens, custo, latência, ferramentas chamadas e erro.

@@ -20,6 +20,6 @@
 ## 4. Fechamento
 
 - [x] 4.1 LaunchAgent para abrir com o login
-- [ ] 4.2 `uv run pytest`, `ruff`, testes da UI
+- [x] 4.2 `uv run pytest`, `ruff`, testes da UI
 - [x] 4.3 Aceite real: ⌥Espaço → "abre o Safari e me diz meus compromissos de amanhã"
-- [ ] 4.4 Atualizar specs (archive) e relatório
+- [x] 4.4 Atualizar specs (archive) e relatório

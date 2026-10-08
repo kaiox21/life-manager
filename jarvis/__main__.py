@@ -8,8 +8,8 @@ import asyncio
 import logging
 import os
 
-from app.agent.llm import GatewayLLM
-from app.config import get_settings, provider_list
+from app.agent.llm import make_llm
+from app.config import get_settings
 from jarvis.agent import JarvisBrain
 from jarvis.local_tools import LocalTools
 from jarvis.mcp_client import CoreClient
@@ -21,12 +21,7 @@ async def main() -> None:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
     s = get_settings()
-    llm = GatewayLLM(
-        api_key=s.ai_gateway_api_key.get_secret_value(),
-        base_url=s.ai_gateway_base_url,
-        allowed_providers=provider_list(s.allowed_providers),
-        reasoning_effort=s.reasoning_effort,
-    )
+    llm = make_llm(s)
     url = os.environ.get("JARVIS_CORE_URL", "http://localhost:8000/mcp/")
     async with CoreClient.connect(url, s.mcp_token.get_secret_value()) as core:
         brain = JarvisBrain(

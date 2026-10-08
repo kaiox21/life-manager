@@ -21,14 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.agent.intent import classify
-from app.agent.llm import GatewayLLM
+from app.agent.llm import make_llm
 from app.agent.loop import run_agent
 from app.agent.service import build_prompt
 from app.agent.tools import ALL_TOOLS, ToolContext
 from app.agent.tools.pessoas import match_people
 from app.agent.tools.resolve import match_payment_methods, normalize
 from app.clock import TZ, fixed_clock
-from app.config import get_settings, provider_list
+from app.config import get_settings
 from app.db.base import Base
 from app.db.models import PaymentMethod, PendingAction, Person
 from app.db.seed import seed_categories, seed_payment_methods
@@ -78,16 +78,12 @@ BOARD = Board()
 
 
 @pytest.fixture(scope="module")
-def llm() -> GatewayLLM:
+def llm():
     s = get_settings()
-    if not s.ai_gateway_api_key.get_secret_value() or not s.model_primary:
-        pytest.skip("defina AI_GATEWAY_API_KEY e MODEL_PRIMARY para rodar a prova")
-    return GatewayLLM(
-        api_key=s.ai_gateway_api_key.get_secret_value(),
-        base_url=s.ai_gateway_base_url,
-        allowed_providers=provider_list(s.allowed_providers),
-        reasoning_effort=s.reasoning_effort,
-    )
+    key = s.anthropic_api_key if s.llm_provider == "anthropic" else s.ai_gateway_api_key
+    if not key.get_secret_value() or not s.model_primary:
+        pytest.skip("defina a chave do provedor (LLM_PROVIDER) e MODEL_PRIMARY para rodar a prova")
+    return make_llm(s)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -161,7 +157,7 @@ async def _check_call(session, case, name: str, args: dict[str, Any]) -> tuple[b
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
-async def test_caso(case: dict[str, Any], llm: GatewayLLM, eval_sessions) -> None:
+async def test_caso(case: dict[str, Any], llm, eval_sessions) -> None:
     s = get_settings()
     hoje = date.fromisoformat(case.get("hoje") or DEFAULT_TODAY)
     now = datetime(hoje.year, hoje.month, hoje.day, 12, 0, tzinfo=TZ)

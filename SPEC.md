@@ -47,7 +47,7 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | Hospedagem do núcleo | Oracle Cloud pay-as-you-go, São Paulo, dentro da cota grátis (desde 15/06/2026: 2 OCPU / 12 GB); Hetzner como plano B. **Provisório (08/10/2026): roda no Mac** (Oracle sem capacidade ARM); change `deploy-vps` pausado | Mac fechado = bot e lembretes parados | Backup cifrado; scripts de deploy prontos; atrasos de lembrete recuperados por até 6 h |
 | Integração entre canais | Ferramentas do núcleo por MCP; Tailscale quando houver VPS | Duas lógicas divergindo | Regras só no núcleo; o Jarvis não toca o banco |
 | Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5; voz local | Latência da voz; permissões do macOS | Push-to-talk antes de wake word; streaming; modelo rápido antes da voz |
-| Modelo de IA | Modelos baratos via Vercel AI Gateway. Hoje `gpt-5-nano` em classificador, principal e escalada (provisório: o gateway está no plano gratuito) | Erros de ferramenta e de data; lentidão (20–40 s) | Prova (56 casos, ≥ 90%), roteamento por intenção, validação e escalada |
+| Modelo de IA | Desde 08/10/2026: **Claude direto pela API da Anthropic** (SDK oficial, `LLM_PROVIDER=anthropic`): `claude-haiku-5-5` no classificador e no principal (US$ 0,10/0,50 por milhão de tokens; ~1,5 s por chamada), `claude-sonnet-5-5` na escalada. Prova: 56/56 no classificador e 55/56 (98%) no agente. O Vercel AI Gateway continua como alternativa (`LLM_PROVIDER=gateway`) | Modelo lançado em 07/10/2026, sem histórico de uso; chave colada na conversa | Prova a cada mudança; gateway como plano B; rotacionar a chave |
 | Política de gravação | Grava direto com "desfazer"; confirma foto, áudio, exclusões e valores acima de R$ 500 | Gasto errado gravado sem perceber | Eco do que foi gravado em toda resposta |
 
 **Modo provisório "conversa comigo mesmo" (`SELF_CHAT_MODE`, 07/10/2026).**
@@ -90,12 +90,10 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - Interpretação errada de valor ou data: eco do que foi gravado + "desfazer".
 - Fatura divergente do banco: estornos, IOF e anuidade não entram sozinhos; considerar a ferramenta `ajuste_fatura`.
 - Custo de LLM: orçamento mensal no painel do Vercel AI Gateway.
-- Lentidão do modelo atual (20–40 s): inviabiliza a voz até haver um modelo rápido.
 
 **Questões em aberto**
 
-- [ ] **Modelo rápido** para o Jarvis por voz: créditos pagos no gateway (e BYOK com os US$ 100 da Anthropic) ou API Anthropic direto. Bloqueia a voz.
-- [ ] Escalada de verdade (hoje igual ao principal) e comparação dos outros candidatos: depende de créditos pagos no gateway.
+- [x] **Modelo rápido**: Claude Haiku 5.5 direto pela API da Anthropic (08/10/2026); escalada com Claude Sonnet 5.5. Desbloqueia a voz.
 - [ ] Hospedagem: Oracle (tentativas) ou Hetzner. Change `deploy-vps`.
 - [ ] Chip dedicado para sair do modo provisório.
 - [ ] Teste real da foto de recibo (adiado pelo Kaio).

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
 
     database_url: str
 
+    # Provedor dos modelos: "anthropic" (SDK oficial) ou "gateway" (Vercel AI Gateway).
+    llm_provider: str = "gateway"
+    anthropic_api_key: SecretStr = SecretStr("")
+    # Preços (US$ por milhão de tokens, entrada e saída) para o custo em agent_runs.
+    # Ex.: {"claude-haiku-5-5": [0.10, 0.50]}
+    model_prices: str = ""
+
     # Vercel AI Gateway (API compatível com OpenAI). Nomes de modelo só via .env.
     ai_gateway_api_key: SecretStr = SecretStr("")
     ai_gateway_base_url: str = "https://ai-gateway.vercel.sh/v1"

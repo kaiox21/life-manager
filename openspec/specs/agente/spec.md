@@ -6,11 +6,15 @@ Entender a mensagem do dono e agir pelas ferramentas certas, com modelos baratos
 ## Requirements
 
 ### Requirement: Modelos por configuração
-O sistema SHALL acessar os modelos pelo cliente `openai` com `base_url` do Vercel AI Gateway e SHALL ler os nomes só de `MODEL_CLASSIFIER`, `MODEL_PRIMARY` e `MODEL_ESCALATION`; `ALLOWED_PROVIDERS` vira `providerOptions.gateway.only` e `REASONING_EFFORT` (opcional) é repassado. Nenhum nome de modelo fica fixo no código.
+O sistema SHALL escolher o provedor por `LLM_PROVIDER`: `anthropic` (SDK oficial `anthropic`, chave `ANTHROPIC_API_KEY`) ou `gateway` (cliente `openai` com `base_url` do Vercel AI Gateway, `ALLOWED_PROVIDERS` como `providerOptions.gateway.only`). Os nomes SHALL vir só de `MODEL_CLASSIFIER`, `MODEL_PRIMARY` e `MODEL_ESCALATION`; `REASONING_EFFORT` (opcional) é repassado; `MODEL_PRICES` dá o preço por modelo para o custo em `agent_runs`. Nenhum nome de modelo fica fixo no código.
 
 #### Scenario: Troca de modelo
 - **WHEN** `MODEL_PRIMARY` muda no `.env`
 - **THEN** o app passa a usar o novo modelo após reiniciar, sem mudança de código
+
+#### Scenario: Troca de provedor
+- **WHEN** `LLM_PROVIDER` muda de `gateway` para `anthropic`
+- **THEN** agente, classificador, Jarvis e prova usam o SDK da Anthropic sem nenhuma outra mudança
 
 ### Requirement: Classificação de intenção
 Cada mensagem de texto SHALL ser classificada numa de `gasto`, `consulta_gasto`, `agenda`, `pessoa`, `confirmacao`, `fora_do_escopo` por uma chamada de ferramenta forçada (`classificar`, com enum); resposta fora da lista vale `fora_do_escopo`. Foto não passa pelo classificador e vai direto a `gasto`.

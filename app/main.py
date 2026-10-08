@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agent.llm import LLM, GatewayLLM
+from app.agent.llm import LLM, make_llm
 from app.agent.service import Models
 from app.alerts import ConnectionMonitor, LogNotifier, Notifier, NtfyNotifier
 from app.channel.evolution import EvolutionClient, parse_connection_update, parse_webhook
@@ -56,12 +56,7 @@ def create_app(
             client = EvolutionClient(settings)
             app.state.sender = client
         if app.state.llm is None:
-            gateway = GatewayLLM(
-                api_key=settings.ai_gateway_api_key.get_secret_value(),
-                base_url=settings.ai_gateway_base_url,
-                allowed_providers=provider_list(settings.allowed_providers),
-                reasoning_effort=settings.reasoning_effort,
-            )
+            gateway = make_llm(settings)
             app.state.llm = gateway
         if app.state.transcriber is None and settings.transcribe_backend == "faster-whisper":
             whisper = FasterWhisper(settings.whisper_model, settings.whisper_cache_dir)
