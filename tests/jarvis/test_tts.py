@@ -89,113 +89,130 @@ async def test_stop_corta_e_esvazia():
     sp.close()
 
 
-# --- voz da Fish Audio (rede e player falsos)
+# --- voz da Fish Audio (rede e saída de áudio falsas)
 
 
-class FakePlayer:
-    def __init__(self, audio, pumps=2):
-        self.audio, self.left, self.stopped = audio, pumps, False
+class FakeOut:
+    latency = 0.0
 
-    def isPlaying(self):  # noqa: N802 — mesmo nome do AVAudioPlayer
-        self.left -= 1
-        return self.left > 0 and not self.stopped
+    def __init__(self):
+        self.written: list[bytes] = []
+        self.aborted = 0
 
-    def stop(self):
-        self.stopped = True
+    def write(self, data):
+        self.written.append(data)
+
+    def abort(self):
+        self.aborted += 1
 
 
-def _fish(fetch, clock=lambda: 0.0):
+def _fish(chunks, clock=lambda: 0.0):
     from jarvis.tts import FishSynth
 
     events: list[tuple[str, str]] = []
     fallback = FakeSynth(lambda k, t: events.append((f"local:{k}", t)))
-    played: list[bytes] = []
-
-    def play(audio):
-        played.append(audio)
-        return FakePlayer(audio)
-
+    out = FakeOut()
     synth = FishSynth(
         lambda k, t: events.append((k, t)),
         fallback,
         "key",
         "voz",
-        fetch=fetch,
-        play=play,
+        chunks=chunks,
+        out=out,
         clock=clock,
     )
-    return synth, fallback, events, played
+    return synth, fallback, events, out
 
 
-async def _pump(synth, n=12):
+async def _settle(synth=None, n=30):
     for _ in range(n):
-        synth.pump()
+        if synth is not None:
+            synth.pump()
         await asyncio.sleep(0)
 
 
-async def test_fish_toca_as_frases_na_ordem_mesmo_se_a_segunda_baixar_antes():
+def _audio(text: str) -> bytes:
+    return text.encode().ljust(6000, b"\0")  # > 0,1 s de áudio: passa do pré-buffer
+
+
+async def test_fish_toca_enquanto_chega_e_na_ordem():
     gates = {"Primeira.": asyncio.Event(), "Segunda.": asyncio.Event()}
 
-    async def fetch(text):
+    async def chunks(text):
+        audio = _audio(text)
+        yield audio[:5000]  # já passa do pré-buffer: começa a tocar antes do fim
         await gates[text].wait()
-        return text.encode()
+        yield audio[5000:]
 
-    synth, _, events, played = _fish(fetch)
+    synth, _, events, out = _fish(chunks)
     synth.speak("Primeira.")
     synth.speak("Segunda.")
+    await _settle()
+    assert events == [("start", "Primeira.")]  # tocou sem a frase ter chegado inteira
     gates["Segunda."].set()
-    await _pump(synth, 3)
-    assert played == []  # espera a primeira, mesmo com a segunda pronta
+    await _settle()
+    assert ("start", "Segunda.") not in events  # espera a primeira acabar
     gates["Primeira."].set()
-    await _pump(synth)
-    assert played == [b"Primeira.", b"Segunda."]
-    assert [e for e in events if e[0] == "start"] == [("start", "Primeira."), ("start", "Segunda.")]
-    assert events[-1] == ("finish", "Segunda.")
+    await _settle()
+    assert [e for e in events if e[0] in ("start", "finish")] == [
+        ("start", "Primeira."),
+        ("finish", "Primeira."),
+        ("start", "Segunda."),
+        ("finish", "Segunda."),
+    ]
+    assert b"".join(out.written) == _audio("Primeira.") + _audio("Segunda.")
 
 
 async def test_fish_fora_do_ar_cai_para_a_voz_local_e_fica_de_lado():
     now = [100.0]
 
-    async def fetch(text):
+    async def chunks(text):
         raise ConnectionError("sem internet")
+        yield b""
 
-    synth, fallback, events, played = _fish(fetch, clock=lambda: now[0])
+    synth, fallback, events, out = _fish(chunks, clock=lambda: now[0])
     synth.speak("Um instante, senhor.")
     synth.speak("Amanhã está livre.")
-    await _pump(synth, 8)
-    assert played == []
+    await _settle(synth)
+    assert out.written == []
     assert ("local:start", "Um instante, senhor.") in events
-    assert ("local:start", "Amanhã está livre.") in events
+    assert "Amanhã está livre." in fallback.queue or ("local:start", "Amanhã está livre.") in events
     synth.speak("Mais uma.")  # dentro dos 5 min: nem tenta a Fish
-    assert fallback.queue == ["Mais uma."]
+    assert fallback.queue[-1] == "Mais uma."
 
 
-async def test_fish_interromper_para_tudo():
-    async def fetch(text):
-        return text.encode()
+async def test_fish_interromper_corta_o_audio():
+    gate = asyncio.Event()
 
-    synth, fallback, events, played = _fish(fetch)
+    async def chunks(text):
+        yield _audio(text)[:5000]
+        await gate.wait()
+        yield b"resto"
+
+    synth, fallback, events, out = _fish(chunks)
     synth.speak("Frase longa.")
     synth.speak("Outra.")
-    await _pump(synth, 2)
+    await _settle()
     synth.stop()
-    await _pump(synth, 6)
-    assert played == [b"Frase longa."]
+    gate.set()
+    await _settle()
     assert ("cancel", "Frase longa.") in events
+    assert ("start", "Outra.") not in events
+    assert out.aborted == 1
     assert ("stop", "") in fallback.log
 
 
 async def test_fish_frase_fixa_guardada_sai_sem_rede():
     calls: list[str] = []
 
-    async def fetch(text):
+    async def chunks(text):
         calls.append(text)
-        return text.encode()
+        yield _audio(text)
 
-    synth, _, events, played = _fish(fetch)
+    synth, _, events, out = _fish(chunks)
     synth.prefetch(["Um instante, senhor."])
-    await _pump(synth, 2)
+    await _settle()
     synth.speak("Um instante, senhor.")
-    synth.pump()  # no mesmo pump: já toca, sem esperar download
-    assert played == [b"Um instante, senhor."]
+    await _settle()
+    assert ("start", "Um instante, senhor.") in events
     assert calls == ["Um instante, senhor."]  # baixou uma vez só, no prefetch
