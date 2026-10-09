@@ -40,6 +40,7 @@ fi
 
 [ -d "$APP_SRC" ] || { echo "Falta o app: rode 'npm run tauri build -- --bundles app' em jarvis-ui/"; exit 1; }
 mkdir -p "$AGENTS" "$LOGS" "$HOME/Applications"
+echo "Aviso: reinstalar reinicia o cérebro e fecha as abas de terminal abertas pelo Jarvis (cada uma oferece 'Retomar')."
 pkill -x jarvis-ui 2>/dev/null || true   # encerra o app antigo antes de trocar o bundle
 sleep 1
 rm -rf "$APP_DST" && cp -R "$APP_SRC" "$APP_DST"

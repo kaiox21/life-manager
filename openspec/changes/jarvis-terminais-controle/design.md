@@ -175,3 +175,27 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
 - Dependência nova só na interface: `@xterm/xterm` e `@xterm/addon-fit`. No Python, nenhuma.
 - Instalação: `npm run tauri build` e `install_mac.sh`. Os hooks globais não mudam, porque o hook de aprovação vai por `--settings` só nas sessões do Jarvis. Não há nada a migrar em `~/.claude/settings.json`.
 - Reverter: reinstalar a versão anterior. As sessões abertas pelo Jarvis morrem junto, e as de fora não são afetadas.
+
+## Registro da implementação (09/10/2026)
+
+- **Módulos novos:**
+  - `jarvis/sessions.py`: pty, pastas permitidas, limite e `abas.json`.
+  - `jarvis/permissions.py`: servidor HTTP do hook e pedidos pendentes.
+  - `jarvis/control.py`: liga as sessões, os pedidos, a numeração, o WebSocket e as ferramentas.
+  - Interface: `TerminalTabs`, `TerminalView` (`@xterm/xterm` 6.0.0 + `addon-fit` 0.11.0) e `AlertBar`.
+- **Ambiente da sessão:** é mínimo, com HOME, USER, LANG, TERM e as variáveis `JARVIS_*`. O resto vem do shell de login. Teste confirma que uma `ANTHROPIC_API_KEY` presente no ambiente do cérebro **não** chega ao `claude`. Sem esse cuidado, a sessão poderia passar a cobrar da chave de API em vez de usar o login do Claude Code.
+- **Terminal de controle:** o filho do pty ganha o pty como terminal de controle (`setsid` + `TIOCSCTTY`). Assim o SIGWINCH do redimensionamento e o SIGHUP do fechamento chegam ao `claude`.
+- **Teste real** (`uv run pytest -m claude tests/jarvis/test_claude_real.py`, 3 testes, ~30 s, Haiku na conta Max), passou:
+  - permitir e negar pelo Jarvis;
+  - tecla na aba vencendo o hook;
+  - porta do hook fechada, com o diálogo seguindo normalmente.
+  - Marcador `claude` próprio, para não misturar com a prova do núcleo (`eval`).
+- **Pergunta de confiança:** o diálogo só aceita teclas depois de montado. O teste espera ~2 s antes de responder. Na aba isso não importa, porque quem responde é o Kaio.
+- **Fluxo de saída:** a saída de uma sessão só vai para a interface que anexou a aba (`term_attach`), e não para o HUD. Ao anexar, o cérebro manda o buffer (512 KB) e um SIGWINCH para o `claude` redesenhar.
+- **Build depois da mudança de pasta:** o cache do Cargo guardava caminhos absolutos de `~/Downloads/life-manager`. Apagar só as 50 saídas de build script com o caminho velho resolveu, sem `cargo clean`.
+- Teste de fumaça no app instalado (09/10/2026, 18h41), pelo WebSocket real:
+  - `term_open` em life-manager virou "Terminal 3" (os Terminais 1 e 2 eram sessões do Terminal.app);
+  - a tela chegou;
+  - `term_close` removeu a aba;
+  - o `abas.json` ficou com permissão 600.
+  - A pasta life-manager pediu confiança de novo, porque o caminho mudou de `~/Downloads`.

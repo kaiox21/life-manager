@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { AlertBar } from "./components/AlertBar";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Orb, type OrbState } from "./components/Orb";
@@ -163,11 +164,7 @@ export default function App() {
         )}
         <kbd className="prompt__hint">esc</kbd>
       </form>
-      {showAlert && j.alert && (
-        <p className="term-alert" role="alert">
-          {j.alert.texto}
-        </p>
-      )}
+      {showAlert && j.alert && <AlertBar alert={j.alert} onAnswer={j.answerPermission} />}
       {link === "offline" && problem && (
         <p className="banner" role="status">
           {problem}{" "}

@@ -39,6 +39,9 @@ export type ServerEvent =
   | { type: "panel"; id: string; data: PanelData | { erro: string } }
   | { type: "terminals"; id: string; data: { terminais: TerminalInfo[] } }
   | { type: "terminal_alert"; id: string; data: TerminalAlert }
+  | { type: "terminal_tabs"; id: string; data: { abas: TerminalTab[] } }
+  | { type: "terminal_opened"; id: string; data: TerminalOpened }
+  | { type: "terminal_resolved"; id: string; data: { pedido: string; resultado: string } }
   | { type: "error"; id: string; text: string };
 
 export type Mode = "texto" | "voz";
@@ -102,6 +105,8 @@ export interface TerminalInfo {
   pid: number | null;
   ferramenta: string;
   resumo: string;
+  aba?: string; // id da sessão aberta pelo Jarvis (vazio = sessão de fora)
+  pedido?: string; // pedido de permissão aberto (só nas abas)
 }
 
 export interface TerminalAlert {
@@ -111,4 +116,20 @@ export interface TerminalAlert {
   ferramenta: string;
   resumo: string;
   texto: string;
+  pedido?: string; // sessão aberta pelo Jarvis: o aviso tem Permitir/Negar
+  aba?: string;
 }
+
+// Abas de terminal do painel (jarvis/sessions.py).
+export interface TerminalTab {
+  sid: string;
+  numero: number;
+  pasta: string;
+  aberta: boolean; // false = encerrada (reinício do cérebro ou o claude saiu): "Retomar"
+  pid?: number;
+}
+
+export type TerminalOpened =
+  | { status: "aberto"; numero: number; pasta: string; sid: string }
+  | { erro: string; opcoes?: never }
+  | { opcoes: string[]; erro?: never };

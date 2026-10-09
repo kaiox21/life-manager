@@ -21,12 +21,12 @@
 
 ## 4. Interface
 
-- [ ] 4.1 `@xterm/xterm` 6 + `@xterm/addon-fit`; abas no painel (número, pasta, estado, "+", "×", "Retomar"), só a aba visível montada, controle de fluxo, Esc vai para o terminal e ⌥⇧Espaço fecha o painel, ⌘C/⌘V; testes de componente (`npx vitest run`)
+- [x] 4.1 `@xterm/xterm` 6 + `@xterm/addon-fit`; abas no painel (número, pasta, estado, "+", "×", "Retomar"), só a aba visível montada, controle de fluxo, Esc vai para o terminal e ⌥⇧Espaço fecha o painel, ⌘C/⌘V; testes de componente (`npx vitest run`)
 - [ ] 4.2 Botões Permitir e Negar no aviso do HUD e no painel (só para `aba: true`), estado "já respondido"; conferir no app que o HUD aberto sem foco recebe o clique, e se não receber, aplicar a alternativa do `design.md`; testes de componente
 
 ## 5. Fechamento
 
-- [ ] 5.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `npx vitest run`, `openspec validate --all --strict`, `npm run tauri build` e `bash jarvis/install_mac.sh`; a prova do núcleo (`uv run pytest -m eval`) não precisa rodar porque o núcleo e seus prompts não mudam
+- [x] 5.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `npx vitest run`, `openspec validate --all --strict`, `npm run tauri build` e `bash jarvis/install_mac.sh`; a prova do núcleo (`uv run pytest -m eval`) não precisa rodar porque o núcleo e seus prompts não mudam
 - [ ] 5.2 Aceite real com o Kaio, com a memória anotada (`kern.memorystatus_level` e swap) antes e com 4 abas:
   - abrir pela voz e pelo "+" (pasta nova com a pergunta de confiança);
   - digitar e Esc na aba;

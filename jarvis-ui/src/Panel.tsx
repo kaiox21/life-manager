@@ -8,6 +8,9 @@ import { Waveform } from "./components/Waveform";
 import { chime } from "./lib/audio";
 import { alertActive, isLoud } from "./lib/terminals";
 import { TerminalList } from "./components/Cards";
+import { AlertBar } from "./components/AlertBar";
+import { CENTRAL, TerminalTabs } from "./components/TerminalTabs";
+import { TerminalView } from "./components/TerminalView";
 import { PANEL_REFRESH_MS, barShare, dayShort, hhmm, whenShort, type PanelState } from "./lib/panel";
 import type { PanelData, TerminalInfo } from "./lib/types";
 import { useJarvis } from "./lib/useJarvis";
@@ -35,6 +38,12 @@ export function Panel() {
   api.current = j;
   const openRef = useRef(open);
   openRef.current = open;
+  // "central" ou o id da aba de terminal em primeiro plano
+  const [view, setView] = useState(CENTRAL);
+  const tab = j.tabs.find((t) => t.sid === view);
+  useEffect(() => {
+    if (view !== CENTRAL && !tab) setView(CENTRAL); // a aba sumiu (fechada)
+  }, [view, tab]);
 
   // Abrir/fechar vem do Rust (atalho, menu, Esc); a fala só chega aqui com o painel aberto.
   useEffect(() => {
@@ -84,7 +93,8 @@ export function Panel() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") void invoke("hide_panel");
+      // Esc numa aba de terminal é do Claude Code (interromper); o painel fecha com ⌥⇧Espaço
+      if (e.key === "Escape" && !inTerminal(e.target)) void invoke("hide_panel");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -95,32 +105,63 @@ export function Panel() {
   const label =
     link === "offline" ? "offline" : listening ? "ouvindo" : status ? status.replace(/…$/, "") : speaking ? "falando" : thinking ? "pensando" : "online";
   const last = turns[turns.length - 1];
+  const alertBar = showAlert && j.alert && (
+    <AlertBar alert={j.alert} onAnswer={j.answerPermission} className="painel__alert" />
+  );
+  const tabsBar = (
+    <TerminalTabs
+      tabs={j.tabs}
+      terminals={j.terminals}
+      active={tab ? view : CENTRAL}
+      onSelect={setView}
+      onOpen={j.openTerminal}
+      onClose={(sid) => j.termSend({ type: "term_close", sid })}
+    />
+  );
+
+  if (tab) {
+    // aba de terminal em primeiro plano: o terminal ocupa o lugar das colunas
+    const pendingTurn = last && (last.confirm || last.status === "thinking" || last.status === "listening");
+    return (
+      <main className="painel painel--term">
+        <Header now={now} link={link} label={label} />
+        {tabsBar}
+        <section className="painel__termarea" aria-label={`Terminal ${tab.numero}`}>
+          {alertBar}
+          {tab.aberta && open ? (
+            <TerminalView
+              key={tab.sid}
+              sid={tab.sid}
+              label={`Terminal ${tab.numero} · ${tab.pasta}`}
+              attach={j.attachTerminal}
+              send={j.termSend}
+            />
+          ) : (
+            !tab.aberta && (
+              <p className="painel__empty painel__closed">
+                O Terminal {tab.numero} ({tab.pasta}) foi encerrado. Use "Retomar" na aba para continuar a conversa.
+              </p>
+            )
+          )}
+          {pendingTurn && (
+            <div className="painel__mini" aria-live="polite">
+              <TurnView turn={last} onConfirm={j.answerConfirm} />
+            </div>
+          )}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="painel">
-      <header className="painel__top">
-        <div className="painel__brand">
-          J.A.R.V.I.S <small>central de comando</small>
-        </div>
-        <div className="painel__clock">
-          <time className="painel__time">{now.toLocaleTimeString("pt-BR")}</time>
-          <span className="painel__date">
-            {now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </span>
-          <span className="painel__link">
-            <span className={`led led--${link}`} aria-hidden="true" /> {label}
-          </span>
-        </div>
-      </header>
+      <Header now={now} link={link} label={label} />
+      {tabsBar}
 
       <Agenda panel={panel} />
 
       <section className="painel__center" aria-label="Conversa">
-        {showAlert && j.alert && (
-          <p className="term-alert painel__alert" role="alert">
-            {j.alert.texto}
-          </p>
-        )}
+        {alertBar}
         <PanelOrb state={orb} level={levels[levels.length - 1] ?? 0} active={open} />
         <div className="painel__turn" aria-live="polite">
           {last ? <TurnView turn={last} onConfirm={j.answerConfirm} /> : <p className="painel__hint">Pergunte, ou segure ⌘⇧Espaço e fale.</p>}
@@ -159,6 +200,29 @@ export function Panel() {
       <Money panel={panel} />
       <Log panel={panel} terminals={j.terminals} />
     </main>
+  );
+}
+
+export function inTerminal(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest(".term-view");
+}
+
+function Header({ now, link, label }: { now: Date; link: string; label: string }) {
+  return (
+    <header className="painel__top">
+      <div className="painel__brand">
+        J.A.R.V.I.S <small>central de comando</small>
+      </div>
+      <div className="painel__clock">
+        <time className="painel__time">{now.toLocaleTimeString("pt-BR")}</time>
+        <span className="painel__date">
+          {now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        </span>
+        <span className="painel__link">
+          <span className={`led led--${link}`} aria-hidden="true" /> {label}
+        </span>
+      </div>
+    </header>
   );
 }
 

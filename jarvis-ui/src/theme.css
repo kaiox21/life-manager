@@ -665,6 +665,30 @@ body {
   box-shadow: 0 0 14px color-mix(in oklch, var(--danger) 35%, transparent);
   animation: enter 0.25s ease-out;
 }
+.term-alert {
+  display: grid;
+  gap: 8px;
+}
+.term-alert__text,
+.term-alert__result {
+  margin: 0;
+}
+.term-alert__result {
+  color: var(--text-dim);
+}
+.term-alert__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.btn--allow {
+  border-color: color-mix(in oklch, var(--ok) 70%, transparent);
+  color: var(--ok);
+}
+.btn--deny {
+  border-color: color-mix(in oklch, var(--danger) 70%, transparent);
+  color: var(--danger);
+}
 .term-alert code,
 .terms__ask {
   font-family: var(--mono);
