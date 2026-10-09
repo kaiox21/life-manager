@@ -55,7 +55,7 @@ exit   # sair e entrar de novo para valer o grupo docker
 No Mac:
 
 ```bash
-cd ~/Downloads/life-manager
+cd ~/"Projetos pessoais"/life-manager
 deploy/backup.sh ~/life-manager-migracao        # backup cifrado dos dados atuais
 docker compose down                              # DESLIGA o bot do Mac (Docker continua instalado)
 for f in ~/life-manager-migracao/*-assistente.dump.age; do
@@ -88,7 +88,7 @@ docker compose $P exec -T postgres psql -U app -d assistente -tAc \
 # no Mac, deixe o túnel aberto:
 ssh -L 8080:localhost:8080 ubuntu@IP
 # em outro terminal do Mac:
-cd ~/Downloads/life-manager
+cd ~/"Projetos pessoais"/life-manager
 EVOLUTION_API_URL=http://localhost:8080 uv run python -m app.channel.setup && open data/qrcode.png
 ```
 

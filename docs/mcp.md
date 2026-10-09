@@ -11,7 +11,7 @@ Hoje o núcleo roda no Mac, então o host é `localhost`. Depois da fase 6, troc
 ## Token
 
 ```bash
-grep ^MCP_TOKEN ~/Downloads/life-manager/.env | cut -d= -f2
+grep ^MCP_TOKEN ~/"Projetos pessoais"/life-manager/.env | cut -d= -f2
 ```
 
 Não versione nem cole o token em lugar público: ele dá acesso total a agenda e gastos.
@@ -20,7 +20,7 @@ Não versione nem cole o token em lugar público: ele dá acesso total a agenda 
 
 ```bash
 claude mcp add --scope user --transport http life-manager http://localhost:8000/mcp/ \
-  --header "Authorization: Bearer $(grep ^MCP_TOKEN ~/Downloads/life-manager/.env | cut -d= -f2)"
+  --header "Authorization: Bearer $(grep ^MCP_TOKEN ~/"Projetos pessoais"/life-manager/.env | cut -d= -f2)"
 claude mcp list
 ```
 
