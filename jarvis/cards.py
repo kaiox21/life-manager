@@ -99,6 +99,15 @@ def card_for(tool: str, args: dict[str, Any], data: Any) -> dict[str, Any] | Non
             "removido": "Removido",
         }.get(str(data.get("status")), "Feito")
         return {"kind": "texto", "title": title, "text": str(text or "")}
+    if tool in ("abrir_terminal", "mandar_terminal", "fechar_terminal"):
+        n, pasta = data.get("numero"), data.get("pasta", "")
+        text = {
+            "aberto": f"Terminal {n} · {pasta} aberto no painel.",
+            "enviado": f"Mandado para o Terminal {n} ({pasta}): {data.get('texto', '')}",
+            "fechado": f"Terminal {n} · {pasta} fechado.",
+            "cancelado": f"Nada feito no Terminal {n}.",
+        }.get(str(data.get("status")))
+        return {"kind": "texto", "title": "Terminais", "text": text} if text else None
     if tool == "listar_terminais":
         return {"kind": "terminais", "title": "Terminais", "items": data.get("terminais", [])}
     if tool == "buscar_arquivo":

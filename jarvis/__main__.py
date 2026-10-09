@@ -6,12 +6,20 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
   JARVIS_VOICE / JARVIS_VOICE_RATE   voz e velocidade da fala (padrão: Luciana, 0.52)
   JARVIS_FILLER          "um instante, senhor" ao chamar ferramenta em modo voz (padrão: true)
   FISH_API_KEY / FISH_VOICE_ID / FISH_VOICE_SPEED   voz da Fish Audio (vazio = voz local)
+  JARVIS_PASTAS          pastas onde o Jarvis abre o Claude Code, separadas por ":" (padrão:
+                         ~/Projetos pessoais:~/AmicusIA:~/Faculdade)
+  JARVIS_TERMINAIS_MAX / JARVIS_TERMINAIS_MEM_MIN   limite de sessões (4) e memória livre mínima
+                         em % para abrir uma nova (20)
+  JARVIS_CLAUDE          caminho do `claude` (padrão: ~/.local/bin/claude)
 Valem as do ambiente e, na falta, as do .env.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
+import signal
+from pathlib import Path
 
 from dotenv import dotenv_values
 
@@ -20,9 +28,12 @@ from app.config import get_settings
 from jarvis import events
 from jarvis.agent import FILLERS, JarvisBrain
 from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
+from jarvis.control import TerminalControl
 from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import CoreClient
+from jarvis.permissions import HookServer, Permissions
 from jarvis.server import JarvisServer
+from jarvis.sessions import Folders, Sessions
 from jarvis.terminals import Terminals
 from jarvis.tts import make_speaker
 
@@ -77,12 +88,31 @@ async def main() -> None:
 
     terminals = Terminals()
     terminals.load()
+    sessions = Sessions(
+        Folders.from_env(env("JARVIS_PASTAS")),
+        claude=env("JARVIS_CLAUDE", str(Path.home() / ".local/bin/claude")),
+        max_sessions=int(env("JARVIS_TERMINAIS_MAX", "4")),
+        min_memory=int(env("JARVIS_TERMINAIS_MEM_MIN", "20")),
+    )
+    sessions.load_previous()
+    permissions = Permissions()
+    control = TerminalControl(sessions, terminals, permissions)
+
+    def hook_auth(token: str) -> str | None:
+        s = sessions.by_token(token)
+        return s.sid if s else None
+
+    hooks = HookServer(hook_auth, permissions.handle)
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, stop.set)
 
     async with CoreClient.connect(url, s.mcp_token.get_secret_value()) as core:
         brain = JarvisBrain(
             llm,
             core,
-            LocalTools(config=config, terminals=terminals.snapshot),
+            LocalTools(config=config, terminals=terminals.snapshot, control=control),
             primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
             escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
             transcriber=transcriber,
@@ -99,11 +129,19 @@ async def main() -> None:
         )
         brain.speaker.prefetch(FILLERS)
         server = JarvisServer(brain)
-        server.greeting = lambda: [events.terminals(terminals.snapshot())]
+        server.control = control
+        control.broadcast = server.broadcast
+        server.greeting = lambda: [events.terminals(terminals.snapshot()), *control.greeting()]
         watcher = asyncio.create_task(watch_terminals(terminals, server))
         watcher.add_done_callback(_log_task_error)
-        async with server.run(port=int(env("JARVIS_PORT", "0"))):
-            await asyncio.Event().wait()
+        async with hooks.run() as hook_port, server.run(port=int(env("JARVIS_PORT", "0"))):
+            control.hook_port = hook_port
+            try:
+                await stop.wait()
+            finally:
+                log.info("parando: encerrando as abas de terminal")
+                with contextlib.suppress(Exception):
+                    await control.shutdown()
 
 
 if __name__ == "__main__":

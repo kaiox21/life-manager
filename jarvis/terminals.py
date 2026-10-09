@@ -4,6 +4,10 @@ Lê o arquivo que os hooks (`jarvis/hooks/claude_event.py`) preenchem. Um termin
 processo `claude` (o `session_id` muda com /clear e ao retomar). Não existe evento no momento
 em que o Kaio aprova uma permissão: "pedindo permissão" vale até o próximo evento da sessão
 ou 20 s (openspec/specs/jarvis-terminais).
+
+Sessões abertas pelo Jarvis (`aba`) têm o pedido de permissão acompanhado pelo hook HTTP
+(`jarvis/permissions.py`): para elas o aviso sai do pedido, com botões, e o prazo de 20 s não
+vale enquanto o pedido estiver aberto.
 """
 
 import json
@@ -51,6 +55,8 @@ class Terminal:
     mudou: float = 0.0
     visto: float = 0.0
     fim: float | None = None
+    aba: str = ""  # id da sessão aberta pelo Jarvis (vazio = sessão de fora)
+    pedido: str = ""  # pedido de permissão aberto no hook HTTP
 
     def view(self) -> dict[str, Any]:
         out = asdict(self)
@@ -101,6 +107,8 @@ class Terminals:
         self._by_key: dict[str, Terminal] = {}
         self._offset = 0
         self._last_liveness = 0.0
+        # chamado a cada evento de um terminal (o controle das abas resolve pedidos por aqui)
+        self.listener: Callable[[Terminal, str], None] = lambda t, evento: None
 
     # --- leitura do arquivo
 
@@ -183,6 +191,7 @@ class Terminals:
             self._by_key[key] = t
         t.visto = now
         t.sessao = sessao or t.sessao
+        self.listener(t, event)
         if item.get("pasta"):
             t.pasta = folder(str(item["pasta"]))
 
@@ -195,7 +204,8 @@ class Terminals:
             t.ferramenta = str(item.get("ferramenta", ""))
             t.resumo = str(item.get("resumo", ""))
             self._set(t, PERMISSION, now)
-            return self._alert(t, "permissao")
+            # sessão com aba: o aviso (com botões) sai do pedido HTTP, não daqui
+            return None if t.aba else self._alert(t, "permissao")
         if event == "Notification" and item.get("tipo") == "idle_prompt":
             self._set(t, WAITING, now)
             return self._alert(t, "espera")
@@ -213,7 +223,7 @@ class Terminals:
         now = self._clock()
         changed = False
         for key, t in list(self._by_key.items()):
-            if t.estado == PERMISSION and now - t.mudou > PERMISSION_TTL:
+            if t.estado == PERMISSION and not t.pedido and now - t.mudou > PERMISSION_TTL:
                 self._set(t, WORKING, now)  # a permissão foi (provavelmente) respondida
                 changed = True
             gone = now - t.visto > STALE_AFTER
@@ -229,6 +239,49 @@ class Terminals:
                     del self._by_key[key]
                     changed = True
         return changed
+
+    # --- sessões abertas pelo Jarvis
+
+    def register(self, pid: int, cwd: str, aba: str) -> Terminal:
+        """Sessão aberta agora pelo Jarvis: ganha o número já (antes do 1º evento dos hooks)."""
+        key = f"pid:{pid}"
+        t = self._by_key.get(key)
+        if t is None:
+            now = self._clock()
+            t = Terminal(
+                self._free_number(), folder(cwd), now, WAITING, "", pid, mudou=now, visto=now
+            )
+            self._by_key[key] = t
+        t.aba = aba
+        return t
+
+    def forget(self, pid: int) -> None:
+        self._by_key.pop(f"pid:{pid}", None)
+
+    def by_pid(self, pid: int) -> Terminal | None:
+        return self._by_key.get(f"pid:{pid}")
+
+    def open_request(self, pid: int, pedido: str, ferramenta: str, resumo: str) -> Terminal | None:
+        t = self.by_pid(pid)
+        if t is None:
+            return None
+        t.pedido = pedido
+        t.ferramenta, t.resumo = ferramenta, resumo
+        t.estado, t.mudou = PERMISSION, self._clock()
+        return t
+
+    def close_request(self, pid: int, pedido: str) -> bool:
+        """O pedido foi resolvido: volta a "trabalhando" se ainda estava pedindo."""
+        t = self.by_pid(pid)
+        if t is None or t.pedido != pedido:
+            return False
+        t.pedido = ""
+        if t.estado == PERMISSION:
+            self._set(t, WORKING, self._clock())
+        return True
+
+    def alert_for(self, t: Terminal) -> dict[str, Any]:
+        return self._alert(t, "permissao") | {"pedido": t.pedido, "aba": t.aba}
 
     def snapshot(self) -> list[dict[str, Any]]:
         return [t.view() for t in sorted(self._by_key.values(), key=lambda t: t.numero)]

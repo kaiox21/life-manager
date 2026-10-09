@@ -112,3 +112,52 @@ async def test_greeting_e_broadcast_chegam_a_todas_as_conexoes():
                     "id": "terminais",
                     "data": {"texto": "Terminal 1 terminou"},
                 }
+
+
+class FakeControl:
+    def __init__(self) -> None:
+        self.msgs: list[dict] = []
+        self.detached = 0
+
+    async def handle(self, client, msg):
+        self.msgs.append(msg)
+        if msg["type"] == "term_attach":
+            await client.send_bytes(b"\x02abcd1234tela")
+            await client.emit(events.terminal_tabs([]))
+
+    def detach(self, client):
+        self.detached += 1
+
+
+async def test_mensagens_de_terminal_vao_para_o_controle_e_saida_binaria():
+    server = JarvisServer(EchoBrain(), token="tk")
+    control = FakeControl()
+    server.control = control
+    async with (
+        server.run(session_file=None) as port,
+        connect(f"ws://127.0.0.1:{port}/?token=tk") as ws,
+    ):
+        await ws.send(json.dumps({"type": "term_attach", "sid": "abcd1234"}))
+        assert await asyncio.wait_for(ws.recv(), 5) == b"\x02abcd1234tela"
+        assert json.loads(await asyncio.wait_for(ws.recv(), 5))["type"] == "terminal_tabs"
+        await ws.send(
+            json.dumps({"type": "permission_answer", "pedido": "p", "decisao": "permitir"})
+        )
+        await ws.send(json.dumps({"type": "ask", "id": "r1", "text": "oi"}))  # o resto segue igual
+        msgs = await _collect(ws)
+        assert msgs[-1]["type"] == "done"
+    await asyncio.sleep(0.05)
+    assert [m["type"] for m in control.msgs] == ["term_attach", "permission_answer"]
+    assert control.detached == 1
+
+
+async def test_sem_controle_mensagens_de_terminal_sao_ignoradas():
+    server = JarvisServer(EchoBrain(), token="tk")
+    async with (
+        server.run(session_file=None) as port,
+        connect(f"ws://127.0.0.1:{port}/?token=tk") as ws,
+    ):
+        await ws.send(json.dumps({"type": "term_input", "sid": "x", "data": "rm -rf ~\r"}))
+        await ws.send(json.dumps({"type": "ask", "id": "r1", "text": "oi"}))
+        msgs = await _collect(ws)
+        assert msgs[-1]["type"] == "done"

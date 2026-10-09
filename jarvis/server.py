@@ -1,7 +1,8 @@
 """Servidor WebSocket local do Jarvis (só 127.0.0.1, token por execução).
 
 A porta e o token vão para um arquivo de sessão (permissão 600) que a interface lê.
-Mensagens JSON (ask, confirm, interrupt, voice_*) e quadros binários (PCM da voz).
+Mensagens JSON (ask, confirm, interrupt, voice_*, term_*, permission_answer) e quadros
+binários: da interface, o PCM da voz; para a interface, a saída das abas de terminal.
 """
 
 import asyncio
@@ -48,6 +49,23 @@ def write_session(port: int, token: str, path: Path = SESSION_FILE) -> None:
     tmp.replace(path)
 
 
+class Control(Protocol):
+    """Abas de terminal (jarvis/control.py)."""
+
+    async def handle(self, client: "Client", msg: dict[str, Any]) -> None: ...
+    def detach(self, client: "Client") -> None: ...
+
+
+@dataclass(eq=False)
+class Client:
+    """Uma interface conectada (HUD ou painel)."""
+
+    emit: Emit
+    send_bytes: Callable[[bytes], Awaitable[None]]
+    attached: str | None = None  # aba de terminal cuja saída esta interface recebe
+    backlog: int = 0  # bytes de terminal ainda não entregues
+
+
 @dataclass
 class _Voice:
     rid: str
@@ -64,6 +82,7 @@ class JarvisServer:
         self._clients: set[Emit] = set()
         # eventos mandados a cada conexão nova (ex.: a lista atual de terminais)
         self.greeting: Callable[[], list[Event]] = lambda: []
+        self.control: Control | None = None
 
     async def broadcast(self, event: Event) -> None:
         """Manda um evento a todas as interfaces conectadas (HUD e painel)."""
@@ -87,6 +106,12 @@ class JarvisServer:
                 with contextlib.suppress(ConnectionClosed):  # a interface pode já ter saído
                     await conn.send(event.to_json())
 
+        async def send_bytes(data: bytes) -> None:
+            async with lock:
+                with contextlib.suppress(ConnectionClosed):
+                    await conn.send(data)
+
+        client = Client(emit, send_bytes)
         self._clients.add(emit)
         for event in self.greeting():
             await emit(event)
@@ -110,7 +135,16 @@ class JarvisServer:
                     msg = json.loads(raw)
                 except ValueError:
                     continue
+                if not isinstance(msg, dict):
+                    continue
                 kind = msg.get("type")
+                if isinstance(kind, str) and kind.startswith(("term_", "permission_")):
+                    if self.control is not None:
+                        try:
+                            await self.control.handle(client, msg)
+                        except Exception:
+                            log.exception("terminais: falha em %s", kind)
+                    continue
                 rid = str(msg.get("id") or secrets.token_hex(4))
                 if kind == "ask" and str(msg.get("text", "")).strip():
                     mode = "voz" if msg.get("mode") == "voz" else "texto"
@@ -141,6 +175,8 @@ class JarvisServer:
                     task.add_done_callback(self._tasks.discard)
         finally:
             self._clients.discard(emit)
+            if self.control is not None:
+                self.control.detach(client)
 
     async def _run(self, rid: str, emit: Emit, coro: Awaitable[None]) -> None:
         try:

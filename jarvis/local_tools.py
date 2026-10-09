@@ -1,6 +1,9 @@
 """Ferramentas locais do macOS. Comandos fixos, argumentos validados, nunca shell.
 
-Nenhuma ferramenta apaga arquivos, envia mensagens ou executa comandos arbitrários.
+Nenhuma ferramenta apaga arquivos, envia mensagens ou executa comandos arbitrários. Única
+exceção (openspec/specs/ferramentas-locais, "Sem shell livre"): as ferramentas de terminal
+abrem o `claude` numa pasta permitida e escrevem TEXTO PURO numa sessão aberta pelo Jarvis,
+com confirmação do Kaio. Nenhuma responde a pedidos de permissão (isso só por clique).
 """
 
 import asyncio
@@ -11,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -83,6 +86,29 @@ class TimerArgs(Args):
     texto: str = Field(default="Tempo!", max_length=100)
 
 
+class AbrirTerminalArgs(Args):
+    pasta: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Pasta do projeto (ex.: 'life-manager') ou caminho dentro das permitidas",
+    )
+
+
+class MandarTerminalArgs(Args):
+    numero: int = Field(ge=1, le=99, description="Número do terminal (Terminal 2 -> 2)")
+    texto: str = Field(min_length=1, max_length=4000, description="Mensagem para o Claude Code")
+
+
+class FecharTerminalArgs(Args):
+    numero: int = Field(ge=1, le=99)
+
+
+class TerminalControl(Protocol):
+    async def open(self, pasta: str = "", retomar: str = "") -> dict[str, Any]: ...
+    async def send(self, numero: int, texto: str, confirm: Confirm | None) -> dict[str, Any]: ...
+    async def close(self, numero: int, confirm: Confirm | None) -> dict[str, Any]: ...
+
+
 class ClipboardArgs(Args):
     acao: Literal["ler", "escrever"]
     texto: str | None = Field(default=None, max_length=MAX_CLIPBOARD)
@@ -115,6 +141,7 @@ class LocalTools:
         home: Path | None = None,
         now: Callable[[], datetime] = datetime.now,
         terminals: Callable[[], list[dict[str, Any]]] | None = None,
+        control: TerminalControl | None = None,
     ) -> None:
         self._run = runner
         self._confirm = confirm
@@ -123,6 +150,7 @@ class LocalTools:
         self._now = now
         self._timers: set[asyncio.Task[None]] = set()
         self._terminals = terminals or (lambda: [])
+        self._control = control
 
     def set_confirm(self, confirm: Confirm) -> None:
         self._confirm = confirm
@@ -194,6 +222,23 @@ class LocalTools:
     async def listar_terminais(self, _a: "SemArgs") -> dict[str, Any]:
         return {"terminais": self._terminals()}
 
+    async def abrir_terminal(self, a: AbrirTerminalArgs) -> dict[str, Any]:
+        if self._control is None:
+            return {"erro": "As abas de terminal não estão disponíveis."}
+        result = await self._control.open(pasta=a.pasta)
+        result.pop("sid", None)
+        return result
+
+    async def mandar_terminal(self, a: MandarTerminalArgs) -> dict[str, Any]:
+        if self._control is None:
+            return {"erro": "As abas de terminal não estão disponíveis."}
+        return await self._control.send(a.numero, a.texto, self._confirm)
+
+    async def fechar_terminal(self, a: FecharTerminalArgs) -> dict[str, Any]:
+        if self._control is None:
+            return {"erro": "As abas de terminal não estão disponíveis."}
+        return await self._control.close(a.numero, self._confirm)
+
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela."""
@@ -234,6 +279,25 @@ class LocalTools:
                 "Use para 'como estão meus terminais/sessões?'.",
                 SemArgs,
                 self.listar_terminais,
+            ),
+            "abrir_terminal": (
+                "Abre uma sessão nova do Claude Code numa aba do painel, numa pasta de projeto "
+                "(ex.: pasta='life-manager'). Se vier 'opcoes', pergunte qual.",
+                AbrirTerminalArgs,
+                self.abrir_terminal,
+            ),
+            "mandar_terminal": (
+                "Manda uma mensagem de texto para um terminal aberto pelo Jarvis "
+                "('Terminal 2, roda os testes' -> numero=2, texto='roda os testes'). O Kaio "
+                "confirma antes de enviar. Não serve para aprovar ou negar permissões.",
+                MandarTerminalArgs,
+                self.mandar_terminal,
+            ),
+            "fechar_terminal": (
+                "Fecha (encerra) um terminal aberto pelo Jarvis; pede confirmação se estiver "
+                "trabalhando.",
+                FecharTerminalArgs,
+                self.fechar_terminal,
             ),
             "area_transferencia": (
                 "Lê (pede permissão) ou escreve na área de transferência.",

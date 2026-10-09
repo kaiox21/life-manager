@@ -62,8 +62,9 @@ markers = [
     "eval: prova contra o modelo real (custa dinheiro, precisa de AI_GATEWAY_API_KEY)",
     "whisper: transcrição real com faster-whisper (baixa o modelo; só no macOS, usa `say`)",
     "integracao: fala com o núcleo rodando no Docker (localhost:8000)",
+    "claude: sessão real do Claude Code num pty (Haiku na conta do Claude Code; centavos)",
 ]
-addopts = "-m 'not eval and not whisper and not integracao'"
+addopts = "-m 'not eval and not whisper and not integracao and not claude'"
 
 [tool.ruff.lint.per-file-ignores]
 # Texto do prompt copiado do SPEC.md; quebrar as linhas mudaria o prompt.

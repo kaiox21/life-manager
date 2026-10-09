@@ -145,4 +145,7 @@ def test_schemas_para_o_modelo():
         "timer",
         "area_transferencia",
         "listar_terminais",
+        "abrir_terminal",
+        "mandar_terminal",
+        "fechar_terminal",
     }
