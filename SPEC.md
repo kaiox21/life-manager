@@ -105,7 +105,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] **Roteador de modelos por dificuldade** (pedido de 08/10/2026), junto com o Jarvis. O classificador devolve também a dificuldade, sem chamada extra, combinada com sinais fixos. Uma tabela no `.env` liga cada faixa a um modelo, com a escalada como rede de segurança. A tabela sai da prova (acerto, custo e latência por faixa).
 - [x] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): entregue no change `jarvis-painel` (09/10/2026).
 - [x] **Voz mais rápida**: áudio da Fish tocado enquanto chega, no change `jarvis-voz-streaming` (09/10/2026). O que pesa agora é o 1º token do modelo.
-- [ ] **HUD leve**: o orbe do HUD aberto e parado gasta ~17% de CPU (anéis animados o tempo todo); animar só ao ouvir, pensar ou falar.
+- [x] **HUD leve**: orbe parado quando o Jarvis está parado; CPU com o HUD aberto de ~17% para 0,7% (change `jarvis-hud-leve`, 09/10/2026).
 - [ ] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): ver o estado e ser avisado quando uma sessão termina ou espera resposta. Só leitura e avisos.
 
 **Decididas (resumo):**

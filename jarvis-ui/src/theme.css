@@ -248,6 +248,14 @@ body {
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* Parado: congela onde está (sem salto ao voltar). Com o filtro de brilho no SVG, qualquer
+   giro obrigava o WebKit a redesenhar tudo a cada quadro: ~17% de CPU com o HUD parado. */
+.orb--idle .orb__core,
+.orb--idle .orb__ring,
+.orb--idle .orb__glow {
+  animation-play-state: paused;
+}
+
 .orb--offline {
   filter: grayscale(1);
   opacity: 0.45;
