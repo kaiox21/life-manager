@@ -25,6 +25,8 @@ export default function App() {
   const input = useRef<HTMLInputElement>(null);
   const feed = useRef<HTMLDivElement>(null);
   const visibleBefore = useRef(false);
+  // O HUD está na tela por causa da voz (sem foco)? Só então ele some sozinho depois.
+  const [voiceShown, setVoiceShown] = useState(false);
   const time = useClock();
 
   // Segurou o atalho de voz sem falar: o HUD volta a como estava (fechado, se estava fechado).
@@ -37,6 +39,7 @@ export default function App() {
   useEffect(() => {
     const unlisten = Promise.all([
       listen("jarvis://shown", () => {
+        setVoiceShown(false); // aberto com ⌥Espaço para digitar: não fecha sozinho
         input.current?.focus();
         if (link === "offline") void j.reconnect();
       }),
@@ -44,6 +47,7 @@ export default function App() {
         if (e.payload.target !== "hud") return; // o painel aberto cuida da fala
         if (e.payload.state === "down") {
           visibleBefore.current = e.payload.visible;
+          setVoiceShown(true);
           void j.startVoice();
         } else {
           j.endVoice();
@@ -57,7 +61,8 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") void invoke("hide_hud");
+      if (e.key !== "Escape") return;
+      invoke("hide_hud").catch((err) => void invoke("ui_log", { message: `HUD: hide_hud recusado: ${String(err)}` }));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -69,7 +74,8 @@ export default function App() {
 
   // Em voz, o HUD some sozinho um pouco depois de terminar de falar.
   const last = turns[turns.length - 1];
-  const idleVoice = !!last && last.mode === "voz" && last.status !== "thinking" && !speaking && !listening && !status;
+  const idleVoice =
+    voiceShown && !!last && last.mode === "voz" && last.status !== "thinking" && !speaking && !listening && !status;
   useEffect(() => {
     if (!idleVoice) return;
     const t = setTimeout(() => void invoke("hide_hud"), AUTO_HIDE_MS);

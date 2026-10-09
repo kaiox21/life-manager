@@ -42,10 +42,27 @@ fn jarvis_session() -> Result<serde_json::Value, String> {
     serde_json::from_str(&text).map_err(|e| e.to_string())
 }
 
+/// Registro da interface (erros que antes sumiam): ~/Library/Logs/Jarvis/ui.log
+#[tauri::command]
+fn ui_log(message: String) {
+    use std::io::Write;
+    let Some(home) = dirs::home_dir() else { return };
+    let path = home.join("Library/Logs/Jarvis/ui.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = writeln!(f, "{now} {message}");
+    }
+}
+
 #[tauri::command]
 fn hide_hud(app: AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.hide();
+        if let Err(e) = w.hide() {
+            ui_log(format!("hide_hud falhou: {e}"));
+        }
     }
 }
 
@@ -227,7 +244,7 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![jarvis_session, hide_hud, show_hud, hide_panel])
+        .invoke_handler(tauri::generate_handler![jarvis_session, hide_hud, show_hud, hide_panel, ui_log])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Jarvis");
 }
