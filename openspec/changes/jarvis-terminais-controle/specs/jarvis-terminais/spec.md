@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Terminais compartilhados
-Cada terminal aberto pelo Jarvis ou numa janela nova do Terminal.app SHALL ser uma sessão compartilhada, que o Terminal.app e o Jarvis podem mostrar ao mesmo tempo, com o que se digita num lado aparecendo no outro. Cada uma SHALL receber o menor número livre ("Terminal 1", "Terminal 2"…), na mesma numeração das sessões do Claude Code de fora (VS Code, janelas antigas), e SHALL mostrar a pasta e se é um shell ou um Claude Code. Fechar a janela do Terminal.app SHALL encerrar a sessão, a não ser que ela esteja aberta numa aba do Jarvis.
+Cada terminal aberto pelo Jarvis ou numa janela nova do Terminal.app SHALL ser uma sessão compartilhada, que o Terminal.app e o Jarvis podem mostrar ao mesmo tempo, com o que se digita num lado aparecendo no outro. Cada uma SHALL receber o menor número livre ("Terminal 1", "Terminal 2"…), na mesma numeração das sessões do Claude Code de fora (VS Code, janelas antigas), e SHALL mostrar a pasta e se é um shell ou um Claude Code. Um terminal SHALL continuar vivo enquanto estiver aberto numa janela do Terminal.app ou numa aba do Jarvis (aba na barra de abas, com o painel aberto ou fechado), e SHALL ser encerrado quando não estiver mais em nenhuma das duas, a não ser que tenha sido aberto pelo próprio Jarvis (esse vive até o Kaio fechá-lo). Se o tmux não informar o estado da sessão, o Jarvis SHALL tratar o terminal como "algo rodando" para fins de confirmação.
 
 #### Scenario: Janela nova do Terminal.app
 - **WHEN** o Kaio abre uma janela nova no Terminal.app e entra em `life-manager`
@@ -14,6 +14,10 @@ Cada terminal aberto pelo Jarvis ou numa janela nova do Terminal.app SHALL ser u
 #### Scenario: Fechar a janela
 - **WHEN** o Kaio fecha a janela do Terminal 3 no Terminal.app e ele não está aberto numa aba
 - **THEN** a sessão acaba e o Terminal 3 sai da lista
+
+#### Scenario: Janela fechada, aba aberta, painel fechado
+- **WHEN** o Terminal 3 está numa aba do Jarvis, o Kaio fecha a janela dele no Terminal.app e depois fecha o painel
+- **THEN** o Terminal 3 continua vivo, com o que roda nele, e volta na aba ao reabrir o painel
 
 #### Scenario: Claude Code dentro de um terminal
 - **WHEN** o Kaio roda `claude` no Terminal 3
@@ -31,7 +35,7 @@ O instalador SHALL fazer toda janela nova do Terminal.app abrir dentro do termin
 - **THEN** o bloco do Jarvis sai do `~/.zshrc`, o resto do arquivo fica igual e as janelas novas abrem normais
 
 ### Requirement: Abas de terminal
-O painel SHALL ter abas de terminal, uma para cada terminal compartilhado que o Kaio abrir nele, cada uma com a mesma tela, cores e teclas do Terminal.app, em que ele vê a saída ao vivo e digita direto. A aba SHALL mostrar o número, a pasta e o estado. Fechar a aba ou o painel SHALL NOT encerrar o terminal; ao reabrir, a aba SHALL mostrar a tela atual.
+O painel SHALL ter abas de terminal, uma para cada terminal compartilhado que o Kaio abrir nele, cada uma com a mesma tela, cores e teclas do Terminal.app, em que ele vê a saída ao vivo e digita direto. A aba SHALL mostrar o número, a pasta e o estado. Fechar o painel SHALL NOT encerrar nem tirar as abas; ao reabrir, cada aba SHALL mostrar a tela atual. Fechar uma aba (×) SHALL tirá-la da barra; se o terminal não estiver aberto em nenhuma janela do Terminal.app, fechar a aba SHALL encerrá-lo, com confirmação se houver algo rodando. As abas abertas SHALL voltar depois de reiniciar o Jarvis.
 
 #### Scenario: Abrir um terminal do Terminal.app numa aba
 - **WHEN** o Kaio escolhe o Terminal 3 na lista do painel
@@ -40,6 +44,10 @@ O painel SHALL ter abas de terminal, uma para cada terminal compartilhado que o 
 #### Scenario: Painel fechado e reaberto
 - **WHEN** o Kaio fecha o painel com um terminal trabalhando e o reabre um minuto depois
 - **THEN** a aba continua lá, com a tela atual
+
+#### Scenario: Fechar a aba de um terminal que ainda está no Terminal.app
+- **WHEN** o Kaio fecha a aba do Terminal 3, que continua aberto numa janela do Terminal.app
+- **THEN** a aba sai da barra e o terminal continua na janela
 
 ### Requirement: Abrir e fechar terminais
 O Kaio SHALL poder abrir um terminal pelo botão "+" do painel, por texto ou por voz, numa pasta da lista permitida, como shell ("abre um terminal no life-manager") ou já rodando o Claude Code ("abre um Claude Code no life-manager"). O terminal novo SHALL receber o menor número livre e abrir a aba dele. O Jarvis SHALL abrir o Claude Code no modo de permissão padrão do Kaio e SHALL NOT abri-lo com as permissões desligadas. Fechar SHALL encerrar o terminal e o que roda nele; se houver algo rodando (Claude Code trabalhando ou pedindo permissão, ou um comando em execução no shell), SHALL pedir confirmação antes.
@@ -60,11 +68,15 @@ O Kaio SHALL poder abrir um terminal pelo botão "+" do painel, por texto ou por
 - **WHEN** o Kaio pede para fechar o Terminal 3 enquanto um `npm test` roda nele
 - **THEN** o Jarvis pede confirmação e só encerra se o Kaio confirmar
 
+#### Scenario: Fechar um terminal que está no Terminal.app
+- **WHEN** o Kaio pede ao Jarvis para fechar o Terminal 3, que está aberto numa janela do Terminal.app
+- **THEN** a confirmação avisa que a janela também fecha, e o terminal é encerrado nos dois lugares
+
 ### Requirement: Limite de sessões
-O Jarvis SHALL recusar abrir um terminal novo quando a memória livre do Mac estiver abaixo do limiar configurado e SHALL manter no máximo 4 Claude Code abertos por ele ao mesmo tempo (ajustável em configuração), dizendo o motivo. Terminais abertos no Terminal.app SHALL NOT ser bloqueados.
+O Jarvis SHALL recusar abrir um terminal novo quando a memória livre do Mac estiver abaixo do limiar configurado, e SHALL recusar abrir um Claude Code quando já houver 4 Claude Code rodando nos terminais compartilhados (ajustável em configuração), dizendo o motivo. Terminais e Claude Code abertos pelo Kaio no Terminal.app SHALL NOT ser bloqueados.
 
 #### Scenario: Quinto Claude Code
-- **WHEN** já há 4 Claude Code abertos pelo Jarvis e o Kaio pede outro
+- **WHEN** já há 4 Claude Code rodando nos terminais compartilhados e o Kaio pede outro ao Jarvis
 - **THEN** o Jarvis recusa e sugere fechar um deles
 
 #### Scenario: Pouca memória
@@ -99,7 +111,7 @@ Quando um Claude Code rodando num terminal compartilhado pedir permissão, o avi
 - **THEN** o aviso aparece como antes, sem os botões
 
 ### Requirement: Mandar mensagens e comandos
-O Kaio SHALL poder mandar texto a um terminal compartilhado digitando na aba ou pedindo ao Jarvis por texto ou voz. Pelo Jarvis, num terminal com Claude Code o texto SHALL ir como mensagem ("Terminal 2, roda os testes"), e num shell SHALL ir como um comando de uma linha ("Terminal 3, roda npm test"). Em ambos os casos o Jarvis SHALL mostrar um cartão com o destino, o tipo (mensagem ou comando) e o texto exato, e SHALL enviar só depois de o Kaio confirmar. O texto SHALL ir sem teclas de controle, e o comando de shell SHALL ter uma linha só. Mandar para uma sessão de fora dos terminais compartilhados SHALL ser recusado com o motivo.
+O Kaio SHALL poder mandar texto a um terminal compartilhado digitando na aba ou pedindo ao Jarvis por texto ou voz. Pelo Jarvis, num terminal com Claude Code o texto SHALL ir como mensagem ("Terminal 2, roda os testes"), e num shell SHALL ir como um comando de uma linha ("Terminal 3, roda npm test"). O Jarvis SHALL mandar uma mensagem só quando o Claude Code estiver parado esperando o Kaio (terminou ou esperando você), nunca com um diálogo, menu ou pedido de permissão na tela, porque o Enter escolheria uma opção; e SHALL mandar um comando só quando o shell estiver livre, sem programa em primeiro plano, limpando antes a linha do prompt. Fora dessas condições, SHALL recusar e dizer o motivo, inclusive na hora de enviar (depois da confirmação). Um terminal em que o Jarvis não sabe se roda o Claude Code SHALL ser tratado como ocupado. Em ambos os casos o Jarvis SHALL mostrar um cartão com o destino, o tipo (mensagem ou comando) e o texto exato, e SHALL enviar só depois de o Kaio confirmar. O texto SHALL ir sem teclas de controle, e o comando de shell SHALL ter uma linha só. Mandar para uma sessão de fora dos terminais compartilhados SHALL ser recusado com o motivo.
 
 #### Scenario: Recado para o Claude Code
 - **WHEN** o Kaio diz "Terminal 2, roda os testes" e o Terminal 2 roda o Claude Code
@@ -108,6 +120,18 @@ O Kaio SHALL poder mandar texto a um terminal compartilhado digitando na aba ou 
 #### Scenario: Comando no shell
 - **WHEN** o Kaio diz "Terminal 3, roda npm test" e o Terminal 3 é um shell
 - **THEN** o Jarvis mostra "Comando no Terminal 3 (life-manager): npm test" e só roda depois do clique em Confirmar
+
+#### Scenario: Claude Code com diálogo aberto
+- **WHEN** o Terminal 2 está pedindo permissão e o Kaio diz "Terminal 2, roda os testes"
+- **THEN** o Jarvis não manda nada, diz que o Terminal 2 está esperando uma resposta no diálogo, e o pedido de permissão continua aberto
+
+#### Scenario: Shell ocupado
+- **WHEN** o Terminal 3 está rodando `npm test` e o Kaio diz "Terminal 3, roda git status"
+- **THEN** o Jarvis recusa e diz que há um programa rodando no Terminal 3
+
+#### Scenario: Linha pela metade
+- **WHEN** o Kaio deixou `rm -rf build` digitado sem Enter no Terminal 3 e confirma "Terminal 3, roda npm test"
+- **THEN** a linha pela metade é apagada e só `npm test` roda
 
 #### Scenario: Comando com várias linhas
 - **WHEN** o modelo tenta mandar ao shell um texto com quebra de linha
@@ -127,11 +151,15 @@ Reiniciar o cérebro ou a interface do Jarvis SHALL NOT encerrar os terminais co
 ## MODIFIED Requirements
 
 ### Requirement: Aviso de permissão
-Quando uma sessão pedir permissão para usar uma ferramenta, o Jarvis SHALL mostrar na hora, sem roubar o foco do app em uso e com um toque curto, um aviso com o número do terminal, a pasta, a ferramenta e um resumo do pedido (comando, arquivo ou URL, cortado em 120 caracteres). Nos terminais compartilhados, o aviso SHALL ter os botões do requisito "Aprovar e negar pelo Jarvis"; nas sessões de fora, o Jarvis SHALL NOT aprovar nem negar.
+Quando uma sessão pedir permissão para usar uma ferramenta, o Jarvis SHALL mostrar na hora, sem roubar o foco do app em uso e com um toque curto, um aviso com o número do terminal, a pasta, a ferramenta e um resumo do pedido (comando, arquivo ou URL, cortado em 120 caracteres). Nos terminais compartilhados, o aviso SHALL ter os botões do requisito "Aprovar e negar pelo Jarvis"; nas sessões de fora, o Jarvis SHALL NOT aprovar nem negar. O aviso SHALL NOT tomar o Esc do app em uso: o Esc continua chegando ao terminal (onde interrompe o Claude Code).
 
 #### Scenario: Comando no terminal
 - **WHEN** a sessão do Terminal 1, em `life-manager`, pede permissão para rodar `npm test`
 - **THEN** o HUD aparece com "Terminal 1 (life-manager) está pedindo para rodar `npm test`" e o foco continua no app em uso
+
+#### Scenario: Esc com o aviso na tela
+- **WHEN** o aviso está no HUD e o Kaio aperta Esc no Terminal.app
+- **THEN** o Esc chega ao Claude Code e o aviso continua na tela
 
 #### Scenario: Pedido respondido no terminal
 - **WHEN** o Kaio responde à permissão no próprio terminal

@@ -5,15 +5,15 @@
 ## 1. tmux e Terminal.app
 
 - [ ] 1.1 `jarvis/tmux.conf` (as 3 linhas oficiais do Claude Code, `escape-time 10`, `window-size latest`, `mouse on`, `history-limit 50000`, `status off`, prefixo Ctrl+]) copiado pelo `install_mac.sh` para `~/Library/Application Support/Jarvis/`; teste que carrega o arquivo num servidor isolado (`tmux -L <teste> -f`) e confere as opções
-- [ ] 1.2 Bloco do `~/.zshrc` (`jarvis/hooks/zshrc.py`, biblioteca padrão): instala entre marcadores com backup, sem duplicar e sem mexer no resto; `--remover`; o bloco só age em `Apple_Terminal` interativo, sem `TMUX`, sem `JARVIS_SEM_TMUX` e com `tmux -V` funcionando, e faz `exec tmux -L jarvis -f <conf> new-session -c "$PWD" \; set-option destroy-unattached on`; testes com arquivo temporário e teste rodando `zsh -i` com `TERM_PROGRAM=Apple_Terminal` e um `tmux` falso que falha (o shell continua)
+- [ ] 1.2 Bloco do `~/.zshrc` (`jarvis/hooks/zshrc.py`, biblioteca padrão): instala entre marcadores com backup, sem duplicar e sem mexer no resto; `--remover`; o bloco só age em `Apple_Terminal` interativo, sem `TMUX`, sem `JARVIS_SEM_TMUX` e com `tmux -V` funcionando, e faz `exec tmux -L jarvis -f <conf> new-session -c "$PWD" \; set-option destroy-unattached on \; set-option @jarvis_origem terminal`; testes com arquivo temporário e teste rodando `zsh -i` com `TERM_PROGRAM=Apple_Terminal` e um `tmux` falso que falha (o shell continua)
 - [ ] 1.3 `install_mac.sh`: tmux.conf, bloco do `.zshrc`, `--sem-tmux`; avisa se o tmux não estiver instalado (`brew install tmux`) e segue sem o bloco
 
 ## 2. Cérebro: terminais do tmux
 
 - [x] 2.1 Pastas permitidas, limite de memória e limpeza de texto (`jarvis/sessions.py`: `Folders`, `memory_level`, `clean_text`), com testes (da 1ª versão)
-- [ ] 2.2 `jarvis/tmux.py`: lista sessões e painéis (`list-panes -a -F …`, comandos fixos, sem shell), abre sessão (`new-session -d -c`), manda `claude`, mata sessão, manda comando (`send-keys -l` + Enter) e mensagem (`load-buffer` + `paste-buffer -p` + Enter); tmux ausente = lista vazia; testes contra um servidor tmux isolado (pulados se não houver tmux)
-- [ ] 2.3 Cliente da aba: pty rodando `tmux -L jarvis attach -t <sessão>` aberto no `term_attach` e fechado no `term_detach`/desconexão, sem buffer guardado; resize; pausa; teste com servidor isolado (o que se digita no cliente aparece no outro cliente)
-- [ ] 2.4 Numeração: sessão do tmux = terminal (chave `tmux:<session_id>`), na mesma numeração do `jarvis-terminais`; hook de anotação grava `painel` e `socket`; evento de painel do socket `jarvis` vai para o terminal da sessão e marca Claude Code de `SessionStart` a `SessionEnd`; "algo rodando" no shell por `pane_current_command`; testes em `test_terminals.py`
+- [ ] 2.2 `jarvis/tmux.py`: chama o `tmux` sempre com ambiente mínimo; lista sessões e painéis (`list-panes -a -F …` com `@jarvis_origem`, `@jarvis_aba` e clientes conectados; comandos fixos, sem shell); abre sessão (`new-session -d -c` + `@jarvis_origem jarvis`); manda `claude`; mata sessão; manda comando (`send-keys C-e C-u` + `-l` + Enter) e mensagem (`load-buffer` + `paste-buffer -p` + Enter); tmux ausente = lista vazia; testes contra um servidor tmux isolado (pulados sem tmux), incluindo: uma variável do ambiente do cérebro não aparece num terminal aberto pelo Jarvis; linha pela metade é apagada antes do comando
+- [ ] 2.3 Abas e cliente: abrir aba grava `@jarvis_aba` e desliga `destroy-unattached`; fechar aba apaga a marca e, em sessão vinda do Terminal.app, religa `destroy-unattached` (sem janela, a sessão acaba); a barra de abas vem das sessões marcadas; cliente da aba = pty rodando `tmux -L jarvis attach -t <sessão>`, aberto no `term_attach` e fechado no `term_detach`/desconexão, sem buffer guardado; resize; pausa; testes com servidor isolado: o que se digita num cliente aparece no outro; sessão do Terminal.app marcada sobrevive sem cliente nenhum; aba fechada sem janela encerra a sessão
+- [ ] 2.4 Numeração: sessão do tmux = terminal (chave `tmux:<session_id>`), na mesma numeração do `jarvis-terminais`; hook de anotação grava `painel` e `socket`; evento de painel do socket `jarvis` vai para o terminal da sessão e marca Claude Code de `SessionStart` a `SessionEnd`; "algo rodando" no shell por `pane_current_command`, e `claude` sem eventos dos hooks conta como "algo rodando"; testes em `test_terminals.py`
 - [ ] 2.5 Retirar da 1ª versão o que o tmux substitui: `claude` direto no pty, `--settings` com hook http, `abas.json` e "Retomar"; testes ajustados
 
 ## 3. Permissões
@@ -26,12 +26,13 @@
 ## 4. Canal e ferramentas
 
 - [ ] 4.1 WebSocket: `term_attach`/`term_detach`/`term_input`/`term_resize`/`term_pause`/`term_open` (pasta + claude)/`term_close`/`permission_answer`; evento `terminals` com tipo (shell/Claude Code) e "aberto no Terminal.app"; testes em `test_server.py` e `test_control.py`
-- [ ] 4.2 Ferramentas `abrir_terminal(pasta, claude)`, `mandar_terminal` (mensagem para o Claude Code, comando de uma linha para o shell, cartão com tipo e texto exato, alvo conferido de novo ao enviar) e `fechar_terminal` (confirma se algo roda); prompt: sem aprovação pelo modelo, sem tela para o modelo; testes com o modelo roteirizado (mensagem confirmada e cancelada, comando confirmado e cancelado, várias linhas recusadas, sessão de fora recusada, "permite o terminal 3" sem efeito)
+- [ ] 4.2 Ferramentas `abrir_terminal(pasta, claude)` (limite: 4 Claude Code rodando nos terminais compartilhados, e memória), `mandar_terminal` (mensagem só com o Claude Code em "terminou"/"esperando você"; comando de uma linha só com o shell livre; cartão com tipo e texto exato; alvo e condições conferidos de novo ao enviar) e `fechar_terminal` (confirma se algo roda ou se há janela do Terminal.app conectada, avisando que ela fecha junto); prompt: sem aprovação pelo modelo, sem tela para o modelo; testes com o modelo roteirizado (mensagem confirmada e cancelada, comando confirmado e cancelado, várias linhas recusadas, sessão de fora recusada, "permite o terminal 3" sem efeito, mensagem recusada com o Claude Code pedindo permissão, comando recusado com programa rodando, terminal que ficou ocupado entre a confirmação e o envio)
 
 ## 5. Interface
 
 - [x] 5.1 `AlertBar` com Permitir/Negar, `TerminalTabs`, `TerminalView` com `@xterm/xterm` 6 (controle de fluxo, Esc para o terminal, ⌘C), com testes (da 1ª versão)
-- [ ] 5.2 Ajustes para o tmux: sem reprodução da tela guardada (o tmux redesenha); "+" com Terminal ou Claude Code; coluna "Terminais" com "abrir aba" e o tipo; abas lembradas no `localStorage`; "Enviado ao terminal"; testes (`npx vitest run`)
+- [ ] 5.2 Ajustes para o tmux: sem reprodução da tela guardada (o tmux redesenha); "+" com Terminal ou Claude Code; coluna "Terminais" com "abrir aba" e o tipo; barra de abas vinda do cérebro (só a aba em primeiro plano no `localStorage`); × com confirmação quando o terminal vai acabar com algo rodando; "Enviado ao terminal"; testes (`npx vitest run`)
+- [ ] 5.4 HUD aberto por aviso de terminal não pega o Esc global (só o HUD da voz pega); teste de componente e conferência no app: com o aviso na tela, o Esc no Terminal.app interrompe o Claude Code
 - [ ] 5.3 Conferir no app que o HUD aberto sem foco recebe o clique; se não receber, aplicar a alternativa do `design.md`
 
 ## 6. Fechamento
@@ -49,6 +50,10 @@
     - "Terminal 2, roda os testes" (Claude Code) com confirmação;
     - "Terminal 3, roda git status" (shell) com confirmação;
     - "permite o terminal 3" recusado;
+  - "Terminal 2, roda os testes" com o Terminal 2 pedindo permissão: recusado, e o pedido continua aberto;
+  - comando com `npm test` rodando: recusado;
+  - Esc no Terminal.app com o aviso na tela interrompe o Claude Code;
+  - fechar a janela do Terminal.app de um terminal que está numa aba, fechar o painel e reabrir: o terminal continua;
   - quinto Claude Code recusado;
   - fechar terminal trabalhando com confirmação;
   - reiniciar o cérebro: terminais continuam;

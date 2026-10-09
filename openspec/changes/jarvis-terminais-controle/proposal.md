@@ -14,7 +14,8 @@ O `jarvis-terminais` deixou "responder à permissão" para "um change seguinte, 
 - **Toda janela nova do Terminal.app entra no tmux** e aparece no Jarvis como "Terminal N".
   - Funciona por um bloco no `~/.zshrc`, instalado pelo `install_mac.sh` com backup e removível.
   - O VS Code fica de fora, e também quem definir `JARVIS_SEM_TMUX=1`.
-  - Fechar a janela encerra a sessão, como hoje, a não ser que ela esteja aberta numa aba do Jarvis.
+  - Fechar a janela encerra a sessão, como hoje, a não ser que ela esteja aberta numa aba do Jarvis. Nesse caso o terminal vive até a aba ser fechada, mesmo com o painel fechado.
+  - O Jarvis inicia o tmux com ambiente mínimo, para nenhum segredo do cérebro chegar aos terminais.
 - **Abas no painel.** Qualquer terminal pode ser aberto numa aba: terminal real, mesma tela, digitação direta.
   - Com o foco numa aba, o Esc vai para o terminal, e o painel fecha com ⌥⇧Espaço.
 - **Abrir e fechar** pelo "+" do painel, por texto ou por voz:
@@ -25,10 +26,13 @@ O `jarvis-terminais` deixou "responder à permissão" para "um change seguinte, 
 - **Aprovar ou negar pelo Jarvis.** Quando um Claude Code rodando num terminal do Jarvis pede permissão, o aviso no HUD e no painel ganha os botões **Permitir** e **Negar**. Isso vale também para os terminais abertos no Terminal.app.
   - O diálogo continua no terminal, e vale o que for respondido primeiro.
   - A aprovação **só** sai de um clique do Kaio. Nunca do modelo, nunca da voz.
+  - O aviso não toma o Esc do app em uso: no Terminal.app, o Esc continua interrompendo o Claude Code.
 - **Mandar pelo Jarvis**, por texto ou voz. Para o Claude Code vai como **mensagem**: "Terminal 2, roda os testes". Para um shell vai como **comando** de uma linha: "Terminal 3, roda npm test".
   - Sempre aparece um cartão com o destino e o texto exato.
   - Só envia depois de o Kaio confirmar.
-- **Limite de memória.** O Jarvis recusa abrir um terminal novo quando o Mac está com pouca memória livre, e no máximo 4 Claude Code abertos por ele ao mesmo tempo.
+  - Ao Claude Code, só manda quando ele está parado esperando: com um diálogo ou pedido de permissão na tela, o Enter escolheria uma opção.
+  - Ao shell, só manda quando ele está livre, sem programa rodando, e apaga antes qualquer linha digitada pela metade.
+- **Limite de memória.** O Jarvis recusa abrir um terminal novo quando o Mac está com pouca memória livre, e recusa abrir um Claude Code quando já há 4 rodando nos terminais compartilhados.
 - **BREAKING (comportamento):**
   - todo terminal novo do Terminal.app roda dentro do tmux (rolagem pelo tmux; para selecionar texto, Option + arrastar);
   - no painel, o Esc não fecha mais quando o foco está numa aba de terminal.

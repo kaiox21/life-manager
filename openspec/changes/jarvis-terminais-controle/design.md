@@ -61,10 +61,17 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
    - `load-buffer` + `paste-buffer -p` entrega uma mensagem ao `claude` como colagem;
    - dentro do tmux, o hook do Claude Code recebe `TMUX` (com o caminho do socket, por exemplo `/private/tmp/tmux-501/jarvis,…`) e `TMUX_PANE` (`%1`);
    - `pane_current_command` mostra "2.1.296" para o `claude` (o nome do binário versionado). Não serve para saber se um terminal roda o Claude Code.
-6. **Memória** às 18h:
+6. **Ambiente do tmux** (teste de 09/10/2026 à noite):
+   - o processo que inicia o servidor define o ambiente de **todos** os terminais;
+   - uma variável do processo iniciador apareceu dentro de um terminal (`SECRET=[vazou]`);
+   - o PATH vem certo do shell de login;
+   - os acentos e o `❯` aparecem certos mesmo sem `LANG` (o tmux usa `C.UTF-8`).
+7. **Diálogo de permissão:** abre com "❯ 1. Yes" marcado, e "Enter to confirm". Um Enter mandado ao `claude` nesse momento aprova o pedido.
+8. **Memória** às 18h:
    - 16 GB de RAM; swap de 9,25 de 10 GB; `kern.memorystatus_level` = 43;
    - cada `claude` usa de 150 a 300 MB;
-   - o tmux e cada shell usam poucos MB.
+   - o tmux e cada shell usam poucos MB;
+   - `kern.memorystatus_level` **não tem documentação oficial da Apple**. Acompanha por aproximação o "System-wide memory free percentage" do `memory_pressure` (43 contra 37 no mesmo fim de tarde). É usado só como heurística.
 
 ## Goals / Non-Goals
 
@@ -100,6 +107,7 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
      - `history-limit 50000`;
      - `status off`, para parecer um terminal comum;
      - prefixo **Ctrl+]**, no lugar do Ctrl+B, que o Claude Code usa.
+   - **O Jarvis sempre chama o `tmux` com ambiente mínimo:** HOME, USER, LOGNAME, TMPDIR, LANG e o PATH do sistema mais o do Homebrew (a mesma regra da 1ª versão para o `claude`). Se for o Jarvis quem inicia o servidor, nenhum segredo do cérebro chega aos terminais (fato 6). Se for o Terminal.app, o ambiente é o da janela, como hoje.
    - Alternativa descartada: espelhar a janela do Terminal.app (AppleScript ou Accessibility). Só lê texto, não digita de forma confiável e quebra a cada versão.
 
 3. **Terminal.app entra no tmux pelo `~/.zshrc`.**
@@ -110,22 +118,23 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
      - `TMUX` está vazio;
      - `JARVIS_SEM_TMUX` está vazio;
      - `tmux -V` funciona.
-   - Faz `exec tmux -L jarvis -f <conf> new-session -c "$PWD" \; set-option destroy-unattached on`. A opção vai **depois** de conectar (fato 5): fechar a janela encerra a sessão, como hoje.
+   - Faz `exec tmux -L jarvis -f <conf> new-session -c "$PWD" \; set-option destroy-unattached on \; set-option @jarvis_origem terminal`. A opção vai **depois** de conectar (fato 5): fechar a janela encerra a sessão, como hoje.
    - Se o `tmux` falhar, o `exec` não acontece e a janela fica num shell normal.
    - `--sem-tmux` remove só o bloco.
 
 4. **Terminais abertos pelo Jarvis.**
-   - Comando: `tmux -L jarvis new-session -d -c <pasta> -x 120 -y 32`, sem `destroy-unattached`, porque eles vivem até o Kaio fechar.
+   - Comando: `tmux -L jarvis new-session -d -c <pasta> -x 120 -y 32` + `set-option @jarvis_origem jarvis`, sem `destroy-unattached`, porque eles vivem até o Kaio fechar.
    - "Claude Code": manda `claude` + Enter para o shell da sessão. Quando o `claude` sai, sobra o shell, como no Terminal.app. O Jarvis nunca passa `--dangerously-skip-permissions`.
    - Pastas permitidas: como na 1ª versão (`JARVIS_PASTAS`, raízes + 2 níveis, `realpath`).
    - Limite:
      - `kern.memorystatus_level` < `JARVIS_TERMINAIS_MEM_MIN` (20) recusa qualquer terminal novo;
-     - no máximo `JARVIS_TERMINAIS_MAX` (4) Claude Code abertos pelo Jarvis rodando ao mesmo tempo.
+     - abrir um Claude Code é recusado quando já há `JARVIS_TERMINAIS_MAX` (4) Claude Code rodando nos terminais compartilhados (contados pelos eventos dos hooks), de qualquer origem. O que o Kaio abre no Terminal.app nunca é bloqueado.
 
 5. **A aba é um cliente do tmux.**
    - O cérebro abre um pty rodando `tmux -L jarvis attach -t <sessão>` (com `TERM=xterm-256color`) quando uma interface anexa a aba (`term_attach`), e o fecha quando ela desanexa.
    - O tmux redesenha a tela inteira ao conectar. Por isso **não há buffer guardado nem reprodução**, e o bug do fato 4 some por construção. O xterm responde ao vivo às perguntas do tmux, como faria o Terminal.app.
-   - Sem aba aberta, não existe cliente nem tráfego.
+   - Sem aba visível, não existe cliente nem tráfego.
+   - **Marca de aba na própria sessão** (corrige uma contradição da revisão anterior): abrir uma aba grava `@jarvis_aba 1` na sessão e desliga `destroy-unattached`. A sessão sobrevive mesmo com a janela do Terminal.app fechada e o painel fechado, quando não há cliente nenhum. Fechar a aba (×) apaga a marca. Se a sessão veio do Terminal.app (`@jarvis_origem terminal`), o `destroy-unattached` volta a valer, e sem janela aberta a sessão acaba na hora: por isso o × pede confirmação quando há algo rodando. A barra de abas é lida do tmux (sessões com `@jarvis_aba`), não do `localStorage`: sobrevive ao reinício do Jarvis e o cérebro sempre sabe quais abas existem.
    - Controle de fluxo como antes: a interface pausa acima de 500 KB pendentes.
    - Teclas da aba: `term_input` vai cru para o pty do cliente, porque é o Kaio digitando.
 
@@ -133,7 +142,7 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
    - A cada 1 s, o cérebro roda `tmux -L jarvis list-panes -a -F '#{session_id}|#{pane_id}|#{pane_pid}|#{pane_current_path}|#{pane_current_command}|#{session_attached}'`. Os comandos são fixos, sem shell.
    - Terminal compartilhado = sessão do tmux, com a chave `tmux:<session_id>`. Recebe o menor número livre na mesma numeração do `jarvis-terminais`. Sessões do Claude Code de fora do tmux continuam numeradas pelo pid.
    - O hook de anotação passa a gravar `painel` (`TMUX_PANE`) e `socket` (o nome do socket, tirado de `TMUX`). Um evento de um painel do socket `jarvis` vai para o terminal daquela sessão, e o terminal vira "Claude Code" de `SessionStart` até `SessionEnd`. Não se usa `pane_current_command` (fato 5).
-   - "Algo rodando" no shell = `pane_current_command` diferente de `zsh`, `bash`, `sh` e `-zsh`. No Claude Code, o estado é trabalhando ou pedindo permissão.
+   - "Algo rodando" no shell = `pane_current_command` diferente de `zsh`, `bash`, `sh` e `-zsh`. No Claude Code, o estado é trabalhando ou pedindo permissão. Um `claude` rodando sem eventos dos hooks (hooks desligados, pergunta de confiança ainda aberta) aparece como "2.1.296", e por isso cai em "algo rodando": o Jarvis não manda comando e pede confirmação para fechar.
    - O `tmux` ausente ou sem servidor equivale a uma lista vazia. O `jarvis-terminais` segue como antes.
 
 7. **Aprovar e negar: hook global de comando, só nos terminais compartilhados.**
@@ -155,15 +164,15 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
 
 8. **Mandar texto** (ferramenta `mandar_terminal(numero, texto)` e a confirmação que já existe):
    - O cérebro tira os controles (< 0x20 menos `\t`/`\n`, 0x7f, C1) e corta em 4.000 caracteres.
-   - **Claude Code** → `load-buffer` + `paste-buffer -p` (colagem) + `send-keys Enter`. Cartão: "Mensagem para o Terminal N (pasta): …".
-   - **Shell** → recusa texto com quebra de linha; senão `send-keys -l '<cmd>'` + `Enter`. Cartão: "Comando no Terminal N (pasta): `<cmd>`".
-   - Envia só depois do "Confirmar". O alvo (`pane_id`) é conferido de novo na hora de enviar. Se o terminal fechou ou trocou de shell para Claude Code no meio, o Jarvis recusa e pergunta outra vez.
+   - **Claude Code** → só se o estado for "terminou" ou "esperando você" (eventos `Stop` ou `idle_prompt`), porque fora disso pode haver um diálogo, menu ou pedido de permissão na tela, e o Enter escolheria uma opção (fato 7). Envio: `load-buffer` + `paste-buffer -p` (colagem) + `send-keys Enter`. Cartão: "Mensagem para o Terminal N (pasta): …". Limite conhecido: um rascunho que o Kaio deixou digitado no prompt do Claude Code é enviado junto com a mensagem.
+   - **Shell** → recusa texto com quebra de linha; só se o shell estiver livre (`pane_current_command` em `zsh`/`bash`/`sh`). Envio: `send-keys C-e C-u` (apaga a linha pela metade; teclas do próprio Jarvis, nunca do modelo) + `send-keys -l '<cmd>'` + `Enter`. Cartão: "Comando no Terminal N (pasta): `<cmd>`".
+   - Envia só depois do "Confirmar". O alvo (`pane_id`) é conferido de novo na hora de enviar. As condições (estado do Claude Code, shell livre) também são conferidas de novo na hora de enviar. Se o terminal fechou, mudou de tipo ou ficou ocupado no meio, o Jarvis recusa e diz o motivo.
    - Pela aba, as teclas vão cruas.
 
 9. **Ferramentas do modelo:**
    - `abrir_terminal(pasta, claude=false)`, sem confirmação, porque abrir não executa nada;
    - `mandar_terminal` (decisão 8);
-   - `fechar_terminal(numero)`, que é `tmux kill-session`, com confirmação se houver algo rodando;
+   - `fechar_terminal(numero)`, que é `tmux kill-session`, com confirmação se houver algo rodando ou se houver uma janela do Terminal.app conectada (ela fecha junto, e o cartão diz isso);
    - `listar_terminais`, só leitura, ganha o tipo (shell ou Claude Code);
    - **não existe ferramenta de aprovação**, e o prompt diz isso;
    - o modelo nunca recebe a tela.
@@ -173,7 +182,8 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
     - **Barra de abas:** "Central" + abas abertas + "+". O "+" pede a pasta e tem a escolha "Terminal" ou "Claude Code".
     - **Xterm e teclas:** `@xterm/xterm` com `addon-fit`, `scrollback: 5000`, sem WebGL. Só a aba visível fica montada. Esc vai para o terminal; ⌥⇧Espaço fecha o painel; ⌘C copia a seleção.
     - **Botões:** Permitir e Negar no aviso do HUD e no topo do painel, sem foco automático nem atalho de teclado.
-    - **Abas lembradas:** as abas que o Kaio deixou abertas ficam no `localStorage` da interface (só os ids das sessões do tmux). Depois de reiniciar, voltam as que ainda existem.
+    - **Abas lembradas:** a barra vem do cérebro (sessões com `@jarvis_aba`, decisão 5). A interface guarda no `localStorage` só qual aba estava em primeiro plano.
+    - **Esc do aviso:** o HUD aberto por um aviso de terminal **não pega o Esc global**. Hoje ele pega, pela correção do Esc instalada às 17:42 para o HUD aberto pela voz, e isso roubaria o Esc do Kaio no Terminal.app, que interrompe o Claude Code. O Esc global fica só para o HUD aberto pela voz. O aviso some sozinho quando o pedido se resolve, ou pelo ×.
 
 11. **Auto mode.** As sessões do Kaio vão pedir permissão pouco. O valor principal é ver, digitar, abrir e mandar.
 
@@ -184,11 +194,14 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
 - **Voz mal entendida** → o mesmo cartão.
 - **Todo terminal novo roda no tmux** (a rolagem é do tmux; selecionar texto pede Option + arrastar; Ctrl+] é o prefixo) → configuração mínima e status desligado. `JARVIS_SEM_TMUX=1` desliga numa janela, e `--sem-tmux` desliga de vez.
 - **Um `~/.zshrc` quebrado deixaria o Kaio sem terminal** → o bloco só faz `exec` depois de `tmux -V` funcionar, com backup. Se tudo falhar, o shell segue normal.
+- **Ambiente vazando para os terminais** (fato 6) → o `tmux` é sempre chamado com ambiente mínimo; teste confere que uma variável do cérebro não aparece num terminal aberto pelo Jarvis.
+- **Enter do Jarvis aprovando um diálogo** (fato 7) → mensagem ao Claude Code só nos estados "terminou" ou "esperando você", conferidos de novo na hora de enviar.
+- **Rascunho no prompt do Claude Code** vai junto com a mensagem → aceito; o cartão avisa que a mensagem é colada no prompt.
 - **Resposta dada no Terminal.app não é vista na hora** (o Jarvis só vê as teclas da própria aba) → os botões ficam até o próximo sinal da sessão. Um clique atrasado é ignorado pelo Claude Code, mas o aviso diria "Permitido" sem ter valido. Para evitar isso, o resultado mostrado é "Enviado ao terminal", não "Permitido".
 - **Hook síncrono global em todas as sessões** → fora do socket `jarvis`, o script sai em ~40 ms sem fazer nada. Falha nunca bloqueia (`|| true`, saída vazia).
 - **O HUD sem foco pode não receber clique** → conferir no aceite. Se não receber, o clique torna o HUD focável primeiro. Os botões também ficam no painel.
 - **Duas telas de tamanhos diferentes** → `window-size latest`: a janela segue quem foi usado por último, e o Claude Code redesenha.
-- **Swap cheio** → limiar de memória e no máximo 4 Claude Code abertos pelo Jarvis. O aceite anota a memória.
+- **Swap cheio** → limiar de memória (heurística, fato 8) e no máximo 4 Claude Code nos terminais compartilhados ao abrir pelo Jarvis. O aceite anota a memória.
 - **Reinício do Mac** → o tmux fecha junto. Igual a hoje.
 
 ## Migration Plan
