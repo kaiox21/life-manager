@@ -22,5 +22,5 @@
 ## 5. Fechamento
 
 - [x] 5.1 `uv run pytest`, `ruff`, testes da UI e `npm run tauri build` + `install_mac.sh`; a prova do núcleo não precisa rodar (prompt, ferramentas do agente e modelos não mudam)
-- [ ] 5.2 Aceite com o Kaio: ⌥⇧Espaço abre em menos de 300 ms e com dados em menos de 1 s; lançar um gasto pelo WhatsApp e ver no painel; "gastei 30 de Uber no Nubank" por voz com o painel aberto e ver Transporte, total e fatura atualizarem; Esc fecha e devolve o app anterior; núcleo parado mostra "núcleo indisponível"
-- [ ] 5.3 Arquivar o `jarvis-voz` antes; `SPEC.md` (fechar a questão "Painel central de comando", mapa de capacidades com `jarvis-painel`), relatório no `design.md` e arquivar
+- [x] 5.2 Aceite com o Kaio: ⌥⇧Espaço abre em menos de 300 ms e com dados em menos de 1 s; lançar um gasto pelo WhatsApp e ver no painel; "gastei 30 de Uber no Nubank" por voz com o painel aberto e ver Transporte, total e fatura atualizarem; Esc fecha e devolve o app anterior; núcleo parado mostra "núcleo indisponível"
+- [x] 5.3 Arquivar o `jarvis-voz` antes; `SPEC.md` (fechar a questão "Painel central de comando", mapa de capacidades com `jarvis-painel`), relatório no `design.md` e arquivar

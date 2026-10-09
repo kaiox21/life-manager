@@ -7,4 +7,4 @@
 
 - [x] 2.1 `uv run pytest` e `ruff`; reiniciar o cérebro e medir de ponta a ponta com os áudios de teste (`→fala` menor que antes); a prova do núcleo não precisa rodar (nada muda no núcleo)
 - [x] 2.2 Aceite com o Kaio pelo microfone (09/10/2026, "funcionando perfeitamente", sem engasgos; tempos reais: simples 3,4–4,4 s, com ferramenta "um instante" 2,5–3,0 s e resposta 4,9–5,4 s; as metas de 3 s / 4 s **não** foram atingidas, ver design): "que dia é hoje?" com 1ª palavra < 3 s e "o que eu tenho amanhã?" com resposta < 4 s; fala sem engasgos; ⌘⇧Espaço durante a fala corta na hora
-- [ ] 2.3 `SPEC.md` (decisão do Jarvis com os tempos novos; fechar "Voz mais rápida") e arquivar
+- [x] 2.3 `SPEC.md` (decisão do Jarvis com os tempos novos; fechar "Voz mais rápida") e arquivar

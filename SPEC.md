@@ -33,8 +33,13 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | `agenda` | eventos, pessoas, busca com recorrência, atualizar e remover, Google Calendar |
 | `midia` | áudio (`faster-whisper` local), foto de recibo, origem herdada, mídia não guardada |
 | `lembretes` | resumo do dia, lembrete de evento, fechamento de fatura, uma vez só |
-| `mcp` | ferramentas do núcleo por MCP, `contexto`, acesso restrito |
+| `mcp` | ferramentas do núcleo por MCP, `contexto`, `painel`, acesso restrito |
 | `operacao` | hospedagem, segredos, backup cifrado, alerta de queda, dead man's switch |
+| `jarvis-agente` | cérebro do Jarvis: núcleo só pelo MCP, ferramentas combinadas, canal local seguro |
+| `jarvis-interface` | HUD, atalhos, estados, cartões, confirmação na interface |
+| `ferramentas-locais` | ações no Mac sem shell (apps, Spotify, timer, arquivos, área de transferência) |
+| `jarvis-voz` | push-to-talk, transcrição local, fala em streaming (Fish com reserva local), interrupção |
+| `jarvis-painel` | painel em tela cheia: agenda, gastos, faturas, registro e conversa, dados prontos do núcleo |
 
 ## Decisões e riscos
 
@@ -46,7 +51,7 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | Entrada de gastos | Texto, áudio e foto de recibo; sem importação de fatura | "Total da fatura" só é exato se tudo for lançado | Cartão com dia de fechamento; conferência contra o app do banco |
 | Hospedagem do núcleo | Oracle Cloud pay-as-you-go, São Paulo, dentro da cota grátis (desde 15/06/2026: 2 OCPU / 12 GB); Hetzner como plano B. **Provisório (08/10/2026): roda no Mac** (Oracle sem capacidade ARM); change `deploy-vps` pausado | Mac fechado = bot e lembretes parados | Backup cifrado; scripts de deploy prontos; atrasos de lembrete recuperados por até 6 h |
 | Integração entre canais | Ferramentas do núcleo por MCP; Tailscale quando houver VPS | Duas lógicas divergindo | Regras só no núcleo; o Jarvis não toca o banco |
-| Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5. Voz (09/10/2026): microfone capturado pelo app, push-to-talk ⌘⇧Espaço, transcrição local (`mlx-whisper` q4, presa na RAM), fala frase a frase pela Fish Audio (voz "Jarvis" da comunidade, modelo gratuito) com a voz do macOS de reserva; persona de mordomo ("senhor"). Painel em tela cheia com ⌥⇧Espaço | Latência da voz (resposta com ferramenta em ~5 s); texto das respostas sai para a Fish; a voz imita uma pessoa real (uso privado, escolha do Kaio); permissões do macOS | Push-to-talk antes de wake word; streaming; "Um instante, senhor." em < 3 s; voz local se a Fish falhar; ID da voz e chave só no `.env` |
+| Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5. Voz (09/10/2026): microfone capturado pelo app, push-to-talk ⌘⇧Espaço, transcrição local (`mlx-whisper` q4, presa na RAM), fala frase a frase pela Fish Audio (voz "Jarvis" da comunidade, modelo gratuito), tocada enquanto chega, com a voz do macOS de reserva; persona de mordomo ("senhor"). Painel em tela cheia com ⌥⇧Espaço, com dados prontos do núcleo e sem tokens | Latência da voz (aceite de 09/10/2026: simples 3,4–4,4 s; com ferramenta, resposta em 4,9–5,4 s; o 1º token do modelo domina); texto das respostas sai para a Fish; a voz imita uma pessoa real (uso privado, escolha do Kaio); permissões do macOS | Push-to-talk antes de wake word; streaming; "Um instante, senhor." em < 3 s; voz local se a Fish falhar; ID da voz e chave só no `.env` |
 | Modelo de IA | Desde 08/10/2026: **Claude direto pela API da Anthropic** (SDK oficial, `LLM_PROVIDER=anthropic`): `claude-haiku-5-5` no classificador e no principal (US$ 0,10/0,50 por milhão de tokens; ~1,5 s por chamada), `claude-sonnet-5-5` na escalada. Prova: 56/56 no classificador e 55/56 (98%) no agente. O Vercel AI Gateway continua como alternativa (`LLM_PROVIDER=gateway`) | Modelo lançado em 07/10/2026, sem histórico de uso; chave colada na conversa | Prova a cada mudança; gateway como plano B; rotacionar a chave |
 | Política de gravação | Grava direto com "desfazer"; confirma foto, áudio, exclusões e valores acima de R$ 500 | Gasto errado gravado sem perceber | Eco do que foi gravado em toda resposta |
 
@@ -98,8 +103,9 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Chip dedicado para sair do modo provisório.
 - [ ] Teste real da foto de recibo (adiado pelo Kaio).
 - [ ] **Roteador de modelos por dificuldade** (pedido de 08/10/2026), junto com o Jarvis. O classificador devolve também a dificuldade, sem chamada extra, combinada com sinais fixos. Uma tabela no `.env` liga cada faixa a um modelo, com a escalada como rede de segurança. A tabela sai da prova (acerto, custo e latência por faixa).
-- [ ] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): modo tela cheia no estilo holográfico, com orbe central e agenda, gastos, relógio e log em volta. Implementado no change `jarvis-painel` (09/10/2026); falta o aceite final.
-- [ ] **Voz mais rápida**: tocar o áudio da Fish enquanto ele chega (~0,5 s a menos por resposta).
+- [x] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): entregue no change `jarvis-painel` (09/10/2026).
+- [x] **Voz mais rápida**: áudio da Fish tocado enquanto chega, no change `jarvis-voz-streaming` (09/10/2026). O que pesa agora é o 1º token do modelo.
+- [ ] **HUD leve**: o orbe do HUD aberto e parado gasta ~17% de CPU (anéis animados o tempo todo); animar só ao ouvir, pensar ou falar.
 - [ ] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): ver o estado e ser avisado quando uma sessão termina ou espera resposta. Só leitura e avisos.
 
 **Decididas (resumo):**

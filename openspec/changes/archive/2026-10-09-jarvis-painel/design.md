@@ -77,3 +77,4 @@ Sem migração de banco. Ordem: ferramenta `painel` no núcleo com testes → ev
 - CPU com o painel aberto e parado (soma do app e dos processos do WebKit, amostras a cada 2 s por 30 s): **30% de média** na primeira versão (800 pontos a 60 fps, brilho e anéis redesenhados a cada quadro). Com 500 pontos, 20 fps parado / 30 fps em atividade e brilho e anéis desenhados uma vez e só girados: **9,2% de média** (máximo 20%). Meta (< 10%) atingida.
 - Achado fora do escopo: o HUD pequeno aberto e parado gasta ~17% de CPU (anéis do orbe animados por CSS o tempo todo). Fica para um change pequeno de desempenho do HUD.
 - Aceite parcial com o Kaio (09/10/2026): gasto lançado pelo WhatsApp apareceu no painel; tela cheia, atalhos e Esc conferidos antes. Falta confirmar a voz com o painel aberto atualizando as colunas.
+- Aceite final (09/10/2026): o Kaio testou a voz com o painel aberto e as colunas se atualizaram ("funcionou bem").
