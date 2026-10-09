@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MicCapture } from "./audio";
+import { MicCapture, chime } from "./audio";
 import { applyEvent, clearConfirm, startTurn } from "./conversation";
+import { EMPTY_PANEL, applyPanel, panelFailed, panelLoading, type PanelState } from "./panel";
 import type { ServerEvent, Turn } from "./types";
 
 type Link = "connecting" | "online" | "offline";
@@ -26,6 +27,8 @@ export function useJarvis() {
   const mic = useRef<MicCapture | null>(null);
   const voice = useRef<{ id: string; started: boolean } | null>(null);
   const onNoSpeech = useRef<() => void>(() => {});
+  const onWrite = useRef<() => void>(() => {});
+  const [panel, setPanel] = useState<PanelState>(EMPTY_PANEL);
 
   const send = useCallback((msg: Record<string, unknown>) => {
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(msg));
@@ -65,8 +68,14 @@ export function useJarvis() {
           setTurns((prev) => applyEvent(prev, ev));
           onNoSpeech.current();
           return;
-        case "heard":
+        case "panel":
+          setPanel((prev) => applyPanel(prev, ev.data, Date.now()));
+          return;
         case "done":
+          setStatus("");
+          if (ev.data?.wrote) onWrite.current();
+          break;
+        case "heard":
         case "error":
           setStatus("");
           break;
@@ -104,6 +113,7 @@ export function useJarvis() {
       return;
     }
     send({ type: "interrupt" });
+    chime("start");
     const id = crypto.randomUUID();
     const state = { id, started: false };
     voice.current = state;
@@ -142,6 +152,7 @@ export function useJarvis() {
     mic.current = null;
     setListening(false);
     if (!state) return;
+    chime("end");
     if (!state.started) {
       setTurns((prev) => prev.filter((t) => t.id !== state.id));
       onNoSpeech.current();
@@ -159,10 +170,23 @@ export function useJarvis() {
     [send],
   );
 
+  /** Dados do painel, direto do núcleo (o cérebro não chama o modelo). */
+  const requestPanel = useCallback(() => {
+    if (ws.current?.readyState !== WebSocket.OPEN) {
+      setPanel((prev) => panelFailed(prev, "cérebro indisponível"));
+      void connect();
+      return;
+    }
+    setPanel(panelLoading);
+    send({ type: "panel", id: crypto.randomUUID() });
+  }, [connect, send]);
+
   const thinking = turns.some((t) => t.status === "thinking");
   return {
     turns, link, problem, status, speaking, listening, levels, thinking,
+    panel, requestPanel,
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,
     setOnNoSpeech: (fn: () => void) => { onNoSpeech.current = fn; },
+    setOnWrite: (fn: () => void) => { onWrite.current = fn; },
   };
 }

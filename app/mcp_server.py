@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.service import build_prompt
 from app.agent.tools import ALL_TOOLS, Tool, ToolContext, ToolError
+from app.agent.tools.painel import painel as panel_data
 from app.clock import Clock
 from app.db.models import AgentRun
 
@@ -125,6 +126,16 @@ def build_mcp(
             )
 
     server.add_tool(contexto, name="contexto")
+
+    async def painel() -> str:
+        """Dados do painel do Jarvis, já calculados: agenda de hoje e dos próximos 7 dias,
+        gastos do mês por categoria, fatura aberta de cada cartão e últimos registros.
+        Só leitura; não registra em agent_runs."""
+        async with get_sessions()() as session:
+            data = await panel_data(ToolContext(session=session, clock=clock))
+        return json.dumps(data, ensure_ascii=False, default=str)
+
+    server.add_tool(painel, name="painel")
     return server
 
 

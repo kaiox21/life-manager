@@ -31,6 +31,18 @@
           "state": "active",
           "radius": 14
         }
+      },
+      {
+        "label": "painel",
+        "title": "Jarvis · Painel",
+        "width": 1280,
+        "height": 800,
+        "decorations": false,
+        "visible": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "backgroundColor": "#020a1c"
       }
     ],
     "security": {

@@ -41,3 +41,28 @@ export class MicCapture {
     this.ctx = null;
   }
 }
+
+let chimeCtx: AudioContext | null = null;
+
+/** Toque curto e discreto: sobe ao começar a ouvir, desce ao terminar. */
+export function chime(kind: "start" | "end"): void {
+  try {
+    chimeCtx ??= new AudioContext();
+    const ctx = chimeCtx;
+    const [from, to] = kind === "start" ? [880, 1320] : [1175, 784];
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(from, t);
+    osc.frequency.exponentialRampToValueAtTime(to, t + 0.09);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.07, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.18);
+  } catch {
+    // sem áudio de saída: segue sem o toque
+  }
+}

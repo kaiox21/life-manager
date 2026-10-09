@@ -69,6 +69,19 @@ class Vad:
         return Speech(audio=audio[start:end], seconds=seconds)
 
 
+_background: set[asyncio.Task[None]] = set()
+WIRED_LIMIT = 2 * 1024**3  # cabe o whisper q4 (~0,64 GB) com folga
+
+
+def _wire_memory() -> None:
+    try:
+        import mlx.core as mx
+
+        mx.set_wired_limit(WIRED_LIMIT)
+    except Exception:  # noqa: BLE001 — sem MLX (testes) ou macOS antigo: segue sem prender
+        log.debug("sem wired limit do MLX", exc_info=True)
+
+
 class Transcriber:
     """mlx-whisper carregado uma vez; transcreve em thread (um por vez)."""
 
@@ -77,26 +90,57 @@ class Transcriber:
         self._hints = hints or (lambda: [])
         self._lock = asyncio.Lock()
         self._ready = False
+        self._warming = False
 
-    def _run(self, audio: np.ndarray) -> str:
+    def _run(self, audio: np.ndarray, warm: bool = False) -> str:
         import mlx_whisper
 
-        prompt = "Agenda e gastos: " + ", ".join(dict.fromkeys([*HINTS, *self._hints()])) + "."
+        if warm:
+            # Só acordar os pesos. Sem as dicas e sem novas tentativas: com silêncio, o
+            # whisper repete o prompt e a temperatura sobe; levava 5–10 s (09/10/2026).
+            options: dict[str, Any] = {"temperature": 0.0}
+        else:
+            hints = ", ".join(dict.fromkeys([*HINTS, *self._hints()]))
+            options = {"initial_prompt": f"Agenda e gastos: {hints}."}
         result: dict[str, Any] = mlx_whisper.transcribe(
             audio,
             path_or_hf_repo=self._model,
             language="pt",
-            initial_prompt=prompt,
             condition_on_previous_text=False,
+            **options,
         )
         self._ready = True
         return str(result.get("text", "")).strip()
 
     async def warmup(self) -> None:
-        """Carrega (e baixa, na primeira vez) o modelo com 1 s de silêncio."""
+        """Carrega (e baixa, na primeira vez) o modelo com 1 s de silêncio.
+
+        Também "prende" a memória do MLX (wired): sem isso, com o Mac sem RAM sobrando, o
+        macOS manda os pesos para o swap quando o Jarvis fica parado e a próxima transcrição
+        leva 6 s em vez de 0,9 s (medido em 09/10/2026).
+        """
+        _wire_memory()
         async with self._lock:
-            await asyncio.to_thread(self._run, np.zeros(RATE, dtype=np.float32))
+            await asyncio.to_thread(self._run, np.zeros(RATE, dtype=np.float32), True)
         log.info("whisper %s pronto", self._model)
+
+    def prewarm(self) -> None:
+        """Atalho apertado: acorda o modelo enquanto o Kaio fala (se não estiver ocupado)."""
+        if self._lock.locked() or self._warming:
+            return
+        self._warming = True
+        task = asyncio.get_running_loop().create_task(self._touch())
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+
+    async def _touch(self) -> None:
+        async with self._lock:
+            self._warming = False
+            t0 = time.monotonic()
+            await asyncio.to_thread(self._run, np.zeros(RATE // 4, dtype=np.float32), True)
+            ms = int((time.monotonic() - t0) * 1000)
+            if ms > 1500:
+                log.info("whisper estava fora da memória: acordou em %dms", ms)
 
     @property
     def ready(self) -> bool:

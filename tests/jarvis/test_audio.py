@@ -16,3 +16,21 @@ def test_reamostra_de_48k():
     out = pcm16_to_float(pcm, 48000)
     assert len(out) == 16000
     assert abs(out).max() > 0.5
+
+
+async def test_prewarm_acorda_o_modelo_sem_atrapalhar_a_transcricao(monkeypatch):
+    import asyncio
+
+    import numpy as np
+
+    from jarvis.audio import Transcriber
+
+    calls: list[int] = []
+    t = Transcriber()
+    monkeypatch.setattr(t, "_run", lambda audio, warm=False: calls.append(len(audio)) or "oi")
+    t.prewarm()
+    t.prewarm()  # já acordando: não empilha
+    await asyncio.sleep(0)  # o Kaio ainda está falando
+    text, _ = await t.transcribe(np.zeros(16000, dtype=np.float32))
+    assert text == "oi"
+    assert calls == [4000, 16000]  # acordou primeiro, depois transcreveu

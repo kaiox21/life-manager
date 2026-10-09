@@ -34,7 +34,8 @@ export type ServerEvent =
   | { type: "no_speech"; id: string }
   | { type: "status"; id: string; text: string }
   | { type: "speaking"; id: string; data: { on: boolean } }
-  | { type: "done"; id: string; text: string }
+  | { type: "done"; id: string; text: string; data?: { wrote?: boolean } }
+  | { type: "panel"; id: string; data: PanelData | { erro: string } }
   | { type: "error"; id: string; text: string };
 
 export type Mode = "texto" | "voz";
@@ -48,4 +49,40 @@ export interface Turn {
   answer: string;
   confirm?: { confirmId: string; text: string };
   status: "listening" | "thinking" | "done" | "error";
+}
+
+// Painel (ferramenta `painel` do núcleo + perguntas da sessão). Tudo vem pronto: a interface
+// só desenha; valores e datas já chegam formatados ao lado dos centavos.
+export interface PanelEvent {
+  id: string;
+  titulo: string;
+  tipo: string;
+  data: string;
+  hora: string;
+  pessoa?: string;
+  local?: string;
+  recorrencia?: string;
+}
+
+export interface PanelData {
+  agora: string;
+  agenda: { hoje: PanelEvent[]; proximos: PanelEvent[] };
+  mes: {
+    periodo: string;
+    total: string;
+    total_centavos: number;
+    grupos: { grupo: string; total: string; total_centavos: number; lancamentos: number }[];
+  };
+  faturas: {
+    cartao: string;
+    mes_vencimento: string;
+    vencimento: string;
+    fechamento: string;
+    situacao: string;
+    total: string;
+    total_centavos: number;
+    lancamentos: number;
+  }[];
+  registro: { tipo: "gasto" | "evento"; quando: string; texto: string; origem: "whatsapp" | "mac" | null }[];
+  perguntas: string[];
 }

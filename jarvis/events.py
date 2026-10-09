@@ -6,17 +6,19 @@ Interface -> cérebro:
   {"type": "interrupt"}                      para de falar e cancela o turno em andamento
   {"type": "voice_start", "id": "<id>", "sampleRate": 16000}, quadros binários PCM Int16 mono,
   {"type": "voice_end", "id": "<id>"} | {"type": "voice_cancel", "id": "<id>"}
+  {"type": "panel", "id": "<id>"}           dados do painel (sem o modelo)
 Cérebro -> interface:
   step    passo em andamento ("consultando a agenda…")
   token   pedaço do texto da resposta (streaming)
   card    cartão tipado para desenhar
   confirm pedido de confirmação (pendência do núcleo, área de transferência)
-  done    fim da resposta, com o texto completo
+  done    fim da resposta, com o texto completo (data.wrote: o turno gravou algo no núcleo)
   error   falha, com mensagem para o usuário
   heard   transcrição da fala (vira a pergunta do turno)
   no_speech  a gravação não tinha fala: a interface vira modo texto
   status  texto curto de estado ("transcrevendo…", "baixando o modelo de voz…")
   speaking  data.on: começou/terminou de falar
+  panel   data: saída da ferramenta `painel` + "perguntas" da sessão, ou {"erro": "..."}
 """
 
 import json
@@ -24,7 +26,17 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 EventType = Literal[
-    "step", "token", "card", "confirm", "done", "error", "heard", "no_speech", "status", "speaking"
+    "step",
+    "token",
+    "card",
+    "confirm",
+    "done",
+    "error",
+    "heard",
+    "no_speech",
+    "status",
+    "speaking",
+    "panel",
 ]
 
 
@@ -59,8 +71,12 @@ def confirm(rid: str, confirm_id: str, text: str, data: dict[str, Any] | None = 
     return Event("confirm", rid, text=text, confirm_id=confirm_id, data=data or {})
 
 
-def done(rid: str, text: str) -> Event:
-    return Event("done", rid, text=text)
+def done(rid: str, text: str, wrote: bool = False) -> Event:
+    return Event("done", rid, text=text, data={"wrote": True} if wrote else {})
+
+
+def panel(rid: str, data: dict[str, Any]) -> Event:
+    return Event("panel", rid, data=data)
 
 
 def error(rid: str, text: str) -> Event:

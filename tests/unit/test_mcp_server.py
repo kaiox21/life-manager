@@ -26,6 +26,7 @@ EXPECTED = {
     "gerenciar_pessoa",
     "confirmar_pendente",
     "contexto",
+    "painel",
 }
 
 
@@ -144,3 +145,24 @@ async def test_http_exige_token(settings, seeded):
 async def test_sem_token_o_mcp_fica_desligado(settings, seeded):
     app = create_app(settings, sessions=seeded, sender=None, llm=None)
     assert app.state.mcp is None
+
+
+async def test_painel_so_le_sem_agent_runs_nem_sync(seeded):
+    writes = []
+
+    async def after_write() -> None:
+        writes.append(1)
+
+    server = build_mcp(get_sessions=lambda: seeded, clock=fixed_clock(NOW), after_write=after_write)
+    await server.call_tool(
+        "lancar_gasto", {"amount_cents": 4790, "description": "almoço", "payment_method": "nubank"}
+    )
+    runs_antes, writes_antes = len(await _all(seeded, AgentRun)), len(writes)
+
+    out = _payload(await server.call_tool("painel", {}))
+    assert out["mes"]["total_centavos"] == 4790
+    assert out["registro"][0]["texto"] == "almoço · R$ 47,90 · Nubank"
+    assert out["registro"][0]["origem"] == "mac"
+    assert len(await _all(seeded, AgentRun)) == runs_antes
+    assert len(writes) == writes_antes
+    assert len(await _all(seeded, Expense)) == 1

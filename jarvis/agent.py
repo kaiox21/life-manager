@@ -36,10 +36,11 @@ MAX_FAILURES = 2
 HISTORY = 10
 GIVE_UP = "Não consegui entender. Pode reformular?"
 MAX_SPOKEN_SENTENCES = 2
-FILLERS = ["Deixa eu ver.", "Um momento.", "Só um instante."]
+FILLERS = ["Um instante, senhor.", "Verificando, senhor.", "Só um momento, senhor."]
 _SENTENCE_BOUNDARY = re.compile(r"[.!?…](?=\s)")
 
 PERSONA = """Você é o Jarvis, assistente pessoal do Kaio no Mac. Responde em português, curto e direto (uma ou duas frases); os detalhes aparecem em cartões na tela.
+Estilo: trate o Kaio por "senhor". Tom calmo, cortês e preciso, de mordomo britânico; um humor seco e discreto de vez em quando, nunca piada longa nem bajulação. Ex.: "Feito, senhor. Quarenta e sete reais no Nubank." / "Amanhã está livre, senhor. Raro, mas acontece."
 Regras:
 1. Agenda e gastos só pelas ferramentas do núcleo. Nunca invente datas ou valores.
 2. Nunca some ou calcule: use buscar_gastos, total_fatura ou resumo_gastos.
@@ -56,6 +57,21 @@ Contexto atual:
 VOICE_RULES = """
 
 Modo voz: o Kaio falou e vai ouvir a resposta. Responda em no máximo duas frases curtas, sem listas, tabelas, emojis ou símbolos; os detalhes aparecem em cartões na tela. Escreva valores e datas por extenso, como se fossem lidos em voz alta (quarenta e sete reais e noventa centavos; oito de novembro; três da tarde). Não anuncie o que vai fazer: chame a ferramenta direto e responda só com o resultado."""
+
+# Ferramentas do núcleo que gravam: o painel se atualiza depois de um turno que usou alguma.
+CORE_WRITES = {
+    "lancar_gasto",
+    "desfazer_ultimo",
+    "gerenciar_meio_pagamento",
+    "criar_evento",
+    "atualizar_evento",
+    "remover_evento",
+    "gerenciar_pessoa",
+    "confirmar_pendente",
+}
+# Só para a interface, nunca para o modelo.
+HIDDEN_CORE_TOOLS = {"contexto", "painel"}
+PANEL_QUESTIONS = 5
 
 STEP_LABELS = {
     "buscar_eventos": "consultando a agenda…",
@@ -98,6 +114,7 @@ class _Turn:
     t_heard: float | None = None
     t_first_token: float | None = None
     t_tts: float | None = None
+    wrote: bool = False
     spoken: int = 0  # frases já faladas
     filler_said: bool = False
     t_filler: float | None = None
@@ -184,6 +201,11 @@ class JarvisBrain:
         if self.speaker is not None:
             self.speaker.stop()
 
+    def prewarm(self) -> None:
+        """Atalho de voz apertado: acorda a transcrição enquanto o Kaio fala."""
+        if self._transcriber is not None:
+            self._transcriber.prewarm()
+
     async def voice(self, rid: str, pcm: bytes, sample_rate: int, emit: Emit) -> None:
         t_release = time.monotonic()
         audio = pcm16_to_float(pcm, sample_rate)
@@ -216,7 +238,11 @@ class JarvisBrain:
         system = PERSONA + (ctx.data if isinstance(ctx.data, str) else json.dumps(ctx.data))
         if mode == "voz":
             system += VOICE_RULES
-        tools = [t for t in await self._core.openai_tools() if t["function"]["name"] != "contexto"]
+        tools = [
+            t
+            for t in await self._core.openai_tools()
+            if t["function"]["name"] not in HIDDEN_CORE_TOOLS
+        ]
         tools += self._local.openai_tools()
         core_names = {t["function"]["name"] for t in await self._core.openai_tools()}
 
@@ -233,7 +259,23 @@ class JarvisBrain:
         self._speak_rest(turn, final=True)
         if turn.t_release is not None and (self.speaker is None or turn.spoken == 0):
             self._log_timing(turn)  # sem fala, registra agora; com fala, registra na 1ª frase
-        await emit(events.done(rid, reply))
+        await emit(events.done(rid, reply, wrote=turn.wrote))
+
+    # --- painel
+
+    async def panel(self, rid: str, emit: Emit) -> None:
+        """Dados do painel direto do núcleo, sem o modelo (nenhum token)."""
+        try:
+            result = await self._core.call("painel", {})
+        except Exception:
+            log.exception("painel: núcleo indisponível")
+            await emit(events.panel(rid, {"erro": "núcleo indisponível"}))
+            return
+        if not result.ok or not isinstance(result.data, dict):
+            await emit(events.panel(rid, {"erro": "núcleo indisponível"}))
+            return
+        questions = [m["content"] for m in self._history if m["role"] == "user"]
+        await emit(events.panel(rid, {**result.data, "perguntas": questions[-PANEL_QUESTIONS:]}))
 
     def _log_timing(self, turn: _Turn) -> None:
         t0 = turn.t_release or 0.0
@@ -241,7 +283,7 @@ class JarvisBrain:
         if turn.t_first_token:
             parts.append(f"→1º token {int((turn.t_first_token - t0) * 1000)}ms")
         if turn.t_filler:
-            parts.append(f'→"deixa eu ver" {int((turn.t_filler - t0) * 1000)}ms')
+            parts.append(f'→"um instante" {int((turn.t_filler - t0) * 1000)}ms')
         if turn.t_tts:
             parts.append(f"→fala {int((turn.t_tts - t0) * 1000)}ms")
         log.info("voz: %s", ", ".join(parts))
@@ -266,6 +308,8 @@ class JarvisBrain:
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
                 if not ok:
                     failures += 1
+                elif call.name in CORE_WRITES:
+                    turn.wrote = True
             if failures >= MAX_FAILURES:
                 if escalated:
                     return GIVE_UP

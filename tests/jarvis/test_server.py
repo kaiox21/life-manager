@@ -22,6 +22,9 @@ class EchoBrain:
     async def resolve_confirmation(self, confirm_id, accepted):
         self.confirmations.append((confirm_id, accepted))
 
+    async def panel(self, rid, emit):
+        await emit(events.panel(rid, {"mes": {"total_centavos": 1}}))
+
 
 class BrokenBrain(EchoBrain):
     async def ask(self, rid, text, emit, mode="texto"):
@@ -79,3 +82,14 @@ def test_arquivo_de_sessao_so_para_o_dono(tmp_path):
     write_session(51234, "segredo", path)
     assert json.loads(path.read_text())["port"] == 51234
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+async def test_painel_responde_com_evento_panel():
+    server = JarvisServer(EchoBrain(), token="tk")
+    async with (
+        server.run(session_file=None) as port,
+        connect(f"ws://127.0.0.1:{port}/?token=tk") as ws,
+    ):
+        await ws.send(json.dumps({"type": "panel", "id": "p1"}))
+        (msg,) = await _collect(ws, until="panel")
+        assert msg == {"type": "panel", "id": "p1", "data": {"mes": {"total_centavos": 1}}}

@@ -36,6 +36,7 @@ class Brain(Protocol):
     async def voice(self, rid: str, pcm: bytes, sample_rate: int, emit: Emit) -> None: ...
     async def resolve_confirmation(self, confirm_id: str, accepted: bool) -> None: ...
     def interrupt(self) -> None: ...
+    async def panel(self, rid: str, emit: Emit) -> None: ...
 
 
 def write_session(port: int, token: str, path: Path = SESSION_FILE) -> None:
@@ -111,12 +112,20 @@ class JarvisServer:
                     active.cancel()
             elif kind == "voice_start":
                 voice = _Voice(rid, int(msg.get("sampleRate") or 16_000))
+                prewarm = getattr(self.brain, "prewarm", None)
+                if prewarm is not None:
+                    prewarm()
             elif kind == "voice_end" and voice is not None and voice.rid == rid:
                 pcm, rate = b"".join(voice.chunks), voice.sample_rate
                 voice = None
                 launch(self._run(rid, emit, self.brain.voice(rid, pcm, rate, emit)))
             elif kind == "voice_cancel":
                 voice = None
+            elif kind == "panel":
+                # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
+                task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
 
     async def _run(self, rid: str, emit: Emit, coro: Awaitable[None]) -> None:
         try:

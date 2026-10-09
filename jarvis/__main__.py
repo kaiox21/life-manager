@@ -4,16 +4,20 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
   JARVIS_CORE_URL        endereço do núcleo (padrão: Docker local; depois do VPS, o Tailscale)
   JARVIS_WHISPER_MODEL   repositório do mlx-whisper (padrão: whisper-large-v3-turbo-q4)
   JARVIS_VOICE / JARVIS_VOICE_RATE   voz e velocidade da fala (padrão: Luciana, 0.52)
-  JARVIS_FILLER          "deixa eu ver…" ao chamar ferramenta em modo voz (padrão: true)
+  JARVIS_FILLER          "um instante, senhor" ao chamar ferramenta em modo voz (padrão: true)
+  FISH_API_KEY / FISH_VOICE_ID / FISH_VOICE_SPEED   voz da Fish Audio (vazio = voz local)
+Valem as do ambiente e, na falta, as do .env.
 """
 
 import asyncio
 import logging
 import os
 
+from dotenv import dotenv_values
+
 from app.agent.llm import make_llm
 from app.config import get_settings
-from jarvis.agent import JarvisBrain
+from jarvis.agent import FILLERS, JarvisBrain
 from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
 from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import CoreClient
@@ -21,6 +25,12 @@ from jarvis.server import JarvisServer
 from jarvis.tts import make_speaker
 
 log = logging.getLogger(__name__)
+_DOTENV = {k: v for k, v in dotenv_values(".env").items() if v is not None}
+
+
+def env(name: str, default: str = "") -> str:
+    """Ambiente primeiro; depois o .env (o pydantic lê o .env, mas não o exporta)."""
+    return os.environ.get(name) or _DOTENV.get(name) or default
 
 
 def _log_task_error(task: asyncio.Task[None]) -> None:
@@ -35,7 +45,7 @@ async def main() -> None:
     s = get_settings()
     config = load_config()
     llm = make_llm(s)
-    url = os.environ.get("JARVIS_CORE_URL", "http://localhost:8000/mcp/")
+    url = env("JARVIS_CORE_URL", "http://localhost:8000/mcp/")
 
     vad = None
     try:
@@ -43,7 +53,7 @@ async def main() -> None:
     except Exception:  # noqa: BLE001
         log.warning("VAD indisponível (pysilero-vad); a voz não vai cortar o silêncio")
     transcriber = Transcriber(
-        os.environ.get("JARVIS_WHISPER_MODEL", DEFAULT_MODEL),
+        env("JARVIS_WHISPER_MODEL", DEFAULT_MODEL),
         hints=lambda: list(config.get("vocabulario") or []),
     )
     warmup = asyncio.create_task(transcriber.warmup())
@@ -54,18 +64,22 @@ async def main() -> None:
             llm,
             core,
             LocalTools(config=config),
-            primary=os.environ.get("JARVIS_MODEL_PRIMARY", s.model_primary),
-            escalation=os.environ.get("JARVIS_MODEL_ESCALATION", s.model_escalation),
+            primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
+            escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
             transcriber=transcriber,
             vad=vad,
-            filler=os.environ.get("JARVIS_FILLER", "true").lower() != "false",
+            filler=env("JARVIS_FILLER", "true").lower() != "false",
         )
         brain.speaker = make_speaker(
             brain.on_speech_event,
-            voice=os.environ.get("JARVIS_VOICE", "Luciana"),
-            rate=float(os.environ.get("JARVIS_VOICE_RATE", "0.52")),
+            voice=env("JARVIS_VOICE", "Luciana"),
+            rate=float(env("JARVIS_VOICE_RATE", "0.52")),
+            fish_key=env("FISH_API_KEY", ""),
+            fish_voice=env("FISH_VOICE_ID", ""),
+            fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
         )
-        async with JarvisServer(brain).run(port=int(os.environ.get("JARVIS_PORT", "0"))):
+        brain.speaker.prefetch(FILLERS)
+        async with JarvisServer(brain).run(port=int(env("JARVIS_PORT", "0"))):
             await asyncio.Event().wait()
 
 

@@ -65,3 +65,14 @@ Fatos conferidos em 08/10/2026:
 - Voz inicial: `Luciana` serve para começar?
 - Resposta falada também em modo texto digitado? (Proposta: não, como diz o `SPEC.md`.)
 - Resultado do teste com a voz real: whisper q4 (decidido) ou reconhecimento nativo (change futuro)?
+
+## Ajustes depois do primeiro uso real (09/10/2026)
+
+- **Demora na transcrição:** no uso real, 3,7 s de fala levaram 6 s para transcrever (pesos do whisper no swap depois de um tempo parado; Mac com 14 de 15 GB de swap usados). Correção: `mx.set_wired_limit(2 GB)` na subida, para os pesos ficarem na RAM, e `prewarm` ao apertar ⌘⇧Espaço, para acordar o modelo enquanto o Kaio fala.
+- **Personalidade:** o Kaio achou a voz robótica e quer "o Jarvis". O prompt agora trata o Kaio por "senhor", com tom de mordomo britânico e humor seco discreto. Enchimentos: "Um instante, senhor." / "Verificando, senhor." / "Só um momento, senhor.". Toques curtos (WebAudio) ao começar e terminar de ouvir.
+- **Voz:** o Kaio ouviu e recusou Luciana, Kokoro (Alex, Santa), Piper (Faber, Cadu, Jeff) e as vozes neurais da Microsoft. Ele escolheu uma voz "Jarvis" da comunidade da Fish Audio (`FISH_VOICE_ID` só no `.env`, fora do repositório público). Recusei criar um clone da voz do ator ou do dublador; a escolha de usar uma voz pronta da comunidade, em uso privado, foi do Kaio, avisado de que é uma imitação de uma pessoa real e de que o texto das respostas passa pela Fish Audio.
+  - Backend `FishSynth`: `POST https://api.fish.audio/v1/tts` (cabeçalho `model: s2.1-pro-free`, gratuito; corpo `text`, `reference_id`, `format: mp3`, `latency: balanced`, `prosody.speed`), conferido em docs.fish.audio em 09/10/2026. Uma requisição por frase, pedida assim que a frase fecha (a próxima baixa enquanto a anterior toca) e tocada em ordem com `AVAudioPlayer`.
+  - Falhou a rede ou a API: a frase e o resto da resposta vão para a voz local (`AVSynth`), e a Fish fica de lado por 5 minutos.
+  - Isso muda a decisão "voz local" do `proposal.md`: a transcrição continua local; a fala vai para a nuvem só quando houver `FISH_API_KEY`.
+- **Configuração:** `jarvis/__main__.py` agora lê `JARVIS_*` e `FISH_*` do ambiente e, na falta, do `.env`. Antes, os `JARVIS_*` só valiam se exportados no ambiente; o `.env` era ignorado.
+- **Medição com o microfone real e a voz da Fish (09/10/2026, perguntas com ferramenta):** fala→texto 0,6–0,7 s; "Um instante, senhor." em 2,4–2,7 s; primeira frase da resposta em 4,7–5,2 s. A meta de ≤ 4 s com ferramenta ainda não é atingida pela resposta, só pelo enchimento; o que sobra é a Fish gerar a frase inteira (~1 s) antes de tocar. Próximo ganho possível: tocar o áudio enquanto ele chega (~0,5 s). O Kaio aprovou o resultado assim ("está ótimo").

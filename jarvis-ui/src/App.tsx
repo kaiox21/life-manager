@@ -40,7 +40,8 @@ export default function App() {
         input.current?.focus();
         if (link === "offline") void j.reconnect();
       }),
-      listen<{ state: "down" | "up"; visible: boolean }>("jarvis://ptt", (e) => {
+      listen<{ state: "down" | "up"; target: "hud" | "painel"; visible: boolean }>("jarvis://ptt", (e) => {
+        if (e.payload.target !== "hud") return; // o painel aberto cuida da fala
         if (e.payload.state === "down") {
           visibleBefore.current = e.payload.visible;
           void j.startVoice();

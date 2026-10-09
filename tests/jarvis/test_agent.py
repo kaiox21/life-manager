@@ -6,7 +6,14 @@ from jarvis.local_tools import Completed, LocalTools
 from jarvis.mcp_client import ToolResult
 from tests.fakes import ScriptedLLM, call, reply
 
-CORE_TOOLS = ["contexto", "buscar_eventos", "lancar_gasto", "confirmar_pendente", "total_fatura"]
+CORE_TOOLS = [
+    "contexto",
+    "painel",
+    "buscar_eventos",
+    "lancar_gasto",
+    "confirmar_pendente",
+    "total_fatura",
+]
 
 
 class FakeCore:
@@ -83,7 +90,8 @@ async def test_abre_safari_e_busca_agenda_de_amanha():
     system = llm.calls[0]["messages"][0]["content"]
     assert "Jarvis" in system and "sexta 09/10/2026" in system
     offered = {t["function"]["name"] for t in llm.calls[0]["tools"]}
-    assert "contexto" not in offered and {"abrir_app", "lancar_gasto"} <= offered
+    assert not {"contexto", "painel"} & offered and {"abrir_app", "lancar_gasto"} <= offered
+    assert evs[-1].data == {}  # só leitura: o painel não precisa atualizar
 
 
 async def test_pendencia_do_nucleo_vira_confirmacao_na_interface():
@@ -158,3 +166,47 @@ async def test_historico_entre_perguntas():
     msgs = llm.calls[1]["messages"]
     assert {"role": "user", "content": "oi"} in msgs
     assert {"role": "assistant", "content": "Oi, Kaio."} in msgs
+
+
+PAINEL = {"agora": "2026-10-08T17:00:00-03:00", "mes": {"total_centavos": 4790}, "registro": []}
+
+
+async def _panel(b):
+    got: list[events.Event] = []
+
+    async def emit(ev):
+        got.append(ev)
+
+    await b.panel("p1", emit)
+    return got
+
+
+async def test_painel_vem_do_nucleo_sem_o_modelo_e_com_as_perguntas():
+    core = FakeCore({"painel": ToolResult(True, PAINEL)})
+    llm = ScriptedLLM(reply("Oi."))
+    b = brain(llm, core)
+    await _ask(b, "oi jarvis")
+    llm_calls = len(llm.calls)
+
+    (ev,) = await _panel(b)
+    assert ev.type == "panel" and ev.id == "p1"
+    assert ev.data["mes"] == {"total_centavos": 4790}
+    assert ev.data["perguntas"] == ["oi jarvis"]
+    assert len(llm.calls) == llm_calls  # nenhum token
+    assert core.calls[-1] == ("painel", {})
+
+
+async def test_painel_com_nucleo_fora_do_ar():
+    class DownCore(FakeCore):
+        async def call(self, name, args):
+            raise ConnectionError("núcleo parado")
+
+    (ev,) = await _panel(brain(ScriptedLLM(), DownCore()))
+    assert ev.data == {"erro": "núcleo indisponível"}
+
+
+async def test_done_avisa_quando_o_turno_gravou():
+    core = FakeCore({"lancar_gasto": ToolResult(True, {"status": "gravado", "resumo": "ok"})})
+    llm = ScriptedLLM(call("lancar_gasto", {"amount_cents": 3000}), reply("Lancei."))
+    evs = await _ask(brain(llm, core), "30 de uber no nubank")
+    assert evs[-1].type == "done" and evs[-1].data == {"wrote": True}

@@ -69,4 +69,4 @@ for label in "$BRAIN" "$UI"; do
   unload "$label"
   load "$AGENTS/$label.plist"
 done
-echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz)."
+echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz), ⌥⇧Espaço (painel)."
