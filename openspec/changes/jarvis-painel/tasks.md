@@ -16,7 +16,7 @@
 
 - [x] 4.1 Rota pelo rótulo da janela; conexão própria com o cérebro; pedido `panel` ao abrir, a cada 60 s visível e após `done` com `wrote`; timer e animação parados quando escondido; testes do estado (dados, erro com "núcleo indisponível" e horário da última atualização, atualização após escrita)
 - [x] 4.2 Layout em grade (relógio/data, agenda, gastos por categoria + faturas, registro) no estilo da referência, só com números vindos do núcleo; testes de componente com dados de exemplo (dia livre, sem cartão de crédito, lista longa)
-- [ ] 4.3 Orbe de partículas em Canvas 2D com anéis SVG e os estados ocioso/ouvindo/pensando/falando; "Reduzir movimento" → quadro estático; medir CPU do WebView com o painel aberto (meta < 10%; se passar, 30 fps ou menos partículas) e anotar no `design.md`
+- [x] 4.3 Orbe de partículas em Canvas 2D com anéis SVG e os estados ocioso/ouvindo/pensando/falando; "Reduzir movimento" → quadro estático; medir CPU do WebView com o painel aberto (meta < 10%; se passar, 30 fps ou menos partículas) e anotar no `design.md`
 - [x] 4.4 Conversa no painel: campo de texto, push-to-talk, pergunta/passos/resposta/cartões sob o orbe, reaproveitando `useJarvis`; testes de componente
 
 ## 5. Fechamento

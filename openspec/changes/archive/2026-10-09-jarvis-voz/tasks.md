@@ -22,5 +22,5 @@
 ## 5. Fechamento
 
 - [x] 5.1 `uv run pytest`, `ruff`, testes da UI; a prova do núcleo não precisa rodar (o prompt do núcleo não muda)
-- [ ] 5.2 Aceite: segurar ⌘⇧Espaço, "que dia é hoje?" e "o que eu tenho amanhã?" → primeira palavra falada em menos de 3 s / 4 s (log com os tempos); `npm run tauri build` + `install_mac.sh`
-- [ ] 5.3 Kaio escolhe a voz (Luciana x Luciana Aprimorada x Kokoro) e decide o "deixa eu ver…"; teste com a voz real decide se o reconhecimento nativo vira change; `SPEC.md` atualizado (captura no app, `AVSpeechSynthesizer`); arquivar
+- [x] 5.2 Aceite (09/10/2026, microfone real, com ferramenta: texto em 0,6–0,7 s, "Um instante, senhor." em 2,4–2,7 s, resposta em 4,7–5,2 s; metas revistas com o Kaio: < 4 s sem ferramenta, espera < 3 s com ferramenta): segurar ⌘⇧Espaço, "que dia é hoje?" e "o que eu tenho amanhã?" → primeira palavra falada em menos de 3 s / 4 s (log com os tempos); `npm run tauri build` + `install_mac.sh`
+- [x] 5.3 Kaio escolhe a voz (recusou Luciana, Kokoro, Piper e Microsoft; escolheu a voz "Jarvis" da Fish Audio) e o enchimento ("Um instante, senhor."); teste com a voz real decide se o reconhecimento nativo vira change; `SPEC.md` atualizado (captura no app, `AVSpeechSynthesizer`); arquivar

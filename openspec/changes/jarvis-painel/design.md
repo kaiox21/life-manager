@@ -74,3 +74,6 @@ Sem migração de banco. Ordem: ferramenta `painel` no núcleo com testes → ev
 - Tela cheia, Esc e atalhos conferidos pelo Kaio no Mac ("funcionou", 09/10/2026).
 - Layout conferido no navegador (Playwright, 1470×956, casca do Tauri simulada e dados reais do cérebro): colunas, orbe, registro e Esc chamando `hide_panel`.
 - **Pendente de verificação com o Kaio** (o macOS não deixa o terminal apertar atalhos nem capturar a tela): `set_simple_fullscreen` no app `Accessory` (tarefa 3.1), atalhos e foco na prática (3.2) e CPU do orbe com o painel aberto (4.3).
+- CPU com o painel aberto e parado (soma do app e dos processos do WebKit, amostras a cada 2 s por 30 s): **30% de média** na primeira versão (800 pontos a 60 fps, brilho e anéis redesenhados a cada quadro). Com 500 pontos, 20 fps parado / 30 fps em atividade e brilho e anéis desenhados uma vez e só girados: **9,2% de média** (máximo 20%). Meta (< 10%) atingida.
+- Achado fora do escopo: o HUD pequeno aberto e parado gasta ~17% de CPU (anéis do orbe animados por CSS o tempo todo). Fica para um change pequeno de desempenho do HUD.
+- Aceite parcial com o Kaio (09/10/2026): gasto lançado pelo WhatsApp apareceu no painel; tela cheia, atalhos e Esc conferidos antes. Falta confirmar a voz com o painel aberto atualizando as colunas.

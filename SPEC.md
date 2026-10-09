@@ -46,7 +46,7 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | Entrada de gastos | Texto, áudio e foto de recibo; sem importação de fatura | "Total da fatura" só é exato se tudo for lançado | Cartão com dia de fechamento; conferência contra o app do banco |
 | Hospedagem do núcleo | Oracle Cloud pay-as-you-go, São Paulo, dentro da cota grátis (desde 15/06/2026: 2 OCPU / 12 GB); Hetzner como plano B. **Provisório (08/10/2026): roda no Mac** (Oracle sem capacidade ARM); change `deploy-vps` pausado | Mac fechado = bot e lembretes parados | Backup cifrado; scripts de deploy prontos; atrasos de lembrete recuperados por até 6 h |
 | Integração entre canais | Ferramentas do núcleo por MCP; Tailscale quando houver VPS | Duas lógicas divergindo | Regras só no núcleo; o Jarvis não toca o banco |
-| Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5; voz local | Latência da voz; permissões do macOS | Push-to-talk antes de wake word; streaming; modelo rápido antes da voz |
+| Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5. Voz (09/10/2026): microfone capturado pelo app, push-to-talk ⌘⇧Espaço, transcrição local (`mlx-whisper` q4, presa na RAM), fala frase a frase pela Fish Audio (voz "Jarvis" da comunidade, modelo gratuito) com a voz do macOS de reserva; persona de mordomo ("senhor"). Painel em tela cheia com ⌥⇧Espaço | Latência da voz (resposta com ferramenta em ~5 s); texto das respostas sai para a Fish; a voz imita uma pessoa real (uso privado, escolha do Kaio); permissões do macOS | Push-to-talk antes de wake word; streaming; "Um instante, senhor." em < 3 s; voz local se a Fish falhar; ID da voz e chave só no `.env` |
 | Modelo de IA | Desde 08/10/2026: **Claude direto pela API da Anthropic** (SDK oficial, `LLM_PROVIDER=anthropic`): `claude-haiku-5-5` no classificador e no principal (US$ 0,10/0,50 por milhão de tokens; ~1,5 s por chamada), `claude-sonnet-5-5` na escalada. Prova: 56/56 no classificador e 55/56 (98%) no agente. O Vercel AI Gateway continua como alternativa (`LLM_PROVIDER=gateway`) | Modelo lançado em 07/10/2026, sem histórico de uso; chave colada na conversa | Prova a cada mudança; gateway como plano B; rotacionar a chave |
 | Política de gravação | Grava direto com "desfazer"; confirma foto, áudio, exclusões e valores acima de R$ 500 | Gasto errado gravado sem perceber | Eco do que foi gravado em toda resposta |
 
@@ -98,7 +98,8 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [ ] Chip dedicado para sair do modo provisório.
 - [ ] Teste real da foto de recibo (adiado pelo Kaio).
 - [ ] **Roteador de modelos por dificuldade** (pedido de 08/10/2026), junto com o Jarvis. O classificador devolve também a dificuldade, sem chamada extra, combinada com sinais fixos. Uma tabela no `.env` liga cada faixa a um modelo, com a escalada como rede de segurança. A tabela sai da prova (acerto, custo e latência por faixa).
-- [ ] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): modo tela cheia no estilo holográfico, com orbe central e agenda, gastos, relógio e log em volta. Change futuro `jarvis-painel`, depois do HUD.
+- [ ] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): modo tela cheia no estilo holográfico, com orbe central e agenda, gastos, relógio e log em volta. Implementado no change `jarvis-painel` (09/10/2026); falta o aceite final.
+- [ ] **Voz mais rápida**: tocar o áudio da Fish enquanto ele chega (~0,5 s a menos por resposta).
 - [ ] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): ver o estado e ser avisado quando uma sessão termina ou espera resposta. Só leitura e avisos.
 
 **Decididas (resumo):**
@@ -109,5 +110,6 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - backup no Google Drive, cifrado com `age`;
 - alerta por ntfy;
 - Jarvis com Tauri + React;
+- voz do Jarvis: transcrição local, fala pela Fish Audio com reserva local (09/10/2026);
 - OpenSpec a partir de 08/10/2026;
 - categorias Alimentação, Mercado, Transporte, Casa, Saúde, Lazer, Educação, Assinaturas, Outros.

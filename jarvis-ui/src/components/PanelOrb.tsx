@@ -10,8 +10,10 @@ interface Props {
   size?: number;
 }
 
-const COUNT = 800;
-const FPS = 60;
+// Medido em 09/10/2026: 800 pontos a 60 fps davam ~30% de CPU com o painel aberto.
+const COUNT = 500;
+const FPS = 30; // ouvindo, pensando, falando
+const FPS_IDLE = 20;
 
 /** Pontos numa esfera (espiral de Fibonacci): distribuição uniforme e estável. */
 function sphere(count: number) {
@@ -48,12 +50,69 @@ export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    el.width = size * dpr;
-    el.height = size * dpr;
+    const px = size * dpr;
+    el.width = px;
+    el.height = px;
     ctx.scale(dpr, dpr);
     const points = sphere(COUNT);
     const accent = canvasColor(ctx, getComputedStyle(el).getPropertyValue("--accent"), "#6fd3f5");
     const core = canvasColor(ctx, getComputedStyle(el).getPropertyValue("--glow-core"), "#eafcff");
+    const c = size / 2;
+
+    // Brilho e anéis desenhados uma vez; a cada quadro só são carimbados (girados).
+    const layer = (paint: (g: CanvasRenderingContext2D) => void) => {
+      const off = document.createElement("canvas");
+      off.width = px;
+      off.height = px;
+      const g = off.getContext("2d");
+      if (g) {
+        g.scale(dpr, dpr);
+        paint(g);
+      }
+      return off;
+    };
+    const glow = layer((g) => {
+      const grad = g.createRadialGradient(c, c, 0, c, c, size * 0.36);
+      grad.addColorStop(0, core);
+      grad.addColorStop(0.25, accent);
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, size, size);
+    });
+    const ticks = layer((g) => {
+      g.strokeStyle = accent;
+      g.lineWidth = 1;
+      g.globalAlpha = 0.6;
+      g.beginPath();
+      g.arc(c, c, size * 0.4, 0, Math.PI * 2);
+      g.stroke();
+      g.globalAlpha = 0.85;
+      for (let i = 0; i < 72; i++) {
+        const a = (i / 72) * Math.PI * 2;
+        const inner = size * (i % 6 === 0 ? 0.43 : 0.445);
+        g.beginPath();
+        g.moveTo(c + Math.cos(a) * inner, c + Math.sin(a) * inner);
+        g.lineTo(c + Math.cos(a) * size * 0.46, c + Math.sin(a) * size * 0.46);
+        g.stroke();
+      }
+    });
+    const dashes = layer((g) => {
+      g.strokeStyle = accent;
+      g.globalAlpha = 0.5;
+      g.setLineDash([2, 7]);
+      g.beginPath();
+      g.arc(c, c, size * 0.36, 0, Math.PI * 2);
+      g.stroke();
+    });
+    const stamp = (img: HTMLCanvasElement, rotation: number, alpha: number) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(c, c);
+      ctx.rotate(rotation);
+      ctx.drawImage(img, -c, -c, size, size);
+      ctx.restore();
+    };
+
     let angle = 0;
     let ring = 0;
     let last = performance.now();
@@ -65,57 +124,28 @@ export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
       last = now;
       angle += SPEED[st] * dt;
       ring += (SPEED[st] * 0.5 + 0.05) * dt;
-      const c = size / 2;
       const pulse =
         st === "listening" ? 1 + Math.min(lv * 4, 0.25) : st === "speaking" ? 1 + Math.sin(now / 160) * 0.04 : 1;
       const radius = size * 0.27 * pulse;
       ctx.clearRect(0, 0, size, size);
-
-      // brilho do núcleo
-      const glow = ctx.createRadialGradient(c, c, 0, c, c, radius * 1.3);
-      glow.addColorStop(0, core);
-      glow.addColorStop(0.25, accent);
-      glow.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.globalAlpha = st === "offline" ? 0.25 : st === "thinking" ? 0.75 : 0.55;
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, size, size);
+      stamp(glow, 0, st === "offline" ? 0.25 : st === "thinking" ? 0.75 : 0.55);
 
       // partículas: gira em Y, inclina um pouco em X, mais claras na frente
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       ctx.fillStyle = accent;
+      const dim = st === "offline" ? 0.3 : 1;
       for (const p of points) {
         const x = p.x * cos - p.z * sin;
         const z = p.x * sin + p.z * cos;
         const y = p.y * 0.96 - z * 0.28;
         const depth = (z + 1) / 2;
-        ctx.globalAlpha = (0.15 + depth * 0.85) * (st === "offline" ? 0.3 : 1);
+        ctx.globalAlpha = (0.15 + depth * 0.85) * dim;
         const r = p.s * (0.5 + depth * 0.9);
         ctx.fillRect(c + x * radius - r / 2, c + y * radius - r / 2, r, r);
       }
-
-      // anéis: marcações girando em sentidos opostos
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.6;
-      ctx.beginPath();
-      ctx.arc(c, c, size * 0.4, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 0.85;
-      for (let i = 0; i < 72; i++) {
-        const a = (i / 72) * Math.PI * 2 + ring;
-        const inner = size * (i % 6 === 0 ? 0.43 : 0.445);
-        ctx.beginPath();
-        ctx.moveTo(c + Math.cos(a) * inner, c + Math.sin(a) * inner);
-        ctx.lineTo(c + Math.cos(a) * size * 0.46, c + Math.sin(a) * size * 0.46);
-        ctx.stroke();
-      }
-      ctx.setLineDash([2, 7]);
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath();
-      ctx.arc(c, c, size * 0.36, -ring * 1.6, Math.PI * 2 - ring * 1.6);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      stamp(ticks, ring, 1);
+      stamp(dashes, -ring * 1.6, 1);
       ctx.globalAlpha = 1;
     };
 
@@ -126,7 +156,8 @@ export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
     let previous = 0;
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
-      if (now - previous < 1000 / FPS - 2) return;
+      const fps = live.current.state === "idle" ? FPS_IDLE : FPS;
+      if (now - previous < 1000 / fps - 2) return;
       previous = now;
       draw(now);
     };
