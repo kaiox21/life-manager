@@ -210,3 +210,32 @@ async def test_done_avisa_quando_o_turno_gravou():
     llm = ScriptedLLM(call("lancar_gasto", {"amount_cents": 3000}), reply("Lancei."))
     evs = await _ask(brain(llm, core), "30 de uber no nubank")
     assert evs[-1].type == "done" and evs[-1].data == {"wrote": True}
+
+
+async def test_listar_terminais_cartao_completo_e_modelo_sem_resumo():
+    items = [
+        {
+            "numero": 1,
+            "pasta": "life-manager",
+            "estado": "pedindo permissão",
+            "ferramenta": "Bash",
+            "resumo": "curl -H 'Authorization: segredo'",
+            "sessao": "s1",
+            "pid": 7958,
+            "desde": 1.0,
+        },
+    ]
+    local = LocalTools(runner=Runner(), config={}, terminals=lambda: items)
+    b = JarvisBrain(
+        ScriptedLLM(call("listar_terminais", {}), reply("O terminal 1 pede permissão.")),
+        FakeCore(),
+        local,
+        primary="fake/p",
+        escalation="fake/e",
+    )
+    llm = b._llm
+    evs = await _ask(b, "como estão meus terminais?")
+    (card,) = [e.card for e in evs if e.type == "card"]
+    assert card["kind"] == "terminais" and card["items"][0]["resumo"].startswith("curl")
+    sent = llm.calls[1]["messages"][-1]["content"]
+    assert "segredo" not in sent and '"estado": "pedindo permissão"' in sent

@@ -23,7 +23,8 @@ export type Card =
       series: { label: string; value: number; display: string; count: number }[];
     }
   | { kind: "arquivos"; title: string; items: string[]; total: number }
-  | { kind: "texto"; title: string; text: string; options?: string[] };
+  | { kind: "texto"; title: string; text: string; options?: string[] }
+  | { kind: "terminais"; title: string; items: TerminalInfo[] };
 
 export type ServerEvent =
   | { type: "step"; id: string; text: string }
@@ -36,6 +37,8 @@ export type ServerEvent =
   | { type: "speaking"; id: string; data: { on: boolean } }
   | { type: "done"; id: string; text: string; data?: { wrote?: boolean } }
   | { type: "panel"; id: string; data: PanelData | { erro: string } }
+  | { type: "terminals"; id: string; data: { terminais: TerminalInfo[] } }
+  | { type: "terminal_alert"; id: string; data: TerminalAlert }
   | { type: "error"; id: string; text: string };
 
 export type Mode = "texto" | "voz";
@@ -85,4 +88,27 @@ export interface PanelData {
   }[];
   registro: { tipo: "gasto" | "evento"; quando: string; texto: string; origem: "whatsapp" | "mac" | null }[];
   perguntas: string[];
+}
+
+// Terminais do Claude Code (jarvis/terminals.py).
+export type TerminalState = "trabalhando" | "pedindo permissão" | "esperando você" | "terminou";
+
+export interface TerminalInfo {
+  numero: number;
+  pasta: string;
+  desde: number; // segundos (epoch)
+  estado: TerminalState;
+  sessao: string;
+  pid: number | null;
+  ferramenta: string;
+  resumo: string;
+}
+
+export interface TerminalAlert {
+  tipo: "permissao" | "espera" | "terminou";
+  numero: number;
+  pasta: string;
+  ferramenta: string;
+  resumo: string;
+  texto: string;
 }

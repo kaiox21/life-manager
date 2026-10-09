@@ -99,6 +99,8 @@ def card_for(tool: str, args: dict[str, Any], data: Any) -> dict[str, Any] | Non
             "removido": "Removido",
         }.get(str(data.get("status")), "Feito")
         return {"kind": "texto", "title": title, "text": str(text or "")}
+    if tool == "listar_terminais":
+        return {"kind": "terminais", "title": "Terminais", "items": data.get("terminais", [])}
     if tool == "buscar_arquivo":
         return {
             "kind": "arquivos",

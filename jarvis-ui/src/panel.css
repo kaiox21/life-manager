@@ -288,3 +288,19 @@
 .painel__when small {
   font-size: 11px;
 }
+
+.painel__center {
+  position: relative;
+}
+.painel__alert {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 1;
+}
+.painel__logcols {
+  grid-template-columns: 2fr 1.4fr 1fr;
+}
+.painel__terms .painel__sub {
+  margin-block-start: 0;
+}

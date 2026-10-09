@@ -58,6 +58,10 @@ class Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SemArgs(Args):
+    pass
+
+
 class AbrirAppArgs(Args):
     nome: str = Field(description="Nome do app. Ex.: 'Safari', 'Spotify'")
 
@@ -110,6 +114,7 @@ class LocalTools:
         config: dict[str, Any] | None = None,
         home: Path | None = None,
         now: Callable[[], datetime] = datetime.now,
+        terminals: Callable[[], list[dict[str, Any]]] | None = None,
     ) -> None:
         self._run = runner
         self._confirm = confirm
@@ -117,6 +122,7 @@ class LocalTools:
         self._home = home or Path.home()
         self._now = now
         self._timers: set[asyncio.Task[None]] = set()
+        self._terminals = terminals or (lambda: [])
 
     def set_confirm(self, confirm: Confirm) -> None:
         self._confirm = confirm
@@ -185,6 +191,17 @@ class LocalTools:
         text = r.stdout
         return {"conteudo": text[:MAX_CLIPBOARD], "cortado": len(text) > MAX_CLIPBOARD}
 
+    async def listar_terminais(self, _a: "SemArgs") -> dict[str, Any]:
+        return {"terminais": self._terminals()}
+
+    def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
+        """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
+        segredos) ficam só no cartão da tela."""
+        if name == "listar_terminais":
+            keep = ("numero", "pasta", "estado", "ferramenta")
+            return {"terminais": [{k: t.get(k) for k in keep} for t in data["terminais"]]}
+        return data
+
     # --- catálogo para o modelo
 
     def catalog(
@@ -212,6 +229,12 @@ class LocalTools:
                 self.controlar_musica,
             ),
             "timer": ("Avisa com uma notificação daqui a N minutos.", TimerArgs, self.timer),
+            "listar_terminais": (
+                "Lista os terminais do Claude Code abertos neste Mac (número, pasta, estado). "
+                "Use para 'como estão meus terminais/sessões?'.",
+                SemArgs,
+                self.listar_terminais,
+            ),
             "area_transferencia": (
                 "Lê (pede permissão) ou escreve na área de transferência.",
                 ClipboardArgs,

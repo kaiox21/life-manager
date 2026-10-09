@@ -5,8 +5,11 @@ import type { OrbState } from "./components/Orb";
 import { PanelOrb } from "./components/PanelOrb";
 import { TurnView } from "./components/TurnView";
 import { Waveform } from "./components/Waveform";
+import { chime } from "./lib/audio";
+import { alertActive, isLoud } from "./lib/terminals";
+import { TerminalList } from "./components/Cards";
 import { PANEL_REFRESH_MS, barShare, dayShort, hhmm, whenShort, type PanelState } from "./lib/panel";
-import type { PanelData } from "./lib/types";
+import type { PanelData, TerminalInfo } from "./lib/types";
 import { useJarvis } from "./lib/useJarvis";
 
 function useNow(active: boolean) {
@@ -65,6 +68,20 @@ export function Panel() {
     return () => clearInterval(t);
   }, [open]);
 
+  // Aviso de terminal com o painel aberto: aparece aqui (o HUD não abre por cima).
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    j.setOnAlert((a) => {
+      if (openRef.current && isLoud(a)) chime("start");
+    });
+  }, [j]);
+  useEffect(() => {
+    if (!j.alert || !open) return;
+    const t = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [j.alert, open]);
+  const showAlert = open && alertActive(j.alert, j.terminals, Math.max(tick, j.alert?.at ?? 0));
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") void invoke("hide_panel");
@@ -99,6 +116,11 @@ export function Panel() {
       <Agenda panel={panel} />
 
       <section className="painel__center" aria-label="Conversa">
+        {showAlert && j.alert && (
+          <p className="term-alert painel__alert" role="alert">
+            {j.alert.texto}
+          </p>
+        )}
         <PanelOrb state={orb} level={levels[levels.length - 1] ?? 0} active={open} />
         <div className="painel__turn" aria-live="polite">
           {last ? <TurnView turn={last} onConfirm={j.answerConfirm} /> : <p className="painel__hint">Pergunte, ou segure ⌘⇧Espaço e fale.</p>}
@@ -135,7 +157,7 @@ export function Panel() {
       </section>
 
       <Money panel={panel} />
-      <Log panel={panel} />
+      <Log panel={panel} terminals={j.terminals} />
     </main>
   );
 }
@@ -262,7 +284,7 @@ export function Money({ panel }: { panel: PanelState }) {
   );
 }
 
-export function Log({ panel }: { panel: PanelState }) {
+export function Log({ panel, terminals = [] }: { panel: PanelState; terminals?: TerminalInfo[] }) {
   return (
     <Column title="Registro" panel={panel} className="painel__log">
       {(d) => (
@@ -279,6 +301,10 @@ export function Log({ panel }: { panel: PanelState }) {
               </li>
             ))}
           </ul>
+          <div className="painel__terms" aria-label="Terminais">
+            <h3 className="painel__sub">Terminais</h3>
+            <TerminalList items={terminals} />
+          </div>
           <ul className="painel__list painel__questions" aria-label="Perguntas desta sessão">
             {d.perguntas.map((q, i) => (
               <li key={i}>

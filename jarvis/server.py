@@ -61,6 +61,14 @@ class JarvisServer:
         self.brain = brain
         self.token = token or secrets.token_urlsafe(32)
         self._tasks: set[asyncio.Task[Any]] = set()
+        self._clients: set[Emit] = set()
+        # eventos mandados a cada conexão nova (ex.: a lista atual de terminais)
+        self.greeting: Callable[[], list[Event]] = lambda: []
+
+    async def broadcast(self, event: Event) -> None:
+        """Manda um evento a todas as interfaces conectadas (HUD e painel)."""
+        for emit in list(self._clients):
+            await emit(event)
 
     def _authorize(self, conn: ServerConnection, request: Request) -> Response | None:
         query = parse_qs(urlparse(request.path).query)
@@ -79,6 +87,10 @@ class JarvisServer:
                 with contextlib.suppress(ConnectionClosed):  # a interface pode já ter saído
                     await conn.send(event.to_json())
 
+        self._clients.add(emit)
+        for event in self.greeting():
+            await emit(event)
+
         def launch(coro: Awaitable[None]) -> asyncio.Task[None]:
             nonlocal active
             task = asyncio.create_task(coro)  # type: ignore[arg-type]
@@ -87,45 +99,48 @@ class JarvisServer:
             active = task
             return task
 
-        async for raw in conn:
-            if isinstance(raw, bytes):
-                if voice is not None and voice.size + len(raw) <= MAX_VOICE_BYTES:
-                    voice.chunks.append(raw)
-                    voice.size += len(raw)
-                continue
-            try:
-                msg = json.loads(raw)
-            except ValueError:
-                continue
-            kind = msg.get("type")
-            rid = str(msg.get("id") or secrets.token_hex(4))
-            if kind == "ask" and str(msg.get("text", "")).strip():
-                mode = "voz" if msg.get("mode") == "voz" else "texto"
-                launch(self._run(rid, emit, self.brain.ask(rid, str(msg["text"]), emit, mode)))
-            elif kind == "confirm" and msg.get("confirm_id"):
-                await self.brain.resolve_confirmation(
-                    str(msg["confirm_id"]), bool(msg.get("accepted"))
-                )
-            elif kind == "interrupt":
-                self.brain.interrupt()
-                if active and not active.done():
-                    active.cancel()
-            elif kind == "voice_start":
-                voice = _Voice(rid, int(msg.get("sampleRate") or 16_000))
-                prewarm = getattr(self.brain, "prewarm", None)
-                if prewarm is not None:
-                    prewarm()
-            elif kind == "voice_end" and voice is not None and voice.rid == rid:
-                pcm, rate = b"".join(voice.chunks), voice.sample_rate
-                voice = None
-                launch(self._run(rid, emit, self.brain.voice(rid, pcm, rate, emit)))
-            elif kind == "voice_cancel":
-                voice = None
-            elif kind == "panel":
-                # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
-                task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))
-                self._tasks.add(task)
-                task.add_done_callback(self._tasks.discard)
+        try:
+            async for raw in conn:
+                if isinstance(raw, bytes):
+                    if voice is not None and voice.size + len(raw) <= MAX_VOICE_BYTES:
+                        voice.chunks.append(raw)
+                        voice.size += len(raw)
+                    continue
+                try:
+                    msg = json.loads(raw)
+                except ValueError:
+                    continue
+                kind = msg.get("type")
+                rid = str(msg.get("id") or secrets.token_hex(4))
+                if kind == "ask" and str(msg.get("text", "")).strip():
+                    mode = "voz" if msg.get("mode") == "voz" else "texto"
+                    launch(self._run(rid, emit, self.brain.ask(rid, str(msg["text"]), emit, mode)))
+                elif kind == "confirm" and msg.get("confirm_id"):
+                    await self.brain.resolve_confirmation(
+                        str(msg["confirm_id"]), bool(msg.get("accepted"))
+                    )
+                elif kind == "interrupt":
+                    self.brain.interrupt()
+                    if active and not active.done():
+                        active.cancel()
+                elif kind == "voice_start":
+                    voice = _Voice(rid, int(msg.get("sampleRate") or 16_000))
+                    prewarm = getattr(self.brain, "prewarm", None)
+                    if prewarm is not None:
+                        prewarm()
+                elif kind == "voice_end" and voice is not None and voice.rid == rid:
+                    pcm, rate = b"".join(voice.chunks), voice.sample_rate
+                    voice = None
+                    launch(self._run(rid, emit, self.brain.voice(rid, pcm, rate, emit)))
+                elif kind == "voice_cancel":
+                    voice = None
+                elif kind == "panel":
+                    # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
+                    task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))
+                    self._tasks.add(task)
+                    task.add_done_callback(self._tasks.discard)
+        finally:
+            self._clients.discard(emit)
 
     async def _run(self, rid: str, emit: Emit, coro: Awaitable[None]) -> None:
         try:

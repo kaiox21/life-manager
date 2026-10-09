@@ -17,11 +17,13 @@ from dotenv import dotenv_values
 
 from app.agent.llm import make_llm
 from app.config import get_settings
+from jarvis import events
 from jarvis.agent import FILLERS, JarvisBrain
 from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
 from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import CoreClient
 from jarvis.server import JarvisServer
+from jarvis.terminals import Terminals
 from jarvis.tts import make_speaker
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,20 @@ def env(name: str, default: str = "") -> str:
 def _log_task_error(task: asyncio.Task[None]) -> None:
     if not task.cancelled() and task.exception():
         log.error("tarefa em segundo plano falhou: %r", task.exception())
+
+
+async def watch_terminals(terminals: Terminals, server: JarvisServer) -> None:
+    """Lê os eventos dos hooks do Claude Code e avisa as interfaces (a cada 300 ms)."""
+    while True:
+        try:
+            changed, alerts = terminals.poll()
+            if changed:
+                await server.broadcast(events.terminals(terminals.snapshot()))
+            for alert in alerts:
+                await server.broadcast(events.terminal_alert(alert))
+        except Exception:  # noqa: BLE001
+            log.exception("terminais: falha ao ler os eventos")
+        await asyncio.sleep(0.3)
 
 
 async def main() -> None:
@@ -59,11 +75,14 @@ async def main() -> None:
     warmup = asyncio.create_task(transcriber.warmup())
     warmup.add_done_callback(_log_task_error)
 
+    terminals = Terminals()
+    terminals.load()
+
     async with CoreClient.connect(url, s.mcp_token.get_secret_value()) as core:
         brain = JarvisBrain(
             llm,
             core,
-            LocalTools(config=config),
+            LocalTools(config=config, terminals=terminals.snapshot),
             primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
             escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
             transcriber=transcriber,
@@ -79,7 +98,11 @@ async def main() -> None:
             fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
         )
         brain.speaker.prefetch(FILLERS)
-        async with JarvisServer(brain).run(port=int(env("JARVIS_PORT", "0"))):
+        server = JarvisServer(brain)
+        server.greeting = lambda: [events.terminals(terminals.snapshot())]
+        watcher = asyncio.create_task(watch_terminals(terminals, server))
+        watcher.add_done_callback(_log_task_error)
+        async with server.run(port=int(env("JARVIS_PORT", "0"))):
             await asyncio.Event().wait()
 
 

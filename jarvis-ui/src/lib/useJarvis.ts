@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MicCapture, chime } from "./audio";
 import { applyEvent, clearConfirm, startTurn } from "./conversation";
 import { EMPTY_PANEL, applyPanel, panelFailed, panelLoading, type PanelState } from "./panel";
-import type { ServerEvent, Turn } from "./types";
+import type { ShownAlert } from "./terminals";
+import type { ServerEvent, TerminalInfo, Turn } from "./types";
 
 type Link = "connecting" | "online" | "offline";
 
@@ -29,6 +30,9 @@ export function useJarvis() {
   const onNoSpeech = useRef<() => void>(() => {});
   const onWrite = useRef<() => void>(() => {});
   const [panel, setPanel] = useState<PanelState>(EMPTY_PANEL);
+  const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
+  const [alert, setAlert] = useState<ShownAlert | null>(null);
+  const onAlert = useRef<(a: ShownAlert) => void>(() => {});
 
   const send = useCallback((msg: Record<string, unknown>) => {
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(msg));
@@ -68,6 +72,15 @@ export function useJarvis() {
           setTurns((prev) => applyEvent(prev, ev));
           onNoSpeech.current();
           return;
+        case "terminals":
+          setTerminals(ev.data.terminais);
+          return;
+        case "terminal_alert": {
+          const shown = { ...ev.data, at: Date.now() };
+          if (shown.tipo !== "terminou") setAlert(shown);
+          onAlert.current(shown);
+          return;
+        }
         case "panel":
           setPanel((prev) => applyPanel(prev, ev.data, Date.now()));
           return;
@@ -184,7 +197,9 @@ export function useJarvis() {
   const thinking = turns.some((t) => t.status === "thinking");
   return {
     turns, link, problem, status, speaking, listening, levels, thinking,
-    panel, requestPanel,
+    panel, requestPanel, terminals, alert,
+    stop: () => send({ type: "interrupt" }),
+    setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,
     setOnNoSpeech: (fn: () => void) => { onNoSpeech.current = fn; },
     setOnWrite: (fn: () => void) => { onWrite.current = fn; },

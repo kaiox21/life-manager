@@ -19,6 +19,8 @@ Cérebro -> interface:
   status  texto curto de estado ("transcrevendo…", "baixando o modelo de voz…")
   speaking  data.on: começou/terminou de falar
   panel   data: saída da ferramenta `painel` + "perguntas" da sessão, ou {"erro": "..."}
+  terminals       data.terminais: lista dos terminais do Claude Code (a todas as conexões)
+  terminal_alert  data: aviso de um terminal (permissão, espera, fim) com o texto pronto
 """
 
 import json
@@ -37,6 +39,8 @@ EventType = Literal[
     "status",
     "speaking",
     "panel",
+    "terminals",
+    "terminal_alert",
 ]
 
 
@@ -73,6 +77,14 @@ def confirm(rid: str, confirm_id: str, text: str, data: dict[str, Any] | None = 
 
 def done(rid: str, text: str, wrote: bool = False) -> Event:
     return Event("done", rid, text=text, data={"wrote": True} if wrote else {})
+
+
+def terminals(items: list[dict[str, Any]]) -> Event:
+    return Event("terminals", "terminais", data={"terminais": items})
+
+
+def terminal_alert(alert: dict[str, Any]) -> Event:
+    return Event("terminal_alert", "terminais", data=alert)
 
 
 def panel(rid: str, data: dict[str, Any]) -> Event:

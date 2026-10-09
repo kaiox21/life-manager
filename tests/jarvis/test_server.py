@@ -93,3 +93,22 @@ async def test_painel_responde_com_evento_panel():
         await ws.send(json.dumps({"type": "panel", "id": "p1"}))
         (msg,) = await _collect(ws, until="panel")
         assert msg == {"type": "panel", "id": "p1", "data": {"mes": {"total_centavos": 1}}}
+
+
+async def test_greeting_e_broadcast_chegam_a_todas_as_conexoes():
+    server = JarvisServer(EchoBrain(), token="tk")
+    server.greeting = lambda: [events.terminals([{"numero": 1}])]
+    async with server.run(session_file=None) as port:
+        url = f"ws://127.0.0.1:{port}/?token=tk"
+        async with connect(url) as a, connect(url) as b:
+            for ws in (a, b):
+                msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                assert msg["type"] == "terminals" and msg["data"]["terminais"] == [{"numero": 1}]
+            await server.broadcast(events.terminal_alert({"texto": "Terminal 1 terminou"}))
+            for ws in (a, b):
+                msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                assert msg == {
+                    "type": "terminal_alert",
+                    "id": "terminais",
+                    "data": {"texto": "Terminal 1 terminou"},
+                }

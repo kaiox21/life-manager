@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Orb, type OrbState } from "./components/Orb";
 import { TurnView } from "./components/TurnView";
 import { Waveform } from "./components/Waveform";
+import { chime } from "./lib/audio";
+import { alertActive, isLoud } from "./lib/terminals";
 import { useJarvis } from "./lib/useJarvis";
 
 const AUTO_HIDE_MS = 8000;
@@ -28,6 +30,35 @@ export default function App() {
   // O HUD está na tela por causa da voz (sem foco)? Só então ele some sozinho depois.
   const [voiceShown, setVoiceShown] = useState(false);
   const time = useClock();
+  // HUD aberto por causa de um aviso de terminal (some sozinho quando o aviso acaba)
+  const [alertOpened, setAlertOpened] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    j.setOnAlert((a) => {
+      if (!isLoud(a)) return;
+      void invoke<string>("show_alert").then((how) => {
+        if (how === "painel") return; // o painel aberto mostra o aviso
+        chime("start");
+        if (how === "mostrado") setAlertOpened(true);
+      });
+    });
+  }, [j]);
+
+  const showAlert = alertActive(j.alert, j.terminals, now);
+  useEffect(() => {
+    if (!j.alert) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [j.alert]);
+  useEffect(() => {
+    if (showAlert || !alertOpened) return;
+    const t = setTimeout(() => {
+      setAlertOpened(false);
+      void invoke("hide_hud");
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [showAlert, alertOpened]);
 
   // Segurou o atalho de voz sem falar: o HUD volta a como estava (fechado, se estava fechado).
   useEffect(() => {
@@ -38,8 +69,10 @@ export default function App() {
 
   useEffect(() => {
     const unlisten = Promise.all([
+      listen("jarvis://esc", () => j.stop()), // Esc com o HUD sem foco: cala e fecha
       listen("jarvis://shown", () => {
         setVoiceShown(false); // aberto com ⌥Espaço para digitar: não fecha sozinho
+        setAlertOpened(false);
         input.current?.focus();
         if (link === "offline") void j.reconnect();
       }),
@@ -130,6 +163,11 @@ export default function App() {
         )}
         <kbd className="prompt__hint">esc</kbd>
       </form>
+      {showAlert && j.alert && (
+        <p className="term-alert" role="alert">
+          {j.alert.texto}
+        </p>
+      )}
       {link === "offline" && problem && (
         <p className="banner" role="status">
           {problem}{" "}

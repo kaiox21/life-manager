@@ -64,6 +64,41 @@ fn hide_hud(app: AppHandle) {
             ui_log(format!("hide_hud falhou: {e}"));
         }
     }
+    grab_esc(&app, false);
+}
+
+/// Esc é do Jarvis só enquanto o HUD está na tela *sem foco* (voz, aviso de terminal): sem
+/// isso o Esc ia para o app em uso e nunca fechava o HUD. Ao esconder, devolve o Esc.
+static ESC_GRABBED: AtomicBool = AtomicBool::new(false);
+
+fn esc_key() -> Shortcut {
+    Shortcut::new(None, Code::Escape)
+}
+
+/// Agenda para depois: registrar ou soltar um atalho de dentro do tratamento de outro atalho
+/// trava o app inteiro (a trava do gerenciador de atalhos já está tomada). Aconteceu em
+/// 09/10/2026 com o Esc registrado dentro do ⌘⇧Espaço.
+fn grab_esc(app: &AppHandle, on: bool) {
+    // `run_on_main_thread` chamado da própria thread principal roda na hora (e trava de novo);
+    // de outra thread, ele entra na fila e só roda depois que o atalho atual termina.
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        let inner = handle.clone();
+        let _ = handle.run_on_main_thread(move || grab_esc_now(&inner, on));
+    });
+}
+
+fn grab_esc_now(app: &AppHandle, on: bool) {
+    if on {
+        if !ESC_GRABBED.swap(true, Ordering::SeqCst) {
+            if let Err(e) = app.global_shortcut().register(esc_key()) {
+                ESC_GRABBED.store(false, Ordering::SeqCst);
+                ui_log(format!("não deu para pegar o Esc: {e}"));
+            }
+        }
+    } else if ESC_GRABBED.swap(false, Ordering::SeqCst) {
+        let _ = app.global_shortcut().unregister(esc_key());
+    }
 }
 
 /// Mostra o HUD. `focus=true` (modo texto) ativa a janela e o campo; `false` (voz) só
@@ -81,6 +116,20 @@ fn window_visible(app: &AppHandle, label: &str) -> bool {
     app.get_webview_window(label)
         .and_then(|w| w.is_visible().ok())
         .unwrap_or(false)
+}
+
+/// Aviso de um terminal do Claude Code: mostra o HUD sem roubar o foco, a não ser que o painel
+/// esteja aberto (ele mostra o aviso). Devolve "painel", "ja_aberto" ou "mostrado".
+#[tauri::command]
+fn show_alert(app: AppHandle) -> &'static str {
+    if window_visible(&app, "painel") {
+        return "painel";
+    }
+    if is_visible(&app) {
+        return "ja_aberto";
+    }
+    place_and_show(&app, false);
+    "mostrado"
 }
 
 #[tauri::command]
@@ -129,6 +178,7 @@ fn place_and_show(app: &AppHandle, focus: bool) {
     }
     let _ = w.set_focusable(focus);
     let _ = w.show();
+    grab_esc(app, !focus);
     if focus {
         let _ = w.set_focus();
         let _ = w.emit("jarvis://shown", ());
@@ -153,6 +203,13 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
                     let pressed = event.state() == ShortcutState::Pressed;
+                    if shortcut == &esc_key() {
+                        if pressed {
+                            let _ = app.emit_to("main", "jarvis://esc", ());
+                            hide_hud(app.clone());
+                        }
+                        return;
+                    }
                     let panel_open = window_visible(app, "painel");
                     if shortcut == &panel_key {
                         if pressed {
@@ -238,13 +295,16 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Modo texto, como o Spotlight: perdeu o foco, esconde. (Em voz a janela nunca tem foco.)
             // O painel não fecha ao perder o foco: o Kaio pode trocar de app e voltar.
-            if let WindowEvent::Focused(false) = event {
+            if let WindowEvent::Focused(focused) = event {
                 if window.label() == "main" {
-                    let _ = window.hide();
+                    if !focused {
+                        let _ = window.hide();
+                        grab_esc(window.app_handle(), false);
+                    }
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![jarvis_session, hide_hud, show_hud, hide_panel, ui_log])
+        .invoke_handler(tauri::generate_handler![jarvis_session, hide_hud, show_hud, hide_panel, ui_log, show_alert])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Jarvis");
 }

@@ -91,6 +91,7 @@ STEP_LABELS = {
     "timer": "criando o timer…",
     "area_transferencia": "usando a área de transferência…",
     "rodar_atalho": "rodando o atalho…",
+    "listar_terminais": "olhando os terminais…",
 }
 
 
@@ -401,7 +402,9 @@ class JarvisBrain:
         if not ok:
             return False, json.dumps({"erro_validacao": local}, ensure_ascii=False)
         await self._emit_card(rid, emit, call.name, args, local)
-        return True, json.dumps(local, ensure_ascii=False, default=str)
+        assert isinstance(local, dict)
+        for_model = self._local.for_model(call.name, local)
+        return True, json.dumps(for_model, ensure_ascii=False, default=str)
 
     async def _emit_card(
         self, rid: str, emit: Emit, name: str, args: dict[str, Any], data: Any

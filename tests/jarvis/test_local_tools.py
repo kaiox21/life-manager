@@ -144,4 +144,5 @@ def test_schemas_para_o_modelo():
         "controlar_musica",
         "timer",
         "area_transferencia",
+        "listar_terminais",
     }

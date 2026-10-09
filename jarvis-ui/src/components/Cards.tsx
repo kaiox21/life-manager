@@ -1,4 +1,5 @@
-import type { Card, CardItem } from "../lib/types";
+import { sinceLabel } from "../lib/terminals";
+import type { Card, CardItem, TerminalInfo } from "../lib/types";
 
 const text = (v: CardItem[string]) => (v === undefined || v === null ? "" : String(v));
 
@@ -16,6 +17,12 @@ export function CardView({ card }: { card: Card }) {
       return <ArquivosCard card={card} />;
     case "texto":
       return <TextCard card={card} />;
+    case "terminais":
+      return (
+        <Shell title={card.title} kind="terminais">
+          <TerminalList items={card.items} />
+        </Shell>
+      );
   }
 }
 
@@ -150,5 +157,25 @@ function TextCard({ card }: { card: Extract<Card, { kind: "texto" }> }) {
         </ul>
       )}
     </Shell>
+  );
+}
+
+/** Lista de terminais do Claude Code (cartão e painel). */
+export function TerminalList({ items }: { items: TerminalInfo[] }) {
+  if (items.length === 0) return <p className="card__empty">Nenhum terminal aberto.</p>;
+  return (
+    <ul className="terms">
+      {items.map((t) => (
+        <li key={t.numero} className={`terms__item terms__item--${t.estado === "pedindo permissão" ? "ask" : t.estado === "esperando você" ? "wait" : "ok"}`}>
+          <span className="terms__num">T{t.numero}</span>
+          <span className="terms__where">
+            {t.pasta}
+            <small> · desde {sinceLabel(t.desde)}</small>
+          </span>
+          <span className="terms__state">{t.estado}</span>
+          {t.resumo && <code className="terms__ask">{t.resumo}</code>}
+        </li>
+      ))}
+    </ul>
   );
 }

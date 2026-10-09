@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Instala o Jarvis para abrir com o login do macOS.
 #   jarvis/install_mac.sh            # instala/atualiza (depois de: cd jarvis-ui && npm run tauri build -- --bundles app)
-#   jarvis/install_mac.sh --remove   # desinstala
+#   jarvis/install_mac.sh --remove   # desinstala (inclui os hooks do Claude Code)
+#   jarvis/install_mac.sh --sem-terminais   # só tira os hooks do Claude Code (gerenciador de terminais)
 # Cérebro: LaunchAgent com KeepAlive (reinicia se cair). App: LaunchAgent que abre o Jarvis.app no login.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,7 +24,13 @@ load() {
   echo "não consegui carregar $1" >&2; return 1
 }
 
+if [[ "${1:-}" == "--sem-terminais" ]]; then
+  /usr/bin/python3 "$ROOT/jarvis/hooks/install.py" --remover
+  exit 0
+fi
+
 if [[ "${1:-}" == "--remove" ]]; then
+  /usr/bin/python3 "$ROOT/jarvis/hooks/install.py" --remover || true
   unload "$BRAIN"; unload "$UI"
   rm -f "$AGENTS/$BRAIN.plist" "$AGENTS/$UI.plist"
   rm -rf "$APP_DST"
@@ -65,8 +72,11 @@ cat > "$AGENTS/$UI.plist" <<PLIST
 </dict></plist>
 PLIST
 
+# Gerenciador de terminais: hooks do Claude Code (só anotam eventos num arquivo local).
+/usr/bin/python3 "$ROOT/jarvis/hooks/install.py" || echo "hooks do Claude Code não instalados" >&2
+
 for label in "$BRAIN" "$UI"; do
   unload "$label"
   load "$AGENTS/$label.plist"
 done
-echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz), ⌥⇧Espaço (painel)."
+echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz), ⌥⇧Espaço (painel). Terminais do Claude Code: avisos ligados (sessões abertas depois desta instalação)."
