@@ -57,3 +57,4 @@ O Claude Code também mantém `~/.claude/sessions/<pid>.json` (pid, `sessionId`,
 
 - Hooks instalados em `~/.claude/settings.json` pelo `install_mac.sh`: os 8 eventos, `async: true`, com o comando terminando em `|| true`. As outras chaves do arquivo foram conferidas como iguais às de antes. Backup em `settings.json.bak-jarvis`.
 - Observado: a sessão do Claude Code que já estava aberta (a que fez a instalação) passou a gerar eventos sozinha, alguns segundos depois de o `settings.json` mudar, sem reiniciar. O pid veio certo (o processo `claude` da sessão) e o arquivo ficou com permissão 600.
+- Esc no HUD aberto pela voz (versão instalada às 17:42, registro do Esc agendado a partir de outra thread): testado pelo Kaio em 09/10/2026 às 18h15. Fechou o HUD e os atalhos não travaram.
