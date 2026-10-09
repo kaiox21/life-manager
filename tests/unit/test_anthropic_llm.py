@@ -79,7 +79,12 @@ def test_ferramentas_e_escolha_forcada():
         ]
     )
     assert tools == [
-        {"name": "classificar", "description": "d", "input_schema": {"type": "object"}}
+        {
+            "name": "classificar",
+            "description": "d",
+            "input_schema": {"type": "object"},
+            "cache_control": {"type": "ephemeral"},
+        }
     ]
     assert to_anthropic_tool_choice({"type": "function", "function": {"name": "classificar"}}) == {
         "type": "tool",
@@ -120,6 +125,36 @@ async def test_chat_traduz_ida_e_volta_e_calcula_custo():
     assert json.loads(c.tool_calls[0].arguments) == {"title": "Dentista"}
     assert c.cost_usd == Decimal("0.0001") + Decimal("0.0001")  # 1000*0,10/1M + 200*0,50/1M
     assert c.assistant_message()["tool_calls"][0]["function"]["name"] == "criar_evento"
+
+
+class FakeStream:
+    def __init__(self, pieces, final):
+        self.pieces, self.final = pieces, final
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    @property
+    async def text_stream(self):
+        for p in self.pieces:
+            yield p
+
+    async def get_final_message(self):
+        return self.final
+
+
+async def test_stream_entrega_pedacos_e_depois_o_completion():
+    final = NS(
+        content=[NS(type="text", text="Olá, Kaio.")], usage=NS(input_tokens=10, output_tokens=3)
+    )
+    messages = NS(stream=lambda **kw: FakeStream(["Olá, ", "Kaio."], final))
+    llm = AnthropicLLM(api_key="x", client=NS(messages=messages))
+    got = [p async for p in llm.stream("m", [{"role": "user", "content": "oi"}])]
+    assert got[:2] == ["Olá, ", "Kaio."]
+    assert got[2].content == "Olá, Kaio." and got[2].output_tokens == 3
 
 
 def test_fabrica_escolhe_provedor(settings):

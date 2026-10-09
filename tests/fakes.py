@@ -51,3 +51,15 @@ class ScriptedLLM:
         if is_classifier:
             return call("classificar", {"intencao": "fora_do_escopo"}, model)
         return reply("Oi!", model)
+
+
+class StreamingScriptedLLM(ScriptedLLM):
+    """Como o ScriptedLLM, mas entrega o texto em pedaços e, por último, o Completion."""
+
+    async def stream(self, model, messages, tools=None, max_tokens=None, tool_choice=None):
+        completion = await self.chat(model, messages, tools, max_tokens, tool_choice)
+        if completion.content and not completion.tool_calls:
+            words = completion.content.split(" ")
+            for i, w in enumerate(words):
+                yield w if i == len(words) - 1 else w + " "
+        yield completion

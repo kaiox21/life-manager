@@ -12,7 +12,7 @@ const clock = (ms: number) =>
 export function TurnView({ turn, onConfirm }: Props) {
   return (
     <article className={`turn turn--${turn.status}`}>
-      <p className="turn__question">{turn.question}</p>
+      <p className="turn__question">{turn.status === "listening" ? "ouvindo…" : turn.question}</p>
       {turn.steps.length > 0 && (
         <ol className="steps" aria-live="polite">
           {turn.steps.map((s, i) => {

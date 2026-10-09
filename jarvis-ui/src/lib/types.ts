@@ -30,15 +30,22 @@ export type ServerEvent =
   | { type: "token"; id: string; text: string }
   | { type: "card"; id: string; card: Card }
   | { type: "confirm"; id: string; confirm_id: string; text: string; data?: Record<string, unknown> }
+  | { type: "heard"; id: string; text: string }
+  | { type: "no_speech"; id: string }
+  | { type: "status"; id: string; text: string }
+  | { type: "speaking"; id: string; data: { on: boolean } }
   | { type: "done"; id: string; text: string }
   | { type: "error"; id: string; text: string };
 
+export type Mode = "texto" | "voz";
+
 export interface Turn {
   id: string;
+  mode: Mode;
   question: string;
   steps: { text: string; at: number }[];
   cards: Card[];
   answer: string;
   confirm?: { confirmId: string; text: string };
-  status: "thinking" | "done" | "error";
+  status: "listening" | "thinking" | "done" | "error";
 }

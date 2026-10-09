@@ -1,8 +1,11 @@
 """Protocolo entre o cérebro e a interface (WebSocket local). Também servirá à voz.
 
 Interface -> cérebro:
-  {"type": "ask", "id": "<id>", "text": "..."}
+  {"type": "ask", "id": "<id>", "text": "...", "mode": "texto"|"voz"}
   {"type": "confirm", "id": "<id>", "confirm_id": "<id>", "accepted": true|false}
+  {"type": "interrupt"}                      para de falar e cancela o turno em andamento
+  {"type": "voice_start", "id": "<id>", "sampleRate": 16000}, quadros binários PCM Int16 mono,
+  {"type": "voice_end", "id": "<id>"} | {"type": "voice_cancel", "id": "<id>"}
 Cérebro -> interface:
   step    passo em andamento ("consultando a agenda…")
   token   pedaço do texto da resposta (streaming)
@@ -10,13 +13,19 @@ Cérebro -> interface:
   confirm pedido de confirmação (pendência do núcleo, área de transferência)
   done    fim da resposta, com o texto completo
   error   falha, com mensagem para o usuário
+  heard   transcrição da fala (vira a pergunta do turno)
+  no_speech  a gravação não tinha fala: a interface vira modo texto
+  status  texto curto de estado ("transcrevendo…", "baixando o modelo de voz…")
+  speaking  data.on: começou/terminou de falar
 """
 
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-EventType = Literal["step", "token", "card", "confirm", "done", "error"]
+EventType = Literal[
+    "step", "token", "card", "confirm", "done", "error", "heard", "no_speech", "status", "speaking"
+]
 
 
 @dataclass(frozen=True)
@@ -56,3 +65,19 @@ def done(rid: str, text: str) -> Event:
 
 def error(rid: str, text: str) -> Event:
     return Event("error", rid, text=text)
+
+
+def heard(rid: str, text: str) -> Event:
+    return Event("heard", rid, text=text)
+
+
+def no_speech(rid: str) -> Event:
+    return Event("no_speech", rid)
+
+
+def status(rid: str, text: str) -> Event:
+    return Event("status", rid, text=text)
+
+
+def speaking(rid: str, on: bool) -> Event:
+    return Event("speaking", rid, data={"on": on})

@@ -13,7 +13,15 @@ UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
 BRAIN=com.kaio.jarvis.brain
 UI=com.kaio.jarvis.ui
 
-unload() { launchctl bootout "gui/$(id -u)/$1" 2>/dev/null || true; }
+unload() {
+  launchctl bootout "gui/$(id -u)/$1" 2>/dev/null || true
+  # o bootout é assíncrono: espera o serviço sumir antes de carregar de novo
+  for _ in $(seq 1 50); do launchctl print "gui/$(id -u)/$1" >/dev/null 2>&1 || return 0; sleep 0.2; done
+}
+load() {
+  for _ in 1 2 3 4 5; do launchctl bootstrap "gui/$(id -u)" "$1" 2>/dev/null && return 0; sleep 1; done
+  echo "não consegui carregar $1" >&2; return 1
+}
 
 if [[ "${1:-}" == "--remove" ]]; then
   unload "$BRAIN"; unload "$UI"
@@ -25,6 +33,8 @@ fi
 
 [ -d "$APP_SRC" ] || { echo "Falta o app: rode 'npm run tauri build -- --bundles app' em jarvis-ui/"; exit 1; }
 mkdir -p "$AGENTS" "$LOGS" "$HOME/Applications"
+pkill -x jarvis-ui 2>/dev/null || true   # encerra o app antigo antes de trocar o bundle
+sleep 1
 rm -rf "$APP_DST" && cp -R "$APP_SRC" "$APP_DST"
 
 cat > "$AGENTS/$BRAIN.plist" <<PLIST
@@ -57,6 +67,6 @@ PLIST
 
 for label in "$BRAIN" "$UI"; do
   unload "$label"
-  launchctl bootstrap "gui/$(id -u)" "$AGENTS/$label.plist"
+  load "$AGENTS/$label.plist"
 done
-echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalho: ⌥Espaço."
+echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz)."

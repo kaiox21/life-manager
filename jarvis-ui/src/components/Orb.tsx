@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 
+export type OrbState = "idle" | "listening" | "thinking" | "speaking" | "offline";
+
 interface Props {
-  state: "idle" | "thinking" | "offline";
+  state: OrbState;
   size?: number;
 }
 
@@ -58,4 +60,10 @@ export function Orb({ state, size = 64 }: Props) {
   );
 }
 
-const labels = { idle: "pronto", thinking: "pensando", offline: "desconectado" } as const;
+const labels = {
+  idle: "pronto",
+  listening: "ouvindo",
+  thinking: "pensando",
+  speaking: "falando",
+  offline: "desconectado",
+} as const;

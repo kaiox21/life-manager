@@ -1,14 +1,17 @@
-import type { ServerEvent, Turn } from "./types";
+import type { Mode, ServerEvent, Turn } from "./types";
 
 export const MAX_TURNS = 4;
 
 /** Aplica um evento do cérebro à conversa (função pura, testada). */
 export function applyEvent(turns: Turn[], ev: ServerEvent, now: number = Date.now()): Turn[] {
+  if (ev.type === "no_speech") return turns.filter((t) => t.id !== ev.id);
   return turns.map((t) => {
     if (t.id !== ev.id) return t;
     switch (ev.type) {
+      case "heard":
+        return { ...t, question: ev.text, status: "thinking" };
       case "step":
-        return { ...t, steps: [...t.steps, { text: ev.text, at: now }] };
+        return { ...t, steps: [...t.steps, { text: ev.text, at: now }], status: "thinking" };
       case "token":
         return { ...t, answer: t.answer + ev.text };
       case "card":
@@ -19,12 +22,22 @@ export function applyEvent(turns: Turn[], ev: ServerEvent, now: number = Date.no
         return { ...t, answer: ev.text, status: "done", confirm: undefined };
       case "error":
         return { ...t, answer: ev.text, status: "error", confirm: undefined };
+      default:
+        return t;
     }
   });
 }
 
-export function startTurn(turns: Turn[], id: string, question: string): Turn[] {
-  const next: Turn = { id, question, steps: [], cards: [], answer: "", status: "thinking" };
+export function startTurn(turns: Turn[], id: string, question: string, mode: Mode = "texto"): Turn[] {
+  const next: Turn = {
+    id,
+    mode,
+    question,
+    steps: [],
+    cards: [],
+    answer: "",
+    status: mode === "voz" ? "listening" : "thinking",
+  };
   return [...turns, next].slice(-MAX_TURNS);
 }
 

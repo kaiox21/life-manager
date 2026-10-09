@@ -607,3 +607,40 @@ body {
   align-items: center;
   gap: 8px;
 }
+
+/* ---------- voz */
+.wave {
+  flex: 1;
+  block-size: 36px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wave__bar {
+  flex: 1;
+  min-block-size: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: var(--glow);
+  transition: block-size 60ms linear;
+}
+
+.orb--listening .orb__ring--markers {
+  animation-duration: 2s;
+}
+.orb--listening .orb__glow {
+  animation: pulse 0.8s ease-in-out infinite;
+}
+.orb--speaking .orb__glow {
+  animation: pulse 0.5s ease-in-out infinite;
+}
+.orb--speaking .orb__core {
+  animation-duration: 3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave__bar {
+    transition: none;
+  }
+}

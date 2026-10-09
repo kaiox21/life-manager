@@ -32,6 +32,18 @@ describe("conversa", () => {
     expect(t[0].status).toBe("error");
   });
 
+  it("voz: ouvindo vira a pergunta transcrita", () => {
+    let t = startTurn([], "v1", "", "voz");
+    expect(t[0].status).toBe("listening");
+    t = applyEvent(t, { type: "heard", id: "v1", text: "o que eu tenho amanhã?" });
+    expect(t[0]).toMatchObject({ question: "o que eu tenho amanhã?", status: "thinking", mode: "voz" });
+  });
+
+  it("voz sem fala some da conversa", () => {
+    const t = applyEvent(startTurn([], "v1", "", "voz"), { type: "no_speech", id: "v1" });
+    expect(t).toEqual([]);
+  });
+
   it("guarda só as últimas perguntas", () => {
     let t: ReturnType<typeof startTurn> = [];
     for (let i = 0; i < MAX_TURNS + 2; i++) t = startTurn(t, `r${i}`, "q");

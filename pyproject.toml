@@ -25,6 +25,13 @@ dependencies = [
     "websockets>=15",
 ]
 
+[project.optional-dependencies]
+jarvis = [
+    "mlx-whisper>=0.4.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "pyobjc-framework-avfoundation>=11 ; sys_platform == 'darwin'",
+    "pysilero-vad>=3.4",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",

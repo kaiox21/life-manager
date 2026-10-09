@@ -14,7 +14,7 @@ class EchoBrain:
     def __init__(self) -> None:
         self.confirmations: list[tuple[str, bool]] = []
 
-    async def ask(self, rid, text, emit):
+    async def ask(self, rid, text, emit, mode="texto"):
         await emit(events.step(rid, "pensando…"))
         await emit(events.card(rid, {"kind": "texto", "text": text}))
         await emit(events.done(rid, f"eco: {text}"))
@@ -24,7 +24,7 @@ class EchoBrain:
 
 
 class BrokenBrain(EchoBrain):
-    async def ask(self, rid, text, emit):
+    async def ask(self, rid, text, emit, mode="texto"):
         raise RuntimeError("boom")
 
 

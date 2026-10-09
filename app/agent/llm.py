@@ -9,6 +9,7 @@ O agente fala sempre no formato de mensagens da API da OpenAI; o AnthropicLLM tr
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Protocol
@@ -59,6 +60,21 @@ class LLM(Protocol):
         max_tokens: int | None = None,
         tool_choice: str | dict[str, Any] | None = None,
     ) -> Completion: ...
+
+
+class StreamingLLM(LLM, Protocol):
+    """Adaptadores que também entregam o texto aos pedaços (o Jarvis fala enquanto chega)."""
+
+    def stream(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+    ) -> AsyncIterator[str | Completion]:
+        """Produz pedaços de texto (str) e, por último, o Completion inteiro."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -235,7 +251,7 @@ def to_anthropic(
 
 
 def to_anthropic_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    return [
+    out = [
         {
             "name": t["function"]["name"],
             "description": t["function"].get("description", ""),
@@ -243,6 +259,10 @@ def to_anthropic_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any
         }
         for t in tools or []
     ]
+    if out:
+        # As ferramentas são o prefixo estável do pedido: cache de prompt no fim delas.
+        out[-1]["cache_control"] = {"type": "ephemeral"}
+    return out
 
 
 def to_anthropic_tool_choice(choice: str | dict[str, Any] | None) -> dict[str, Any] | None:
@@ -276,14 +296,14 @@ class AnthropicLLM:
         self._effort = reasoning_effort
         self._max_tokens = max_tokens
 
-    async def chat(
+    def _request(
         self,
         model: str,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        max_tokens: int | None = None,
-        tool_choice: str | dict[str, Any] | None = None,
-    ) -> Completion:
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int | None,
+        tool_choice: str | dict[str, Any] | None,
+    ) -> dict[str, Any]:
         system, converted = to_anthropic(messages)
         kwargs: dict[str, Any] = {
             "model": model,
@@ -299,11 +319,40 @@ class AnthropicLLM:
                 kwargs["tool_choice"] = choice
         if self._effort:
             kwargs["output_config"] = {"effort": self._effort}
+        return kwargs
 
+    async def chat(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+    ) -> Completion:
+        kwargs = self._request(model, messages, tools, max_tokens, tool_choice)
         started = time.monotonic()
         resp = await self._client.messages.create(**kwargs)
-        latency = int((time.monotonic() - started) * 1000)
+        return self._completion(model, resp, started)
 
+    async def stream(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+    ) -> AsyncIterator[str | Completion]:
+        kwargs = self._request(model, messages, tools, max_tokens, tool_choice)
+        started = time.monotonic()
+        async with self._client.messages.stream(**kwargs) as stream:
+            async for piece in stream.text_stream:
+                if piece:
+                    yield piece
+            resp = await stream.get_final_message()
+        yield self._completion(model, resp, started)
+
+    def _completion(self, model: str, resp: Any, started: float) -> Completion:
+        latency = int((time.monotonic() - started) * 1000)
         text = "".join(b.text for b in resp.content if b.type == "text").strip()
         calls = [
             ToolCall(id=b.id, name=b.name, arguments=json.dumps(b.input, ensure_ascii=False))
@@ -311,6 +360,8 @@ class AnthropicLLM:
             if b.type == "tool_use"
         ]
         tokens_in, tokens_out = resp.usage.input_tokens, resp.usage.output_tokens
+        cached = getattr(resp.usage, "cache_read_input_tokens", None) or 0
+        log.debug("anthropic %s: in=%d cache=%d out=%d", model, tokens_in, cached, tokens_out)
         price = self._prices.get(model)
         cost = (
             price.input_per_token * tokens_in + price.output_per_token * tokens_out

@@ -1,6 +1,7 @@
 """Servidor WebSocket local do Jarvis (só 127.0.0.1, token por execução).
 
 A porta e o token vão para um arquivo de sessão (permissão 600) que a interface lê.
+Mensagens JSON (ask, confirm, interrupt, voice_*) e quadros binários (PCM da voz).
 """
 
 import asyncio
@@ -10,11 +11,13 @@ import logging
 import os
 import secrets
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
 
 from websockets.asyncio.server import ServerConnection, serve
+from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Request, Response
 
 from jarvis import events
@@ -23,13 +26,16 @@ from jarvis.events import Event
 log = logging.getLogger(__name__)
 
 SESSION_FILE = Path.home() / "Library/Application Support/Jarvis/session.json"
+MAX_VOICE_BYTES = 16_000 * 2 * 120  # 2 min de PCM Int16 a 16 kHz
 
 Emit = Callable[[Event], Awaitable[None]]
 
 
 class Brain(Protocol):
-    async def ask(self, rid: str, text: str, emit: Emit) -> None: ...
+    async def ask(self, rid: str, text: str, emit: Emit, mode: str = "texto") -> None: ...
+    async def voice(self, rid: str, pcm: bytes, sample_rate: int, emit: Emit) -> None: ...
     async def resolve_confirmation(self, confirm_id: str, accepted: bool) -> None: ...
+    def interrupt(self) -> None: ...
 
 
 def write_session(port: int, token: str, path: Path = SESSION_FILE) -> None:
@@ -39,6 +45,14 @@ def write_session(port: int, token: str, path: Path = SESSION_FILE) -> None:
     with os.fdopen(fd, "w") as f:
         json.dump({"port": port, "token": token, "pid": os.getpid()}, f)
     tmp.replace(path)
+
+
+@dataclass
+class _Voice:
+    rid: str
+    sample_rate: int
+    chunks: list[bytes] = field(default_factory=list)
+    size: int = 0
 
 
 class JarvisServer:
@@ -56,29 +70,60 @@ class JarvisServer:
 
     async def _handle(self, conn: ServerConnection) -> None:
         lock = asyncio.Lock()
+        voice: _Voice | None = None
+        active: asyncio.Task[None] | None = None
 
         async def emit(event: Event) -> None:
             async with lock:
-                await conn.send(event.to_json())
+                with contextlib.suppress(ConnectionClosed):  # a interface pode já ter saído
+                    await conn.send(event.to_json())
+
+        def launch(coro: Awaitable[None]) -> asyncio.Task[None]:
+            nonlocal active
+            task = asyncio.create_task(coro)  # type: ignore[arg-type]
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+            active = task
+            return task
 
         async for raw in conn:
+            if isinstance(raw, bytes):
+                if voice is not None and voice.size + len(raw) <= MAX_VOICE_BYTES:
+                    voice.chunks.append(raw)
+                    voice.size += len(raw)
+                continue
             try:
                 msg = json.loads(raw)
             except ValueError:
                 continue
+            kind = msg.get("type")
             rid = str(msg.get("id") or secrets.token_hex(4))
-            if msg.get("type") == "ask" and str(msg.get("text", "")).strip():
-                task = asyncio.create_task(self._ask(rid, str(msg["text"]), emit))
-                self._tasks.add(task)
-                task.add_done_callback(self._tasks.discard)
-            elif msg.get("type") == "confirm" and msg.get("confirm_id"):
+            if kind == "ask" and str(msg.get("text", "")).strip():
+                mode = "voz" if msg.get("mode") == "voz" else "texto"
+                launch(self._run(rid, emit, self.brain.ask(rid, str(msg["text"]), emit, mode)))
+            elif kind == "confirm" and msg.get("confirm_id"):
                 await self.brain.resolve_confirmation(
                     str(msg["confirm_id"]), bool(msg.get("accepted"))
                 )
+            elif kind == "interrupt":
+                self.brain.interrupt()
+                if active and not active.done():
+                    active.cancel()
+            elif kind == "voice_start":
+                voice = _Voice(rid, int(msg.get("sampleRate") or 16_000))
+            elif kind == "voice_end" and voice is not None and voice.rid == rid:
+                pcm, rate = b"".join(voice.chunks), voice.sample_rate
+                voice = None
+                launch(self._run(rid, emit, self.brain.voice(rid, pcm, rate, emit)))
+            elif kind == "voice_cancel":
+                voice = None
 
-    async def _ask(self, rid: str, text: str, emit: Emit) -> None:
+    async def _run(self, rid: str, emit: Emit, coro: Awaitable[None]) -> None:
         try:
-            await self.brain.ask(rid, text, emit)
+            await coro
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await emit(events.error(rid, "cancelado"))
         except Exception:
             log.exception("falha ao responder %s", rid)
             await emit(events.error(rid, "Tive um problema para responder agora."))
