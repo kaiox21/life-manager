@@ -234,7 +234,7 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
 
 **Versão com tmux (09/10/2026, noite):**
 - Testes passando:
-  - 380 em Python, entre eles os testes contra um servidor tmux isolado:
+  - 388 em Python, entre eles os testes contra um servidor tmux isolado:
     - segredo do cérebro não vaza para o terminal;
     - linha pela metade apagada antes do comando;
     - aba mantém vivo um terminal do Terminal.app sem janela;
