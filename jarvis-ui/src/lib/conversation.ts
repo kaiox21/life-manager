@@ -28,6 +28,11 @@ export function applyEvent(turns: Turn[], ev: ServerEvent, now: number = Date.no
   });
 }
 
+/** "Jarvis" detectado: começa um turno de voz com o id do cérebro (o pedido chega em `heard`). */
+export function startWakeTurn(turns: Turn[], id: string): Turn[] {
+  return turns.some((t) => t.id === id) ? turns : startTurn(turns, id, "", "voz");
+}
+
 export function startTurn(turns: Turn[], id: string, question: string, mode: Mode = "texto"): Turn[] {
   const next: Turn = {
     id,

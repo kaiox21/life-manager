@@ -6,9 +6,9 @@
 
 ## 2. App (Rust)
 
-- [ ] 2.1 Captura com `cpal` (dispositivo de entrada padrão, 16 kHz mono Int16, blocos de 100 ms) e cliente WebSocket (`tungstenite`, porta e token do `session.json`, reconecta a cada 5 s, descarta áudio sem conexão); stream fechado com a escuta desligada
-- [ ] 2.2 Item marcável "Ouvir 'Jarvis'" no menu da barra, guardado em `config.json` (`escuta`), ligado por padrão na instalação; abre/fecha o stream na hora e avisa o cérebro
-- [ ] 2.3 `wake` no Rust faz o que o atalho de voz faz (HUD sem foco com Esc, ou o painel se aberto) e emite `jarvis://wake` com o alvo; as interfaces mostram "ouvindo" e recebem o turno pelos eventos do `broadcast`; testes de componente (`npx vitest run`)
+- [x] 2.1 Captura com `cpal` (dispositivo de entrada padrão, 16 kHz mono Int16, blocos de 100 ms) e cliente WebSocket (`tungstenite`, porta e token do `session.json`, reconecta a cada 5 s, descarta áudio sem conexão); stream fechado com a escuta desligada
+- [x] 2.2 Item marcável "Ouvir 'Jarvis'" no menu da barra, guardado em `config.json` (`escuta`), ligado por padrão na instalação; abre/fecha o stream na hora e avisa o cérebro
+- [x] 2.3 `wake` no Rust faz o que o atalho de voz faz (HUD sem foco com Esc, ou o painel se aberto) e emite `jarvis://wake` com o alvo; as interfaces mostram "ouvindo" e recebem o turno pelos eventos do `broadcast`; testes de componente (`npx vitest run`)
 
 ## 3. Fechamento técnico
 

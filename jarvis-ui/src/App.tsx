@@ -77,6 +77,12 @@ export default function App() {
         input.current?.focus();
         if (link === "offline") void j.reconnect();
       }),
+      // "Jarvis, …": o app mostrou o HUD sem foco; ele some sozinho depois da resposta, como na voz
+      listen<{ target: "hud" | "painel"; visible: boolean }>("jarvis://wake", (e) => {
+        if (e.payload.target !== "hud") return;
+        visibleBefore.current = e.payload.visible;
+        setVoiceShown(true);
+      }),
       listen<{ state: "down" | "up"; target: "hud" | "painel"; visible: boolean }>("jarvis://ptt", (e) => {
         if (e.payload.target !== "hud") return; // o painel aberto cuida da fala
         if (e.payload.state === "down") {

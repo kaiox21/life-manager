@@ -9,11 +9,13 @@
 //!   de novo (state=up). `target` diz qual janela cuida da fala.
 //! - ⌥⇧Espaço: abre/fecha o painel em tela cheia (também pelo menu da barra; Esc fecha).
 
+mod listen;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, PhysicalPosition, WindowEvent,
 };
@@ -275,13 +277,24 @@ pub fn run() {
             let open = MenuItem::with_id(app, "open", "Abrir Jarvis  ⌥Espaço   ·   Falar: segure ⌘⇧Espaço", true, None::<&str>)?;
             let panel = MenuItem::with_id(app, "panel", "Painel  ⌥⇧Espaço", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &panel, &quit])?;
+            // Escuta da palavra "Jarvis": ligada por padrão; o microfone fica aberto (ponto laranja)
+            let listening = listen::load_choice();
+            listen::LISTEN.store(listening, Ordering::SeqCst);
+            let listen_item = CheckMenuItem::with_id(app, "listen", "Ouvir \"Jarvis\"", true, listening, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &panel, &listen_item, &quit])?;
+            listen::start(app.handle().clone());
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Jarvis")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "listen" => {
+                        let on = !listen::LISTEN.load(Ordering::SeqCst);
+                        listen::LISTEN.store(on, Ordering::SeqCst);
+                        listen::save_choice(on);
+                        let _ = listen_item.set_checked(on);
+                    }
                     "open" => toggle_text_mode(app),
                     "panel" => toggle_panel(app),
                     "quit" => app.exit(0),

@@ -51,3 +51,16 @@ describe("conversa", () => {
     expect(t[0].id).toBe("r2");
   });
 });
+
+describe("palavra de ativação", () => {
+  it("o wake começa um turno de voz ouvindo, e o heard vira a pergunta", async () => {
+    const { startWakeTurn, applyEvent } = await import("./conversation");
+    let turns = startWakeTurn([], "wake-1");
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({ id: "wake-1", mode: "voz", status: "listening", question: "" });
+    expect(startWakeTurn(turns, "wake-1")).toBe(turns); // repetido: não duplica
+    turns = applyEvent(turns, { type: "heard", id: "wake-1", text: "Que horas são?" });
+    expect(turns[0]).toMatchObject({ question: "Que horas são?", status: "thinking" });
+    expect(applyEvent(turns, { type: "no_speech", id: "wake-1" })).toHaveLength(0);
+  });
+});

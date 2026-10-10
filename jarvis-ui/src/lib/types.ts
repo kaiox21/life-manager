@@ -41,6 +41,7 @@ export type ServerEvent =
   | { type: "terminal_alert"; id: string; data: TerminalAlert }
   | { type: "terminal_opened"; id: string; data: TerminalOpened }
   | { type: "terminal_resolved"; id: string; data: { pedido: string; resultado: string } }
+  | { type: "wake"; id: string }
   | { type: "error"; id: string; text: string };
 
 export type Mode = "texto" | "voz";

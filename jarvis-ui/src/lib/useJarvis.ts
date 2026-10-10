@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MicCapture, chime } from "./audio";
-import { applyEvent, clearConfirm, startTurn } from "./conversation";
+import { applyEvent, clearConfirm, startTurn, startWakeTurn } from "./conversation";
 import { EMPTY_PANEL, applyPanel, panelFailed, panelLoading, type PanelState } from "./panel";
 import { resolveAlert, type ShownAlert } from "./terminals";
 import type { ServerEvent, TerminalInfo, TerminalOpened, Turn } from "./types";
@@ -100,6 +100,11 @@ export function useJarvis() {
         case "terminal_opened":
           opening.current?.(ev.data);
           opening.current = null;
+          return;
+        case "wake":
+          // "Jarvis, …" (escuta da palavra): o app já mostrou o HUD; o pedido chega em `heard`
+          setTurns((prev) => startWakeTurn(prev, ev.id));
+          setStatus("ouvindo…");
           return;
         case "terminal_resolved":
           setAlert((prev) => resolveAlert(prev, ev.data.pedido, ev.data.resultado, Date.now()));

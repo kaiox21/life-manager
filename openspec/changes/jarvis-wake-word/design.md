@@ -129,3 +129,17 @@ Motivação: ver `proposal.md`. Como a voz funciona hoje (`openspec/specs/jarvis
 ## Open Questions
 
 - Variantes da palavra e limiar finais: saem da calibração com a voz do Kaio (tarefa 4.1) e são registrados aqui.
+
+## Registro da implementação (10/10/2026)
+
+- O `sherpa-onnx` 1.13.8 precisa do pacote `sherpa-onnx-core`, que traz o `libonnxruntime.dylib`. O lock do projeto não o puxou sozinho, então ele entrou como dependência explícita no extra `jarvis`.
+- O detector de voz (Silero) da escuta é uma **instância própria**: ele guarda estado entre blocos, e o corte de silêncio da voz zera o estado a cada uso.
+- **Proteção a mais contra alarme falso:** se a transcrição do trecho não começa com o nome ("Jarvis", "Jarbas", "Javis"…), o turno é descartado (`no_speech`) e registrado no log, sem chamar o modelo.
+- **Testes:**
+  - 413 em Python, com 23 da escuta. Um deles usa o modelo real com áudio do `say` em pt-BR: achou "Jarvis, abre o Spotify" e ignorou uma frase comum;
+  - 46 na interface;
+  - 2 no Rust (reamostragem e mistura de canais).
+- **Primeira instalação:**
+  - a conexão de escuta caía com "keepalive ping timeout". O `sample` do app mostrou a thread de escuta parada em `AudioUnitSetProperty` → CoreAudio: o macOS segura a abertura do microfone até a pergunta de permissão ser respondida, e um build novo muda a assinatura e faz o macOS perguntar de novo;
+  - correção: abrir o microfone **antes** de conectar ao cérebro, e despachar o pong do keepalive a cada volta, com ou sem áudio;
+  - 5 s de microfone mudo vão para o `ui.log`.
