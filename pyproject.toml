@@ -71,3 +71,5 @@ addopts = "-m 'not eval and not whisper and not integracao and not claude'"
 "app/agent/prompt.py" = ["E501"]
 "app/agent/intent.py" = ["E501"]
 "jarvis/agent.py" = ["E501"]
+# Bloco de shell copiado para o ~/.zshrc; quebrar as linhas mudaria o script.
+"jarvis/hooks/zshrc.py" = ["E501"]

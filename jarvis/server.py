@@ -40,12 +40,14 @@ class Brain(Protocol):
     async def panel(self, rid: str, emit: Emit) -> None: ...
 
 
-def write_session(port: int, token: str, path: Path = SESSION_FILE) -> None:
+def write_session(
+    port: int, token: str, path: Path = SESSION_FILE, extra: dict[str, Any] | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
-        json.dump({"port": port, "token": token, "pid": os.getpid()}, f)
+        json.dump({"port": port, "token": token, "pid": os.getpid(), **(extra or {})}, f)
     tmp.replace(path)
 
 
@@ -188,13 +190,22 @@ class JarvisServer:
             log.exception("falha ao responder %s", rid)
             await emit(events.error(rid, "Tive um problema para responder agora."))
 
+    def check_token(self, token: str) -> str | None:
+        """Autentica o hook de permissões (mesmo token do WebSocket, lido do session.json)."""
+        return "jarvis" if token and secrets.compare_digest(token, self.token) else None
+
     @contextlib.asynccontextmanager
-    async def run(self, port: int = 0, session_file: Path | None = SESSION_FILE):
+    async def run(
+        self,
+        port: int = 0,
+        session_file: Path | None = SESSION_FILE,
+        extra: dict[str, Any] | None = None,
+    ):
         async with serve(
             self._handle, "127.0.0.1", port, process_request=self._authorize
         ) as server:
             bound = next(iter(server.sockets)).getsockname()[1]
             if session_file is not None:
-                write_session(bound, self.token, session_file)
+                write_session(bound, self.token, session_file, extra)
             log.info("Jarvis ouvindo em 127.0.0.1:%d", bound)
             yield bound

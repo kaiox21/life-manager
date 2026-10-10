@@ -22,17 +22,17 @@ Cérebro -> interface:
   terminals       data.terminais: lista dos terminais do Claude Code (a todas as conexões)
   terminal_alert  data: aviso de um terminal (permissão, espera, fim) com o texto pronto; numa
                   sessão aberta pelo Jarvis, com `pedido` (para os botões Permitir/Negar) e `aba`
-  terminal_tabs   data.abas: abas de terminal (abertas e encerradas, com "Retomar")
-  terminal_opened data: resultado de `term_open` (status/numero/sid, ou erro/opcoes)
+  terminal_opened data: resultado de `term_open` (status/numero/sessao/tipo, ou erro/opcoes)
   terminal_resolved  data: {pedido, resultado}: o pedido de permissão foi resolvido
-  quadros binários: 0x01 + id da sessão (8) + saída do terminal; 0x02 + id + buffer (ao anexar)
-Interface -> cérebro (abas de terminal):
-  {"type": "term_attach"|"term_detach", "sid": "..."}      receber (ou não) a saída da aba
-  {"type": "term_input", "sid": "...", "data": "..."}       teclas do Kaio
-  {"type": "term_resize", "sid": "...", "cols": 120, "rows": 32}
-  {"type": "term_pause", "sid": "...", "on": true|false}    controle de fluxo
-  {"type": "term_open", "pasta": "..."} | {"type": "term_open", "retomar": "<sid encerrada>"}
-  {"type": "term_close", "sid": "..."}
+  quadros binários: 0x01 + id da sessão do tmux (8) + saída do terminal (aba anexada)
+Interface -> cérebro (terminais compartilhados; `sessao` = session_id do tmux, ex.: "$3"):
+  {"type": "term_attach", "sessao": "...", "cols": 120, "rows": 32}   cliente da aba visível
+  {"type": "term_detach", "sessao": "..."}
+  {"type": "term_input", "sessao": "...", "data": "..."}    teclas do Kaio
+  {"type": "term_resize", "sessao": "...", "cols": 120, "rows": 32}
+  {"type": "term_pause", "sessao": "...", "on": true|false}  controle de fluxo
+  {"type": "term_open", "pasta": "...", "claude": true|false}
+  {"type": "term_tab_open"|"term_tab_close", "sessao": "..."}  abrir/fechar a aba (×)
   {"type": "permission_answer", "pedido": "...", "decisao": "permitir"|"negar"}  (só clique)
 """
 
@@ -54,7 +54,6 @@ EventType = Literal[
     "panel",
     "terminals",
     "terminal_alert",
-    "terminal_tabs",
     "terminal_opened",
     "terminal_resolved",
 ]
@@ -101,10 +100,6 @@ def terminals(items: list[dict[str, Any]]) -> Event:
 
 def terminal_alert(alert: dict[str, Any]) -> Event:
     return Event("terminal_alert", "terminais", data=alert)
-
-
-def terminal_tabs(items: list[dict[str, Any]]) -> Event:
-    return Event("terminal_tabs", "terminais", data={"abas": items})
 
 
 def terminal_opened(result: dict[str, Any]) -> Event:

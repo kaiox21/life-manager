@@ -70,6 +70,10 @@ def record(data, pid, now):
         "sessao": data.get("session_id", ""),
         "pasta": data.get("cwd", ""),
     }
+    tmux = os.environ.get("TMUX", "")
+    if tmux and os.environ.get("TMUX_PANE"):  # terminal dentro do tmux: qual painel, qual socket
+        item["painel"] = os.environ["TMUX_PANE"]
+        item["socket"] = os.path.basename(tmux.split(",")[0])
     if event == "Notification":
         item["tipo"] = data.get("notification_type", "")
     if event == "SessionStart" and data.get("session_title"):

@@ -116,3 +116,30 @@ def test_script_roda_no_python_do_macos(tmp_path):
     )
     assert (proc.returncode, proc.stderr) == (0, "")
     assert json.loads(events.read_text())["evento"] == "SessionStart"
+
+
+def test_dentro_do_tmux_grava_painel_e_socket(tmp_path):
+    events = tmp_path / "eventos.jsonl"
+    data = {**BASE, "hook_event_name": "SessionStart", "source": "startup"}
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input=json.dumps(data),
+        capture_output=True,
+        text=True,
+        env={
+            "JARVIS_EVENTS_FILE": str(events),
+            "PATH": "/usr/bin:/bin",
+            "TMUX": "/private/tmp/tmux-501/jarvis,88357,1",
+            "TMUX_PANE": "%7",
+        },
+    )
+    assert proc.returncode == 0 and proc.stdout == ""
+    item = json.loads(events.read_text())
+    assert item["painel"] == "%7" and item["socket"] == "jarvis"
+
+
+def test_fora_do_tmux_sem_painel(tmp_path):
+    events = tmp_path / "eventos.jsonl"
+    _run(json.dumps({**BASE, "hook_event_name": "Stop"}), events)
+    item = json.loads(events.read_text())
+    assert "painel" not in item and "socket" not in item

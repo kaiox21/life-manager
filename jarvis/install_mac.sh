@@ -3,6 +3,7 @@
 #   jarvis/install_mac.sh            # instala/atualiza (depois de: cd jarvis-ui && npm run tauri build -- --bundles app)
 #   jarvis/install_mac.sh --remove   # desinstala (inclui os hooks do Claude Code)
 #   jarvis/install_mac.sh --sem-terminais   # só tira os hooks do Claude Code (gerenciador de terminais)
+#   jarvis/install_mac.sh --sem-tmux        # janelas novas do Terminal.app voltam a abrir fora do tmux
 # Cérebro: LaunchAgent com KeepAlive (reinicia se cair). App: LaunchAgent que abre o Jarvis.app no login.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,8 +30,14 @@ if [[ "${1:-}" == "--sem-terminais" ]]; then
   exit 0
 fi
 
+if [[ "${1:-}" == "--sem-tmux" ]]; then
+  /usr/bin/python3 "$ROOT/jarvis/hooks/zshrc.py" --remover
+  exit 0
+fi
+
 if [[ "${1:-}" == "--remove" ]]; then
   /usr/bin/python3 "$ROOT/jarvis/hooks/install.py" --remover || true
+  /usr/bin/python3 "$ROOT/jarvis/hooks/zshrc.py" --remover || true
   unload "$BRAIN"; unload "$UI"
   rm -f "$AGENTS/$BRAIN.plist" "$AGENTS/$UI.plist"
   rm -rf "$APP_DST"
@@ -40,7 +47,6 @@ fi
 
 [ -d "$APP_SRC" ] || { echo "Falta o app: rode 'npm run tauri build -- --bundles app' em jarvis-ui/"; exit 1; }
 mkdir -p "$AGENTS" "$LOGS" "$HOME/Applications"
-echo "Aviso: reinstalar reinicia o cérebro e fecha as abas de terminal abertas pelo Jarvis (cada uma oferece 'Retomar')."
 pkill -x jarvis-ui 2>/dev/null || true   # encerra o app antigo antes de trocar o bundle
 sleep 1
 rm -rf "$APP_DST" && cp -R "$APP_SRC" "$APP_DST"
@@ -73,11 +79,22 @@ cat > "$AGENTS/$UI.plist" <<PLIST
 </dict></plist>
 PLIST
 
-# Gerenciador de terminais: hooks do Claude Code (só anotam eventos num arquivo local).
+# Gerenciador de terminais: hooks do Claude Code (anotam eventos num arquivo local; o de
+# permissão só age nos terminais compartilhados e espera o Permitir/Negar do Jarvis).
 /usr/bin/python3 "$ROOT/jarvis/hooks/install.py" || echo "hooks do Claude Code não instalados" >&2
+
+# Terminais compartilhados: tmux do Jarvis (socket `jarvis`) e janelas novas do Terminal.app nele.
+# Os terminais vivem no servidor do tmux: reinstalar o Jarvis não fecha nenhum.
+mkdir -p "$HOME/Library/Application Support/Jarvis"
+cp "$ROOT/jarvis/tmux.conf" "$HOME/Library/Application Support/Jarvis/tmux.conf"
+if [[ -x /opt/homebrew/bin/tmux || -x /usr/local/bin/tmux ]]; then
+  /usr/bin/python3 "$ROOT/jarvis/hooks/zshrc.py" || echo "bloco do tmux não instalado no ~/.zshrc" >&2
+else
+  echo "tmux não encontrado (brew install tmux): as janelas do Terminal.app continuam fora do Jarvis." >&2
+fi
 
 for label in "$BRAIN" "$UI"; do
   unload "$label"
   load "$AGENTS/$label.plist"
 done
-echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz), ⌥⇧Espaço (painel). Terminais do Claude Code: avisos ligados (sessões abertas depois desta instalação)."
+echo "Jarvis instalado: cérebro ($LOGS/brain.log) e app abrem com o login. Atalhos: ⌥Espaço (texto), segure ⌘⇧Espaço (voz), ⌥⇧Espaço (painel). Terminais: janelas novas do Terminal.app aparecem no painel (desligar: --sem-tmux)."

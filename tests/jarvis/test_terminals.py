@@ -135,3 +135,104 @@ def test_arquivo_grande_e_reduzido_na_subida(tmp_path, monkeypatch):
     Terminals(path, clock=Clock(), alive=lambda p: True).load()
     assert len(path.read_text().splitlines()) == 3
     assert oct(path.stat().st_mode & 0o777) == "0o600"
+
+
+# --- terminais compartilhados (tmux)
+
+from jarvis.terminals import FREE, RUNNING  # noqa: E402
+from jarvis.tmux import Pane  # noqa: E402
+
+
+def pane(
+    sessao="$1",
+    painel="%1",
+    comando="zsh",
+    clientes=1,
+    origem="terminal",
+    aba=False,
+    pasta="/x/life-manager",
+):
+    return Pane(sessao, painel, 500, pasta, comando, clientes, 900.0, origem, aba)
+
+
+def test_sessao_do_tmux_vira_terminal_shell_na_mesma_numeracao(tmp_path):
+    ts = _terms(tmp_path)
+    ts.apply(ev("SessionStart", pid=100))  # Claude Code de fora (VS Code): Terminal 1
+    changed, _ = ts.sync_tmux([pane()])
+    assert changed
+    t = ts.by_key("tmux:$1")
+    assert (t.numero, t.tipo, t.estado, t.pasta, t.janela, t.origem) == (
+        2,
+        "shell",
+        FREE,
+        "life-manager",
+        True,
+        "terminal",
+    )
+    assert not t.ocupado
+    ts.sync_tmux([pane(comando="npm")])
+    assert t.estado == RUNNING and t.ocupado
+    ts.sync_tmux([])
+    assert ts.by_key("tmux:$1") is None and [x["numero"] for x in ts.snapshot()] == [1]
+
+
+def test_claude_dentro_do_terminal_pelo_painel(tmp_path):
+    ts = _terms(tmp_path)
+    ts.sync_tmux([pane()])
+    tm = {"painel": "%1", "socket": "jarvis"}
+    ts.apply(ev("SessionStart", pid=300, **tm))
+    t = ts.by_key("tmux:$1")
+    assert (t.tipo, t.estado, t.pid) == ("claude", WAITING, 300)
+    assert len(ts.snapshot()) == 1  # não cria um terminal pelo pid
+    assert ts.claude_count() == 1
+    # pedido de permissão num terminal compartilhado: o aviso vem do hook síncrono, não daqui
+    assert ts.apply(ev("PermissionRequest", pid=300, ferramenta="Bash", resumo="ls", **tm)) is None
+    assert t.estado == PERMISSION and t.ocupado
+    ts.apply(ev("SessionEnd", pid=300, **tm))
+    assert (t.tipo, t.estado, t.pid) == ("shell", FREE, None)
+    assert ts.claude_count() == 0
+
+
+def test_claude_sem_eventos_conta_como_ocupado(tmp_path):
+    ts = _terms(tmp_path)
+    ts.sync_tmux([pane(comando="2.1.296")])
+    t = ts.by_key("tmux:$1")
+    assert t.tipo == "shell" and t.estado == RUNNING and t.ocupado
+
+
+def test_evento_de_painel_ainda_nao_listado_espera_a_leitura(tmp_path):
+    ts = _terms(tmp_path)
+    tm = {"painel": "%9", "socket": "jarvis"}
+    assert ts.apply(ev("SessionStart", pid=301, **tm)) is None
+    assert ts.snapshot() == []
+    _, alerts = ts.sync_tmux([pane(sessao="$4", painel="%9")])
+    assert ts.by_key("tmux:$4").tipo == "claude"
+    ts.apply(ev("Notification", pid=301, tipo="idle_prompt", **tm))
+    assert ts.by_key("tmux:$4").estado == WAITING
+
+
+def test_evento_de_outro_socket_vai_pelo_pid(tmp_path):
+    ts = _terms(tmp_path)
+    ts.sync_tmux([pane()])
+    ts.apply(ev("SessionStart", pid=302, painel="%1", socket="pessoal"))
+    assert len(ts.snapshot()) == 2  # o tmux pessoal do Kaio não é terminal compartilhado
+
+
+def test_janela_desconta_as_abas_do_jarvis(tmp_path):
+    ts = _terms(tmp_path)
+    ts.sync_tmux([pane(clientes=1, aba=True)], own_clients={"$1": 1})
+    t = ts.by_key("tmux:$1")
+    assert t.aba and not t.janela
+    ts.sync_tmux([pane(clientes=2, aba=True)], own_clients={"$1": 1})
+    assert t.janela
+
+
+def test_terminal_do_tmux_nao_expira_por_pid(tmp_path):
+    clock = Clock()
+    ts = _terms(tmp_path, alive=lambda pid: False, clock=clock)
+    ts.sync_tmux([pane()])
+    ts.apply(ev("SessionStart", pid=303, painel="%1", socket="jarvis"))
+    clock.t += 13 * 3600
+    ts.tick(force_liveness=True)
+    t = ts.by_key("tmux:$1")
+    assert t is not None and t.tipo == "shell"  # o claude morreu; o terminal fica

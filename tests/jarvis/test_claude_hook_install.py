@@ -34,7 +34,9 @@ def test_instalar_de_novo_nao_duplica(tmp_path):
     inst.install(path, tmp_path / "hooks")
     inst.install(path, tmp_path / "hooks")
     data = json.loads(path.read_text())
-    assert all(len(groups) == 1 for groups in data["hooks"].values())
+    counts = {event: len(groups) for event, groups in data["hooks"].items()}
+    assert counts.pop("PermissionRequest") == 2  # anotação (assíncrono) + decisão (síncrono)
+    assert all(n == 1 for n in counts.values())
 
 
 def test_remover_deixa_o_arquivo_como_estava(tmp_path):
@@ -59,3 +61,16 @@ def test_comando_instalado_sai_zero_mesmo_sem_o_script(tmp_path):
     cmd = inst.command(tmp_path / "apagado/claude_event.py")
     proc = subprocess.run(["/bin/sh", "-c", cmd], input="{}", capture_output=True, text=True)
     assert (proc.returncode, proc.stdout, proc.stderr) == (0, "", "")
+
+
+def test_hook_de_permissao_sincrono_com_saida_no_stdout(tmp_path):
+    path = _settings(tmp_path, {})
+    inst.install(path, tmp_path / "hooks")
+    groups = json.loads(path.read_text())["hooks"]["PermissionRequest"]
+    sync = groups[1]["hooks"][0]
+    assert "async" not in sync and sync["timeout"] == 600
+    assert sync["command"].endswith('claude_permission.py" 2>/dev/null || true')
+    assert ">/dev/null 2>&1" not in sync["command"]  # a decisão sai no stdout
+    assert (tmp_path / "hooks/claude_permission.py").exists()
+    inst.uninstall(path)
+    assert "hooks" not in json.loads(path.read_text())

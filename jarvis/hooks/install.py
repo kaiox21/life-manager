@@ -3,8 +3,11 @@
     python3 jarvis/hooks/install.py            instala ou atualiza
     python3 jarvis/hooks/install.py --remover  tira só os hooks do Jarvis
 
-Copia o script do hook para um lugar fixo (fora do repositório), faz backup do settings.json
-e só mexe nas entradas do Jarvis, reconhecidas pelo caminho do script.
+Copia os scripts para um lugar fixo (fora do repositório), faz backup do settings.json e só
+mexe nas entradas do Jarvis, reconhecidas pelo nome do script:
+- claude_event.py: anota os eventos (assíncrono; jarvis-terminais);
+- claude_permission.py: Permitir/Negar pelo Jarvis nos terminais compartilhados (síncrono,
+  600 s; sai na hora fora do tmux do Jarvis; jarvis-terminais-controle).
 """
 
 import json
@@ -16,7 +19,9 @@ HOME = Path.home()
 SETTINGS = HOME / ".claude/settings.json"
 HOOK_DIR = HOME / "Library/Application Support/Jarvis/hooks"
 SCRIPT_NAME = "claude_event.py"
-MARK = "/" + SCRIPT_NAME + '"'  # o comando do Jarvis termina no script entre aspas
+PERMISSION_SCRIPT = "claude_permission.py"
+MARKS = ("/" + SCRIPT_NAME + '"', "/" + PERMISSION_SCRIPT + '"')  # comandos do Jarvis
+PERMISSION_TIMEOUT = 600
 PYTHON = "/usr/bin/python3"
 # evento -> matcher (None = todos)
 EVENTS = {
@@ -36,8 +41,13 @@ def command(script):
     return f'{PYTHON} "{script}" >/dev/null 2>&1 || true'
 
 
+def permission_command(script):
+    # A decisão sai no stdout (por isso ele não vai para /dev/null); erro nunca bloqueia.
+    return f'{PYTHON} "{script}" 2>/dev/null || true'
+
+
 def is_ours(hook):
-    return isinstance(hook, dict) and MARK in str(hook.get("command", ""))
+    return isinstance(hook, dict) and any(m in str(hook.get("command", "")) for m in MARKS)
 
 
 def remove_ours(settings):
@@ -59,7 +69,7 @@ def remove_ours(settings):
     return settings
 
 
-def add_ours(settings, script):
+def add_ours(settings, script, permission_script=None):
     settings = remove_ours(settings)  # rodar de novo não duplica
     hooks = settings.setdefault("hooks", {})
     for event, matcher in EVENTS.items():
@@ -67,6 +77,13 @@ def add_ours(settings, script):
         if matcher:
             group = {"matcher": matcher, **group}
         hooks.setdefault(event, []).append(group)
+    if permission_script is not None:
+        hook = {
+            "type": "command",
+            "command": permission_command(permission_script),
+            "timeout": PERMISSION_TIMEOUT,
+        }
+        hooks.setdefault("PermissionRequest", []).append({"hooks": [hook]})
     return settings
 
 
@@ -85,13 +102,16 @@ def save(path, settings):
     tmp.replace(path)
 
 
-def install(settings_path=SETTINGS, hook_dir=HOOK_DIR, source=None):
+def install(settings_path=SETTINGS, hook_dir=HOOK_DIR, source=None, permission_source=None):
     source = source or Path(__file__).with_name(SCRIPT_NAME)
+    permission_source = permission_source or Path(__file__).with_name(PERMISSION_SCRIPT)
     hook_dir.mkdir(parents=True, exist_ok=True)
     script = hook_dir / SCRIPT_NAME
     shutil.copy2(source, script)
+    permission_script = hook_dir / PERMISSION_SCRIPT
+    shutil.copy2(permission_source, permission_script)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    save(settings_path, add_ours(load(settings_path), script))
+    save(settings_path, add_ours(load(settings_path), script, permission_script))
     return script
 
 

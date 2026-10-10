@@ -103,7 +103,10 @@ def card_for(tool: str, args: dict[str, Any], data: Any) -> dict[str, Any] | Non
         n, pasta = data.get("numero"), data.get("pasta", "")
         text = {
             "aberto": f"Terminal {n} · {pasta} aberto no painel.",
-            "enviado": f"Mandado para o Terminal {n} ({pasta}): {data.get('texto', '')}",
+            "enviado": (
+                f"{'Comando no' if data.get('tipo') == 'comando' else 'Mensagem para o'} "
+                f"Terminal {n} ({pasta}): {data.get('texto', '')}"
+            ),
             "fechado": f"Terminal {n} · {pasta} fechado.",
             "cancelado": f"Nada feito no Terminal {n}.",
         }.get(str(data.get("status")))

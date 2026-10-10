@@ -87,6 +87,10 @@ class TimerArgs(Args):
 
 
 class AbrirTerminalArgs(Args):
+    claude: bool = Field(
+        default=False,
+        description="true = já abre o Claude Code; false = só um terminal (shell)",
+    )
     pasta: str = Field(
         min_length=1,
         max_length=200,
@@ -104,7 +108,7 @@ class FecharTerminalArgs(Args):
 
 
 class TerminalControl(Protocol):
-    async def open(self, pasta: str = "", retomar: str = "") -> dict[str, Any]: ...
+    async def open(self, pasta: str, claude: bool = False) -> dict[str, Any]: ...
     async def send(self, numero: int, texto: str, confirm: Confirm | None) -> dict[str, Any]: ...
     async def close(self, numero: int, confirm: Confirm | None) -> dict[str, Any]: ...
 
@@ -225,8 +229,8 @@ class LocalTools:
     async def abrir_terminal(self, a: AbrirTerminalArgs) -> dict[str, Any]:
         if self._control is None:
             return {"erro": "As abas de terminal não estão disponíveis."}
-        result = await self._control.open(pasta=a.pasta)
-        result.pop("sid", None)
+        result = await self._control.open(a.pasta, a.claude)
+        result.pop("sessao", None)
         return result
 
     async def mandar_terminal(self, a: MandarTerminalArgs) -> dict[str, Any]:
@@ -243,7 +247,7 @@ class LocalTools:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela."""
         if name == "listar_terminais":
-            keep = ("numero", "pasta", "estado", "ferramenta")
+            keep = ("numero", "pasta", "tipo", "estado", "ferramenta")
             return {"terminais": [{k: t.get(k) for k in keep} for t in data["terminais"]]}
         return data
 
@@ -281,21 +285,24 @@ class LocalTools:
                 self.listar_terminais,
             ),
             "abrir_terminal": (
-                "Abre uma sessão nova do Claude Code numa aba do painel, numa pasta de projeto "
-                "(ex.: pasta='life-manager'). Se vier 'opcoes', pergunte qual.",
+                "Abre um terminal numa aba do painel, numa pasta de projeto (ex.: "
+                "pasta='life-manager'); claude=true já abre o Claude Code ('abre um Claude Code "
+                "no X'), claude=false só o terminal ('abre um terminal no X'). Se vier 'opcoes', "
+                "pergunte qual.",
                 AbrirTerminalArgs,
                 self.abrir_terminal,
             ),
             "mandar_terminal": (
-                "Manda uma mensagem de texto para um terminal aberto pelo Jarvis "
-                "('Terminal 2, roda os testes' -> numero=2, texto='roda os testes'). O Kaio "
-                "confirma antes de enviar. Não serve para aprovar ou negar permissões.",
+                "Manda texto para um terminal: num Claude Code vai como mensagem ('Terminal 2, "
+                "roda os testes' -> numero=2, texto='roda os testes'); num terminal comum vai "
+                "como comando de uma linha ('Terminal 3, roda npm test' -> texto='npm test'). "
+                "O Kaio confirma antes. Não serve para aprovar ou negar permissões.",
                 MandarTerminalArgs,
                 self.mandar_terminal,
             ),
             "fechar_terminal": (
-                "Fecha (encerra) um terminal aberto pelo Jarvis; pede confirmação se estiver "
-                "trabalhando.",
+                "Fecha (encerra) um terminal; pede confirmação se houver algo rodando ou se ele "
+                "estiver aberto no Terminal.app.",
                 FecharTerminalArgs,
                 self.fechar_terminal,
             ),

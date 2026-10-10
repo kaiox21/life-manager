@@ -6,11 +6,10 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
   JARVIS_VOICE / JARVIS_VOICE_RATE   voz e velocidade da fala (padrão: Luciana, 0.52)
   JARVIS_FILLER          "um instante, senhor" ao chamar ferramenta em modo voz (padrão: true)
   FISH_API_KEY / FISH_VOICE_ID / FISH_VOICE_SPEED   voz da Fish Audio (vazio = voz local)
-  JARVIS_PASTAS          pastas onde o Jarvis abre o Claude Code, separadas por ":" (padrão:
+  JARVIS_PASTAS          pastas onde o Jarvis abre terminais, separadas por ":" (padrão:
                          ~/Projetos pessoais:~/AmicusIA:~/Faculdade)
-  JARVIS_TERMINAIS_MAX / JARVIS_TERMINAIS_MEM_MIN   limite de sessões (4) e memória livre mínima
-                         em % para abrir uma nova (20)
-  JARVIS_CLAUDE          caminho do `claude` (padrão: ~/.local/bin/claude)
+  JARVIS_TERMINAIS_MAX / JARVIS_TERMINAIS_MEM_MIN   Claude Code rodando nos terminais (4) e
+                         memória livre mínima em % para abrir um terminal (20)
 Valem as do ambiente e, na falta, as do .env.
 """
 
@@ -19,7 +18,6 @@ import contextlib
 import logging
 import os
 import signal
-from pathlib import Path
 
 from dotenv import dotenv_values
 
@@ -33,8 +31,9 @@ from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import CoreClient
 from jarvis.permissions import HookServer, Permissions
 from jarvis.server import JarvisServer
-from jarvis.sessions import Folders, Sessions
+from jarvis.sessions import Folders
 from jarvis.terminals import Terminals
+from jarvis.tmux import Tmux
 from jarvis.tts import make_speaker
 
 log = logging.getLogger(__name__)
@@ -51,11 +50,19 @@ def _log_task_error(task: asyncio.Task[None]) -> None:
         log.error("tarefa em segundo plano falhou: %r", task.exception())
 
 
-async def watch_terminals(terminals: Terminals, server: JarvisServer) -> None:
-    """Lê os eventos dos hooks do Claude Code e avisa as interfaces (a cada 300 ms)."""
+async def watch_terminals(
+    terminals: Terminals, server: JarvisServer, control: TerminalControl
+) -> None:
+    """Lê os eventos dos hooks do Claude Code (a cada 300 ms) e o tmux (a cada 1 s)."""
+    ticks = 0
     while True:
         try:
             changed, alerts = terminals.poll()
+            if ticks % 3 == 0:
+                tmux_changed, tmux_alerts = await control.refresh()
+                changed = changed or tmux_changed
+                alerts += tmux_alerts
+            ticks += 1
             if changed:
                 await server.broadcast(events.terminals(terminals.snapshot()))
             for alert in alerts:
@@ -88,21 +95,15 @@ async def main() -> None:
 
     terminals = Terminals()
     terminals.load()
-    sessions = Sessions(
+    permissions = Permissions()
+    control = TerminalControl(
+        Tmux(),
+        terminals,
+        permissions,
         Folders.from_env(env("JARVIS_PASTAS")),
-        claude=env("JARVIS_CLAUDE", str(Path.home() / ".local/bin/claude")),
-        max_sessions=int(env("JARVIS_TERMINAIS_MAX", "4")),
+        max_claude=int(env("JARVIS_TERMINAIS_MAX", "4")),
         min_memory=int(env("JARVIS_TERMINAIS_MEM_MIN", "20")),
     )
-    sessions.load_previous()
-    permissions = Permissions()
-    control = TerminalControl(sessions, terminals, permissions)
-
-    def hook_auth(token: str) -> str | None:
-        s = sessions.by_token(token)
-        return s.sid if s else None
-
-    hooks = HookServer(hook_auth, permissions.handle)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -131,11 +132,15 @@ async def main() -> None:
         server = JarvisServer(brain)
         server.control = control
         control.broadcast = server.broadcast
-        server.greeting = lambda: [events.terminals(terminals.snapshot()), *control.greeting()]
-        watcher = asyncio.create_task(watch_terminals(terminals, server))
+        server.greeting = lambda: [events.terminals(terminals.snapshot())]
+        await control.refresh()
+        watcher = asyncio.create_task(watch_terminals(terminals, server, control))
         watcher.add_done_callback(_log_task_error)
-        async with hooks.run() as hook_port, server.run(port=int(env("JARVIS_PORT", "0"))):
-            control.hook_port = hook_port
+        hooks = HookServer(server.check_token, control.on_hook)
+        async with (
+            hooks.run() as hook_port,
+            server.run(port=int(env("JARVIS_PORT", "0")), extra={"hook_port": hook_port}),
+        ):
             try:
                 await stop.wait()
             finally:

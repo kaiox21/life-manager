@@ -123,7 +123,7 @@ class FakeControl:
         self.msgs.append(msg)
         if msg["type"] == "term_attach":
             await client.send_bytes(b"\x02abcd1234tela")
-            await client.emit(events.terminal_tabs([]))
+            await client.emit(events.terminals([]))
 
     def detach(self, client):
         self.detached += 1
@@ -139,7 +139,7 @@ async def test_mensagens_de_terminal_vao_para_o_controle_e_saida_binaria():
     ):
         await ws.send(json.dumps({"type": "term_attach", "sid": "abcd1234"}))
         assert await asyncio.wait_for(ws.recv(), 5) == b"\x02abcd1234tela"
-        assert json.loads(await asyncio.wait_for(ws.recv(), 5))["type"] == "terminal_tabs"
+        assert json.loads(await asyncio.wait_for(ws.recv(), 5))["type"] == "terminals"
         await ws.send(
             json.dumps({"type": "permission_answer", "pedido": "p", "decisao": "permitir"})
         )
