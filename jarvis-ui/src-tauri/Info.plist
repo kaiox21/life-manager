@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>O Jarvis usa o microfone só enquanto você segura ⌥Espaço, para transcrever o que você fala, no próprio Mac.</string>
+  <string>O Jarvis usa o microfone enquanto você segura o atalho de voz e, com “Ouvir Jarvis” ligado no menu, para perceber quando você diz “Jarvis”. Tudo é processado no próprio Mac; só o pedido depois do nome é transcrito.</string>
 </dict>
 </plist>

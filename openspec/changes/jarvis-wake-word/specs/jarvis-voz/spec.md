@@ -1,23 +1,30 @@
 ## ADDED Requirements
 
 ### Requirement: Ativação pela palavra "Jarvis"
-Com a escuta ligada, uma frase que comece com "Jarvis" SHALL ativar o Jarvis sem tocar no teclado: o HUD SHALL aparecer sem roubar o foco do app em uso (ou o painel, se estiver aberto, cuida da fala), e o que for dito depois de "Jarvis", até uma pausa, SHALL virar o pedido, respondido como no push-to-talk. "Jarvis" sozinho SHALL abrir o HUD ouvindo e esperar o pedido por alguns segundos; sem pedido, o HUD SHALL voltar a como estava sem chamar o modelo. A palavra "Jarvis" no começo SHALL ser tirada do texto do pedido.
+Com a escuta ligada, uma frase que comece com "Jarvis" (ou "Hey/Ei/Ô Jarvis") SHALL ativar o Jarvis sem tocar no teclado e sem abrir nenhuma janela: o que for dito depois do nome, até uma pausa, SHALL virar o pedido, respondido só por voz pelo mesmo caminho do push-to-talk. O nome no começo SHALL ser tirado do texto do pedido. Se o painel já estiver aberto, a pergunta e a resposta SHALL aparecer nele; o HUD SHALL NOT ser mostrado pela palavra, e o foco do app em uso SHALL NOT mudar.
 
 #### Scenario: Pedido numa frase
 - **WHEN** a escuta está ligada, o Kaio está em outro app e diz "Jarvis, o que eu tenho amanhã?"
-- **THEN** o HUD aparece sem tirar o foco do app, mostra "o que eu tenho amanhã?" como pergunta e o Jarvis responde falando
-
-#### Scenario: Só o nome
-- **WHEN** o Kaio diz "Jarvis", espera o HUD aparecer e depois diz "abre o Spotify"
-- **THEN** o Jarvis abre o Spotify
-
-#### Scenario: Só o nome e silêncio
-- **WHEN** o Kaio diz "Jarvis" e não fala mais nada
-- **THEN** o HUD volta a como estava, sem chamar o modelo
+- **THEN** nenhuma janela aparece, o foco continua no app, e o Jarvis responde falando
 
 #### Scenario: Painel aberto
 - **WHEN** o painel está aberto e o Kaio diz "Jarvis, quanto eu gastei esse mês?"
 - **THEN** a pergunta e a resposta aparecem no painel, e o HUD não aparece por cima
+
+### Requirement: Resumo do dia ao chamar só o nome
+"Hey Jarvis" ou "Jarvis" sozinho SHALL fazer o Jarvis falar um resumo do dia, montado com texto fixo e sem chamar o modelo de linguagem: cumprimento pela hora do dia, a temperatura agora com máxima e mínima (e a chance de chuva quando for de 30% ou mais), os compromissos de hoje com o horário, a fatura de cartão que fecha ou vence nos próximos 3 dias e os pedidos de permissão de terminal esperando resposta. Partes sem nada SHALL ser omitidas, e um dia sem compromissos SHALL dizer isso numa frase. Sem internet ou com o clima fora, o resumo SHALL sair sem o clima; com o núcleo fora, SHALL dizer que a agenda está indisponível. O clima SHALL vir de um serviço sem chave, recebendo só a latitude e a longitude configuradas. Depois do resumo, o Jarvis SHALL ouvir um pedido por alguns segundos sem exigir o nome de novo; sem fala, volta a esperar a palavra.
+
+#### Scenario: Bom dia
+- **WHEN** às 8h o Kaio diz "Hey Jarvis", tem aula às 19h e reunião às 14h, e fazem 22 °C
+- **THEN** o Jarvis fala algo como "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18. Hoje o senhor tem reunião às 14h e aula às 19h." sem abrir janela e sem chamar o modelo
+
+#### Scenario: Pedido logo depois do resumo
+- **WHEN** o Jarvis termina o resumo e o Kaio diz "quanto eu gastei esse mês?"
+- **THEN** o Jarvis responde ao pedido sem que o Kaio repita o nome
+
+#### Scenario: Sem internet
+- **WHEN** o Mac está sem internet e o Kaio diz "Hey Jarvis"
+- **THEN** o resumo sai com a agenda e sem o clima
 
 ### Requirement: Escuta ligada e desligada
 O Kaio SHALL poder ligar e desligar a escuta da palavra "Jarvis" pelo menu da barra ("Ouvir 'Jarvis'"), com a escolha lembrada entre reinícios do Mac e do Jarvis. Desligada, o Jarvis SHALL NOT capturar o microfone fora do push-to-talk. Ligada, o indicador de microfone do macOS fica aceso, e o menu SHALL mostrar que a escuta está ligada. O push-to-talk SHALL funcionar igual com a escuta ligada ou desligada.

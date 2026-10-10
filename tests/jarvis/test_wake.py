@@ -131,6 +131,18 @@ def test_so_o_nome_espera_o_pedido_ou_desiste():
     assert got["nothing"] == 1
 
 
+def test_espera_do_pedido_comeca_depois_da_fala_do_resumo():
+    speaking = {"on": False}
+    li, _, got = listener(paused=lambda: speaking["on"])
+    li.wait_request()
+    speaking["on"] = True
+    li.feed(blocks((SIL, 100)))  # 10 s de resumo falado: não conta como espera
+    assert li.state == WAIT and got["nothing"] == 0
+    speaking["on"] = False
+    li.feed(blocks((VOZ, 5), (SIL, 8)))
+    assert len(got["request"]) == 1
+
+
 def test_blocos_quebrados_sao_juntados():
     li, sp, _ = listener()
     data = blocks((VOZ, 3))
@@ -211,14 +223,66 @@ async def test_pedido_vira_pergunta_sem_o_nome():
     assert heard[0].text == "Que horas são?" and got[-1].type == "done"
 
 
-async def test_so_o_nome_e_depois_o_pedido():
-    t = FakeTranscriber("Jarvis.")
-    b = brain(StreamingScriptedLLM(reply("Feito.")), FakeCore(), transcriber=t, vad=FakeVad(True))
+async def test_so_o_nome_resumo_e_depois_o_pedido():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from jarvis.briefing import Weather
+    from jarvis.mcp_client import ToolResult
+
+    agenda = {"agenda": {"hoje": [{"titulo": "Aula", "hora": "19:00"}]}, "faturas": []}
+    core = FakeCore({"painel": ToolResult(True, agenda)})
+    t = FakeTranscriber("Hey Jarvis.")
+    llm = StreamingScriptedLLM(reply("Feito."))
+    b = brain(llm, core, transcriber=t, vad=FakeVad(True))
+
+    async def weather(lat, lon):
+        return Weather(22, 31, 18, 0)
+
+    b.fetch_weather = weather
+    b.clock = lambda: datetime(2026, 10, 10, 8, tzinfo=ZoneInfo("America/Sao_Paulo"))
+    b.pending_permissions = lambda: 1
     result, got = await run_turn(b)
     assert result == "so_nome" and got == []
-    t.text = "abre o Spotify"  # o pedido vem sem o nome
+
+    said = []
+
+    class Speaker:
+        def say(self, s):
+            said.append(s)
+
+    b.speaker = Speaker()
+    got = []
+
+    async def emit(ev):
+        got.append(ev)
+
+    await b.briefing("wake-1", emit)
+    assert [e.type for e in got] == ["heard", "token", "done"]
+    assert got[-1].text == (
+        "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18."
+        " Hoje o senhor tem Aula às 19h. Tem um pedido de permissão esperando no terminal."
+    )
+    assert said[0] == "Bom dia, senhor." and len(said) == 4  # o resumo inteiro é falado
+    assert llm.calls == []  # nenhum token
+    t.text = "abre o Spotify"  # o pedido depois do resumo vem sem o nome
     result, got = await run_turn(b)
     assert result == "ok" and [e for e in got if e.type == "heard"][0].text == "abre o Spotify"
+
+
+async def test_sem_pedido_depois_do_resumo_volta_a_exigir_o_nome():
+    t = FakeTranscriber("Hey Jarvis")
+    b = brain(StreamingScriptedLLM(), FakeCore(), transcriber=t, vad=FakeVad(True))
+
+    async def no_weather(lat, lon):
+        return None
+
+    b.fetch_weather = no_weather
+    await b.briefing("wake-1", lambda ev: asyncio.sleep(0))
+    b.wake_idle()
+    t.text = "abre o Spotify"
+    result, _ = await run_turn(b)
+    assert result == "falso"
 
 
 async def test_transcricao_sem_o_nome_e_alarme_falso():
@@ -319,6 +383,12 @@ async def test_servico_liga_desliga_e_manda_o_wake():
         async def wake_turn(self, rid, audio, emit):
             return "ok"
 
+        async def briefing(self, rid, emit):
+            pass
+
+        def wake_idle(self):
+            pass
+
     svc = WakeService(B(), FakeSpotter, FakeGate, bc, bc)
     assert not svc.on
     svc.set_listening(True)
@@ -328,3 +398,33 @@ async def test_servico_liga_desliga_e_manda_o_wake():
     assert sent and sent[0].type == "wake" and sent[0].id.startswith("wake-")
     svc.set_listening(False)
     assert not svc.on
+
+
+async def test_servico_so_o_nome_pede_o_resumo_e_espera_o_pedido():
+    calls = []
+
+    async def bc(ev):
+        pass
+
+    class B:
+        def wake_paused(self):
+            return False
+
+        async def wake_turn(self, rid, audio, emit):
+            calls.append("turno")
+            return "so_nome"
+
+        async def briefing(self, rid, emit):
+            calls.append("resumo")
+
+        def wake_idle(self):
+            calls.append("ocioso")
+
+    svc = WakeService(B(), FakeSpotter, FakeGate, bc, bc)
+    svc.set_listening(True)
+    svc.feed(blocks((NOME, 1), (SIL, 8)))
+    await asyncio.sleep(0.05)
+    assert calls == ["turno", "resumo"] and svc._listener.state == WAIT
+    svc.feed(blocks((SIL, 60)))
+    await asyncio.sleep(0.05)
+    assert calls[-1] == "ocioso"

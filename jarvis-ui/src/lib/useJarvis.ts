@@ -102,7 +102,8 @@ export function useJarvis() {
           opening.current = null;
           return;
         case "wake":
-          // "Jarvis, …" (escuta da palavra): o app já mostrou o HUD; o pedido chega em `heard`
+          // "Jarvis, …" (escuta da palavra): só voz, nenhuma janela abre; o painel aberto mostra a
+          // conversa (o pedido chega em `heard`, o resumo do dia em `token`)
           setTurns((prev) => startWakeTurn(prev, ev.id));
           setStatus("ouvindo…");
           return;

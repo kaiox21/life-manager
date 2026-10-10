@@ -107,6 +107,17 @@ Motivação: ver `proposal.md`. Como a voz funciona hoje (`openspec/specs/jarvis
    - o aceite mede antes e depois;
    - o detector é criado só com a escuta ligada.
 
+7. **Revisão de 10/10/2026: só voz e resumo do dia** (pedido do Kaio depois do primeiro teste real: "não quero que abra o HUD; falo 'hei Jarvis' e ele abre falando meus compromissos de hoje, quantos graus está etc.").
+   - **Sem HUD:** o `wake` no Rust deixa de chamar `place_and_show`. A interface escondida continua recebendo os eventos do turno (o `broadcast`) e toca a fala como hoje; o painel, se aberto, mostra a conversa. O Esc do HUD não vale para a palavra; para interromper, continua o atalho de voz.
+   - **"Só o nome" = resumo**, no lugar de "abrir ouvindo e esperar o pedido". `wake_turn` devolve `so_nome`; o `WakeService` pede ao cérebro `brain.briefing(rid, emit)` e, quando a fala termina, entra em "esperando o pedido" (6 s), como antes.
+   - **Texto fixo, sem LLM** (zero token, sem latência do modelo, igual ao "resumo do dia" do WhatsApp em `lembretes`): `jarvis/briefing.py` monta o texto a partir de:
+     - `painel` do núcleo (MCP), que já traz agenda de hoje e faturas abertas;
+     - Open-Meteo (`/v1/forecast`, `current=temperature_2m`, `daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max`, fuso `America/Sao_Paulo`), conferido em 10/10/2026: responde sem chave; timeout de 2 s; `JARVIS_CLIMA_LAT`/`JARVIS_CLIMA_LON`/`JARVIS_CLIMA_NOME` no `.env`, padrão Brasília (-15,79; -47,88);
+     - pedidos de permissão pendentes de `jarvis/permissions.py`.
+   - O texto sai pelos eventos de sempre (`heard` vazio não; `token` com o texto e `done`), então a fala usa o mesmo TTS e o mesmo controle de "falando" que pausa a escuta.
+   - Cumprimento: "Bom dia" até 12h, "Boa tarde" até 18h, "Boa noite" depois. Horários falados como "às 14h" / "às 14h30". Máximo de 5 compromissos falados ("e mais 2").
+   - Alternativa descartada: pedir o resumo ao modelo. Custaria tokens e uns 3 s a cada "Hey Jarvis", e poderia errar números (regra 3 do projeto).
+
 ## Risks / Trade-offs
 
 - **[A voz real do Kaio pode não bater com o modelo inglês]** → calibração com gravações dele (tarefa 4.1): limiar, variantes e meta de 90%. Se não chegar lá, o plano B é treinar um modelo próprio (fora deste change).
@@ -124,6 +135,8 @@ Motivação: ver `proposal.md`. Como a voz funciona hoje (`openspec/specs/jarvis
 - **[Dois capturadores ao mesmo tempo]** (o Rust da escuta e o webview do push-to-talk) → o macOS permite. Os blocos da escuta são descartados durante o push-to-talk.
 - **[Cérebro fora]** → o Rust descarta o áudio e reconecta; nada se acumula.
 - **[Permissão de Microfone pedida de novo depois de cada build]** → a permissão é do Jarvis.app, e um build com assinatura diferente pode fazer o macOS perguntar de novo. É o mesmo que já acontece com o push-to-talk; o aceite confere que a captura do Rust usa a mesma permissão, sem um pedido novo além do de sempre.
+- **[Resumo comprido demais]** → no máximo 5 compromissos e partes vazias omitidas; o aceite confere se fica em ~15 s.
+- **[Clima fora]** → timeout de 2 s e o resumo segue sem o clima.
 - **[Latência]** → o pedido só é transcrito depois de 0,8 s de silêncio, o equivalente a soltar o atalho. O resto do caminho é o da voz de hoje; o aceite mede o tempo do fim da fala até a primeira palavra.
 
 ## Open Questions

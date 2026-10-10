@@ -152,7 +152,10 @@ class WakeListener:
 
     def _block(self, b: np.ndarray) -> None:
         if self._paused():
-            if self.state in (IDLE, COLLECT, WAIT):
+            if self.state == WAIT:
+                # o resumo está sendo falado: a espera do pedido começa quando ele termina
+                self._collected, self._waited, self._spoke, self._quiet = [], 0, False, 0
+            elif self.state in (IDLE, COLLECT):
                 self._to_idle()
             self._ring.clear()
             return
@@ -221,6 +224,8 @@ class WakeListener:
 class WakeBrain(Protocol):
     def wake_paused(self) -> bool: ...
     async def wake_turn(self, rid: str, audio: np.ndarray, emit: Callable) -> str: ...
+    async def briefing(self, rid: str, emit: Callable) -> None: ...
+    def wake_idle(self) -> None: ...
 
 
 Broadcast = Callable[..., Awaitable[None]]
@@ -291,7 +296,13 @@ class WakeService:
             result = "erro"
         if listener is None or listener is not self._listener:
             return
-        if result == "so_nome":
+        if result == "so_nome":  # "Hey Jarvis" sozinho: resumo do dia e depois o pedido
+            try:
+                await self._brain.briefing(self._rid, self._broadcast_ui)
+            except Exception:
+                log.exception("wake: falha no resumo")
+                listener.done()
+                return
             listener.wait_request()
         else:
             listener.done()
@@ -300,6 +311,7 @@ class WakeService:
         from jarvis import events
 
         listener = self._listener
+        self._brain.wake_idle()
         self._spawn(self._broadcast_ui(events.no_speech(self._rid)))
         if listener is not None:
             listener.done()

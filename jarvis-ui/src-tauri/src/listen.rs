@@ -227,12 +227,11 @@ impl Resampler {
     }
 }
 
+/// "Jarvis": só voz, nenhuma janela abre (pedido do Kaio, 10/10). O painel, se aberto, mostra a
+/// conversa pelos eventos do cérebro; o evento fica para quem quiser saber da ativação.
 fn on_wake(app: &AppHandle) {
     let panel_open = super::window_visible(app, "painel");
     let visible = super::is_visible(app);
-    if !panel_open {
-        super::place_and_show(app, false, true);
-    }
     let target = if panel_open { "painel" } else { "hud" };
     let _ = app.emit("jarvis://wake", Wake { target, visible });
 }

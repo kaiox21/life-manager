@@ -17,10 +17,14 @@ import re
 import secrets
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 from app.agent.llm import LLM, Completion, ToolCall
+from jarvis import briefing as briefing_text
 from jarvis import events
 from jarvis.audio import RATE, Speech, Transcriber, Vad, pcm16_to_float
 from jarvis.cards import card_for
@@ -209,6 +213,14 @@ class JarvisBrain:
     _ptt_active = False
     _turn_running = False
     _spoke_at = 0.0
+    _waiting_request = False
+    # resumo do dia: lugar do clima (lat, lon, nome), pedidos de permissão abertos e relógio
+    weather_place: tuple[float, float, str] = (-15.79, -47.88, "Brasília")
+    pending_permissions: Callable[[], int] = staticmethod(lambda: 0)
+    fetch_weather = staticmethod(briefing_text.fetch_weather)
+    clock: Callable[[], datetime] = staticmethod(
+        lambda: datetime.now(ZoneInfo("America/Sao_Paulo"))
+    )
 
     def set_ptt(self, on: bool) -> None:
         """Atalho de voz segurado: a escuta da palavra pausa (o pedido vai pelo atalho)."""
@@ -231,8 +243,11 @@ class JarvisBrain:
             await emit(events.no_speech(rid))
             return "vazio"
         text, ms = await self._transcriber.transcribe(speech.audio)
-        if getattr(self, "_waiting_request", False):
-            request: str | None = text.strip()
+        if self._waiting_request:
+            # pedido depois do nome ou do resumo: o nome é opcional
+            request: str | None = strip_name(text)
+            if request is None:
+                request = text.strip()
             self._waiting_request = False
         else:
             request = strip_name(text)
@@ -241,12 +256,47 @@ class JarvisBrain:
             await emit(events.no_speech(rid))
             return "falso"
         if not request:
-            self._waiting_request = True  # só o nome: o próximo trecho é o pedido
-            return "so_nome"
+            return "so_nome"  # só o nome: o serviço pede o resumo do dia e espera o pedido
         log.info("wake: %.1fs de fala transcrita em %dms", speech.seconds, ms)
         await emit(events.heard(rid, request))
         await self.ask(rid, request, emit, mode="voz", t_release=t_release)
         return "ok"
+
+    def wake_idle(self) -> None:
+        """A escuta voltou a esperar o nome (sem pedido depois do resumo)."""
+        self._waiting_request = False
+
+    async def briefing(self, rid: str, emit: Emit) -> None:
+        """Resumo do dia falado, com texto fixo e sem o modelo (zero token). Depois dele, o
+        próximo trecho da escuta é um pedido, com ou sem o nome."""
+        self._turn_running = True
+        try:
+            self._loop = asyncio.get_running_loop()
+            self._last_emit = emit
+            self._turn = _Turn(rid, "voz", emit)
+            lat, lon, city = self.weather_place
+            weather, panel = await asyncio.gather(self.fetch_weather(lat, lon), self._panel_data())
+            text = briefing_text.compose(
+                self.clock(), weather, panel, self.pending_permissions(), city
+            )
+        finally:
+            self._turn_running = False
+        log.info("resumo: %d frases", len(split_sentences(text)))
+        await emit(events.heard(rid, "Jarvis"))
+        await emit(events.token(rid, text))
+        await emit(events.done(rid, text))
+        if self.speaker is not None:
+            for sentence in split_sentences(text):
+                self.speaker.say(sentence)
+        self._waiting_request = True
+
+    async def _panel_data(self) -> dict[str, Any] | None:
+        try:
+            result = await self._core.call("painel", {})
+        except Exception:
+            log.exception("resumo: núcleo indisponível")
+            return None
+        return result.data if result.ok and isinstance(result.data, dict) else None
 
     def interrupt(self) -> None:
         if self.speaker is not None:

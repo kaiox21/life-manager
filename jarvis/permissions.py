@@ -86,6 +86,9 @@ class Permissions:
         self.on_open: Callable[[Request], Awaitable[None]] | None = None
         self.on_close: Callable[[Request, str], Awaitable[None]] | None = None
 
+    def pending_count(self) -> int:
+        return len(self._by_id)
+
     def pending_for(self, sid: str) -> Request | None:
         return next((r for r in self._by_id.values() if r.sid == sid), None)
 

@@ -134,6 +134,12 @@ async def main() -> None:
             fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
         )
         brain.speaker.prefetch(FILLERS)
+        brain.weather_place = (
+            float(env("JARVIS_CLIMA_LAT", "-15.79")),
+            float(env("JARVIS_CLIMA_LON", "-47.88")),
+            env("JARVIS_CLIMA_NOME", "Brasília"),
+        )
+        brain.pending_permissions = permissions.pending_count
         server = JarvisServer(brain)
         server.control = control
         control.broadcast = server.broadcast
