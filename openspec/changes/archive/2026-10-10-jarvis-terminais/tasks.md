@@ -16,5 +16,5 @@
 ## 4. Fechamento
 
 - [x] 4.1 `uv run pytest`, `ruff`, testes da UI, `npm run tauri build`, `install_mac.sh` (com os hooks); a prova do núcleo não precisa rodar (o núcleo não muda)
-- [ ] 4.2 Aceite com o Kaio (sessões abertas depois da instalação; anotar se as que já estavam abertas também passaram a avisar): duas sessões numeradas; pedido de permissão aparece em < 1 s sem roubar o foco e some ao responder; "esperando você"; "como estão meus terminais?"; `install_mac.sh --sem-terminais` remove os hooks
-- [ ] 4.3 `SPEC.md` (fecha "Sessões do Claude Code no Jarvis"; registra os hooks globais) e arquivar
+- [x] 4.2 Aceite com o Kaio (sessões abertas depois da instalação; anotar se as que já estavam abertas também passaram a avisar): duas sessões numeradas; pedido de permissão aparece em < 1 s sem roubar o foco e some ao responder; "esperando você"; "como estão meus terminais?"; `install_mac.sh --sem-terminais` remove os hooks
+- [x] 4.3 `SPEC.md` (fecha "Sessões do Claude Code no Jarvis"; registra os hooks globais) e arquivar

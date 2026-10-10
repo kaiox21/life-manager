@@ -248,3 +248,9 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
   - abrir pelo Jarvis criou o Terminal 4;
   - fechar a janela encerrou a sessão.
 - **Aceite parcial do Kaio (10/10/2026):** duas abas abertas no painel funcionaram, e o Claude Code chamado numa aba também. Ainda falta conferir o resto da tarefa 6.2 e as tarefas 5.3 e 5.4.
+- **Aceite do Kaio (10/10/2026):** "funcionou" depois do roteiro, cobrindo:
+  - o clique no HUD sem foco (a alternativa do design não foi preciso);
+  - o Esc no Terminal.app com o aviso na tela;
+  - a voz;
+  - os terminais sobrevivendo ao fechar a janela, o painel e o cérebro.
+  - O teste de `--sem-terminais` do `jarvis-terminais` não foi refeito: a remoção tem teste automático.

@@ -46,7 +46,7 @@ uv run alembic upgrade head
 - Atender só o número em `OWNER_PHONE`. Ignorar grupos, status e outros remetentes, sem responder.
 - Webhook exige o header `X-Webhook-Secret` igual a `WEBHOOK_SECRET`.
 - A função de envio só aceita `OWNER_PHONE` como destino.
-- Nenhuma ferramenta executa shell, apaga arquivos ou envia mensagens a terceiros.
+- Nenhuma ferramenta executa shell, apaga arquivos ou envia mensagens a terceiros. Única exceção (desde 10/10/2026): as ferramentas de terminal do Jarvis mandam uma mensagem ao Claude Code ou um comando de uma linha a um terminal compartilhado, sempre com o texto exato num cartão e o clique do Kaio (`openspec/specs/ferramentas-locais`, "Sem shell livre"). Permitir/Negar pedidos de permissão nunca vem do modelo.
 - Nunca logar segredos, conteúdo do `.env` ou números de cartão. `.env` fica fora do git.
 - Não expor portas da Evolution API nem do Postgres fora da rede Docker.
 

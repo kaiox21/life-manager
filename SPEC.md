@@ -40,6 +40,7 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | `ferramentas-locais` | ações no Mac sem shell (apps, Spotify, timer, arquivos, área de transferência) |
 | `jarvis-voz` | push-to-talk, transcrição local, fala em streaming (Fish com reserva local), interrupção |
 | `jarvis-painel` | painel em tela cheia: agenda, gastos, faturas, registro e conversa, dados prontos do núcleo |
+| `jarvis-terminais` | terminais numerados (Claude Code e shell), avisos, terminais compartilhados com o Terminal.app (tmux), abas no painel, Permitir/Negar, mensagens e comandos com confirmação |
 
 ## Decisões e riscos
 
@@ -53,6 +54,7 @@ Um assistente pessoal de usuário único (Kaio) com duas portas para o mesmo nú
 | Integração entre canais | Ferramentas do núcleo por MCP; Tailscale quando houver VPS | Duas lógicas divergindo | Regras só no núcleo; o Jarvis não toca o banco |
 | Jarvis | Tauri 2 + React/Vite/TS (interface) e Python (agente, cliente MCP, ferramentas locais) no MacBook Air M5. Voz (09/10/2026): microfone capturado pelo app, push-to-talk ⌘⇧Espaço, transcrição local (`mlx-whisper` q4, presa na RAM), fala frase a frase pela Fish Audio (voz "Jarvis" da comunidade, modelo gratuito), tocada enquanto chega, com a voz do macOS de reserva; persona de mordomo ("senhor"). Painel em tela cheia com ⌥⇧Espaço, com dados prontos do núcleo e sem tokens | Latência da voz (aceite de 09/10/2026: simples 3,4–4,4 s; com ferramenta, resposta em 4,9–5,4 s; o 1º token do modelo domina); texto das respostas sai para a Fish; a voz imita uma pessoa real (uso privado, escolha do Kaio); permissões do macOS | Push-to-talk antes de wake word; streaming; "Um instante, senhor." em < 3 s; voz local se a Fish falhar; ID da voz e chave só no `.env` |
 | Modelo de IA | Desde 08/10/2026: **Claude direto pela API da Anthropic** (SDK oficial, `LLM_PROVIDER=anthropic`): `claude-haiku-5-5` no classificador e no principal (US$ 0,10/0,50 por milhão de tokens; ~1,5 s por chamada), `claude-sonnet-5-5` na escalada. Prova: 56/56 no classificador e 55/56 (98%) no agente. O Vercel AI Gateway continua como alternativa (`LLM_PROVIDER=gateway`) | Modelo lançado em 07/10/2026, sem histórico de uso; chave colada na conversa | Prova a cada mudança; gateway como plano B; rotacionar a chave |
+| Terminais no Jarvis | Desde 10/10/2026: terminais compartilhados num tmux só do Jarvis (socket `jarvis`). Toda janela nova do Terminal.app entra nele (bloco no `~/.zshrc`), e o painel abre o mesmo terminal numa aba (xterm.js). Hooks globais do Claude Code: um só anota eventos (avisos); outro, síncrono, só age nesses terminais e espera o Permitir/Negar do Jarvis, com o diálogo do terminal em paralelo. **O Jarvis escreve em terminais:** mensagem ao Claude Code (só parado) ou comando de uma linha no shell (só livre), sempre com cartão e clique; aprovação nunca vem do modelo nem da voz | Comando de shell disparado pelo modelo (injeção de prompt, voz mal entendida); todo terminal novo roda no tmux; resposta dada no Terminal.app só é vista no próximo sinal; swap cheio | Cartão com o texto exato e confirmação; condições conferidas de novo ao enviar; tmux iniciado com ambiente mínimo; `JARVIS_SEM_TMUX=1` e `--sem-tmux`; no máximo 4 Claude Code e limiar de memória para abrir terminais |
 | Política de gravação | Grava direto com "desfazer"; confirma foto, áudio, exclusões e valores acima de R$ 500 | Gasto errado gravado sem perceber | Eco do que foi gravado em toda resposta |
 
 **Modo provisório "conversa comigo mesmo" (`SELF_CHAT_MODE`, 07/10/2026).**
@@ -106,7 +108,7 @@ O risco que mais derruba projetos assim é parar de lançar os gastos, não um d
 - [x] **Painel "central de comando" do Jarvis** (pedido de 08/10/2026): entregue no change `jarvis-painel` (09/10/2026).
 - [x] **Voz mais rápida**: áudio da Fish tocado enquanto chega, no change `jarvis-voz-streaming` (09/10/2026). O que pesa agora é o 1º token do modelo.
 - [x] **HUD leve**: orbe parado quando o Jarvis está parado; CPU com o HUD aberto de ~17% para 0,7% (change `jarvis-hud-leve`, 09/10/2026).
-- [ ] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): ver o estado e ser avisado quando uma sessão termina ou espera resposta. Só leitura e avisos.
+- [x] **Sessões do Claude Code no Jarvis** (pedido de 08/10/2026): avisos no change `jarvis-terminais` e controle (abas, Permitir/Negar, mensagens e comandos, terminais compartilhados com o Terminal.app) no `jarvis-terminais-controle` (10/10/2026).
 
 **Decididas (resumo):**
 - calendário principal, com avisos do Google desligados;

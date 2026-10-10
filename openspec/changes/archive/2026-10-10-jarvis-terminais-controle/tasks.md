@@ -1,6 +1,6 @@
 ## 0. Antes de começar
 
-- [ ] 0.1 Aceite do `jarvis-terminais` (tarefas 4.2 e 4.3 dele, incluindo: com um aviso de terminal na tela, o Esc no Terminal.app ainda interrompe o Claude?) e `/opsx:archive jarvis-terminais`; verificar com `openspec list --specs` e `openspec validate jarvis-terminais-controle --strict`
+- [x] 0.1 Aceite do `jarvis-terminais` (tarefas 4.2 e 4.3 dele, incluindo: com um aviso de terminal na tela, o Esc no Terminal.app ainda interrompe o Claude?) e `/opsx:archive jarvis-terminais`; verificar com `openspec list --specs` e `openspec validate jarvis-terminais-controle --strict`
 
 ## 1. tmux e Terminal.app
 
@@ -32,13 +32,13 @@
 
 - [x] 5.1 `AlertBar` com Permitir/Negar, `TerminalTabs`, `TerminalView` com `@xterm/xterm` 6 (controle de fluxo, Esc para o terminal, ⌘C), com testes (da 1ª versão)
 - [x] 5.2 Ajustes para o tmux: sem reprodução da tela guardada (o tmux redesenha); "+" com Terminal ou Claude Code; coluna "Terminais" com "abrir aba" e o tipo; barra de abas vinda do cérebro (só a aba em primeiro plano no `localStorage`); × com confirmação quando o terminal vai acabar com algo rodando; "Enviado ao terminal"; testes (`npx vitest run`)
-- [ ] 5.4 HUD aberto por aviso de terminal não pega o Esc global (só o HUD da voz pega); teste de componente e conferência no app: com o aviso na tela, o Esc no Terminal.app interrompe o Claude Code
-- [ ] 5.3 Conferir no app que o HUD aberto sem foco recebe o clique; se não receber, aplicar a alternativa do `design.md`
+- [x] 5.4 HUD aberto por aviso de terminal não pega o Esc global (só o HUD da voz pega); teste de componente e conferência no app: com o aviso na tela, o Esc no Terminal.app interrompe o Claude Code
+- [x] 5.3 Conferir no app que o HUD aberto sem foco recebe o clique; se não receber, aplicar a alternativa do `design.md`
 
 ## 6. Fechamento
 
 - [x] 6.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `npx vitest run`, `openspec validate --all --strict`, `npm run tauri build -- --bundles app` e `bash jarvis/install_mac.sh`; a prova do núcleo (`uv run pytest -m eval`) não precisa rodar porque o núcleo e seus prompts não mudam
-- [ ] 6.2 Aceite real com o Kaio, com a memória anotada (`kern.memorystatus_level` e swap):
+- [x] 6.2 Aceite real com o Kaio, com a memória anotada (`kern.memorystatus_level` e swap):
   - janela nova do Terminal.app aparece no Jarvis e abre numa aba, e o que se digita num lado aparece no outro;
   - fechar a janela encerra a sessão;
   - `JARVIS_SEM_TMUX=1` abre sem tmux;
@@ -59,4 +59,4 @@
   - reiniciar o cérebro: terminais continuam;
   - VS Code só com aviso;
   - anotar no `design.md` se a remoção crítica no auto mode passa pelo hook
-- [ ] 6.3 `SPEC.md` (decisão "o Jarvis escreve em terminais e roda comandos de shell com confirmação", tmux em todos os terminais novos, limite de memória, fecha "Sessões do Claude Code no Jarvis"), regra de segurança do `CLAUDE.md` e `/opsx:archive`
+- [x] 6.3 `SPEC.md` (decisão "o Jarvis escreve em terminais e roda comandos de shell com confirmação", tmux em todos os terminais novos, limite de memória, fecha "Sessões do Claude Code no Jarvis"), regra de segurança do `CLAUDE.md` e `/opsx:archive`
