@@ -263,6 +263,7 @@ class WakeService:
                 on_nothing=self._nothing,
                 paused=self._brain.wake_paused,
             )
+            self._level_samples, self._level_peak = 0, 0
             log.info("escuta da palavra 'Jarvis' ligada")
         elif not on and self._listener is not None:
             self._listener = None  # libera o detector (memória)
@@ -270,7 +271,27 @@ class WakeService:
 
     def feed(self, pcm16: bytes) -> None:
         if self._listener is not None:
+            self._check_level(pcm16)
             self._listener.feed(pcm16)
+
+    _level_samples = 0
+    _level_peak = 0
+
+    def _check_level(self, pcm16: bytes) -> None:
+        """Nos primeiros 5 s de cada escuta, registra o pico do microfone: tudo zero quer dizer
+        microfone negado ou mudo (o macOS entrega silêncio sem dar erro)."""
+        if self._level_samples < 0:
+            return
+        a = np.frombuffer(pcm16[: len(pcm16) // 2 * 2], dtype=np.int16)
+        self._level_samples += len(a)
+        if len(a):
+            self._level_peak = max(self._level_peak, int(np.abs(a.astype(np.int32)).max()))
+        if self._level_samples >= RATE * 5:
+            if self._level_peak == 0:
+                log.warning("escuta: microfone mudo (permissão de Microfone negada ao Jarvis?)")
+            else:
+                log.info("escuta: microfone ok (pico %d)", self._level_peak)
+            self._level_samples = -1
 
     def _spawn(self, coro: Awaitable[None]) -> None:
         task = asyncio.ensure_future(coro)
