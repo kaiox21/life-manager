@@ -32,7 +32,7 @@
 
 1. **Web API para buscar e tocar; AppleScript continua nas ações simples.**
    - `tocar_musica`:
-     1. `GET /v1/search?type=…&limit=5&market=from_token`;
+     1. `GET /v1/search?type=…&limit=5&market=BR`;
      2. `PUT /v1/me/player/play?device_id=…`: música toca no álbum dela (`context_uri` do álbum + `offset.uri` da faixa), para seguir quando acabar (com `uris=[faixa]` a reprodução pararia no fim); artista, álbum e playlist vão em `context_uri`.
    - `controlar_musica`:
      - aleatório: `PUT /me/player/shuffle`;

@@ -6,7 +6,7 @@
 ## 2. Cliente da Web API
 
 - [x] 2.1 `jarvis/spotify.py`: token em memória com renovação (1 min antes ou no 401; troca de `refresh_token` atualiza o Keychain; `invalid_grant` → erro "autorize de novo"), timeout de 5 s, erros traduzidos (403 Premium, 404 dispositivo, 429, rede), log sem token; testes com `httpx.MockTransport`
-- [x] 2.2 Busca (`/v1/search`, `limit=5`, `market=from_token`) por tipo, playlists do Kaio (`/me/playlists` paginado, cache de 10 min, escolha por nome normalizado: igual > contém > mais palavras), dispositivo deste Mac (`Computer` com o nome do Mac, senão o primeiro; sem nenhum → `open -a Spotify` e nova tentativa por 10 s) e `play` com `context_uri` (música no álbum dela, com `offset`); testes
+- [x] 2.2 Busca (`/v1/search`, `limit=5`, `market=BR`) por tipo, playlists do Kaio (`/me/playlists` paginado, cache de 10 min, escolha por nome normalizado: igual > contém > mais palavras), dispositivo deste Mac (`Computer` com o nome do Mac, senão o primeiro; sem nenhum → `open -a Spotify` e nova tentativa por 10 s) e `play` com `context_uri` (música no álbum dela, com `offset`); testes
 
 ## 3. Ferramentas
 

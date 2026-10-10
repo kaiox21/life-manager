@@ -32,6 +32,8 @@ KEYCHAIN_SERVICE = "jarvis-spotify"
 KEYCHAIN_ACCOUNT = "kaio"
 LOGIN_COMMAND = "uv run python -m jarvis.spotify_login"
 TIMEOUT = 5.0
+# país fixo: `market=from_token` exigiria o escopo user-read-private (conferido em 10/10/2026)
+MARKET = "BR"
 PLAYLISTS_TTL = 600.0
 MAX_PLAYLISTS = 500
 DEVICE_WAIT = 10.0
@@ -246,7 +248,7 @@ class Spotify:
             return {"nome": p["name"], "artista": owner, "contexto": p["uri"], "tipo": tipo}
         kind = SEARCH_TYPES[tipo]
         data = await self._api(
-            "GET", "/search", params={"q": query, "type": kind, "limit": 5, "market": "from_token"}
+            "GET", "/search", params={"q": query, "type": kind, "limit": 5, "market": MARKET}
         )
         items = [i for i in (data or {}).get(kind + "s", {}).get("items") or [] if i]
         if not items:

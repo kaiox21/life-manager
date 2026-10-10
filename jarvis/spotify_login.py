@@ -33,6 +33,14 @@ from jarvis.spotify import (
 PORT = 8888
 
 
+def _open(url: str) -> None:
+    """`open` do macOS (mais confiável que o webbrowser fora de um terminal)."""
+    import subprocess
+
+    if subprocess.run(["open", url], check=False).returncode != 0:
+        webbrowser.open(url)
+
+
 def pkce_pair() -> tuple[str, str]:
     verifier = secrets.token_urlsafe(64)[:96]
     digest = hashlib.sha256(verifier.encode()).digest()
@@ -126,13 +134,15 @@ async def exchange(
 async def login(
     client_id: str,
     run: Run = run_command,
-    open_browser: Callable[[str], object] = webbrowser.open,
+    open_browser: Callable[[str], object] = lambda url: _open(url),
     wait: Callable[[str], str] = wait_for_code,
     http: httpx.AsyncClient | None = None,
 ) -> None:
     verifier, challenge = pkce_pair()
     state = secrets.token_urlsafe(16)
-    open_browser(authorize_url(client_id, challenge, state))
+    url = authorize_url(client_id, challenge, state)
+    print("Se o navegador não abrir, abra este link:\n" + url, flush=True)
+    open_browser(url)
     code = await asyncio.to_thread(wait, state)
     tokens = await exchange(client_id, code, verifier, http)
     await keychain_write(run, tokens["refresh_token"])
@@ -148,7 +158,7 @@ def main() -> None:
     )
     if not client_id:
         sys.exit("Falta SPOTIFY_CLIENT_ID no .env (Client ID do app em developer.spotify.com).")
-    print("Abrindo o navegador para autorizar o Jarvis no Spotify…")
+    print("Abrindo o navegador para autorizar o Jarvis no Spotify…", flush=True)
     asyncio.run(login(client_id))
     print("Pronto: o token ficou no Keychain (jarvis-spotify). Reinicie o Jarvis.")
 
