@@ -18,5 +18,5 @@
 ## 4. Fechamento
 
 - [ ] 4.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `openspec validate --all --strict`, `bash jarvis/install_mac.sh`
-- [ ] 4.2 Aceite real com o Kaio: login; "toca Tempo Perdido" (fala o que tocou); "toca Legião Urbana"; "toca minha playlist de …" com nome aproximado; playlist inexistente; Spotify fechado; "volume 30", "aleatório"; "pausa" sem login (revogar e conferir a mensagem); música abaixando durante um pedido e voltando; "Jarvis" detectado com música tocando
+- [ ] 4.2 Aceite real com o Kaio (parcial em 10/10: login feito; `tocar_musica` por texto tocou no Mac — busca 200 e play 204 em 1,7 s; falta por voz, playlist dele, volume/aleatório e a música baixa, adiados por ambiente barulhento): login; "toca Tempo Perdido" (fala o que tocou); "toca Legião Urbana"; "toca minha playlist de …" com nome aproximado; playlist inexistente; Spotify fechado; "volume 30", "aleatório"; "pausa" sem login (revogar e conferir a mensagem); música abaixando durante um pedido e voltando; "Jarvis" detectado com música tocando
 - [ ] 4.3 `SPEC.md` (decisão da música: Web API com PKCE, Keychain, Premium obrigatório desde 02/2026) e `/opsx:archive`
