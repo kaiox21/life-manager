@@ -211,11 +211,36 @@ describe("terminal", () => {
     const term = fake.terms[0];
     sink!("replay", new Uint8Array([65]));
     expect(term.resets).toBe(1);
+    term.callbacks[0](); // terminou de desenhar a tela guardada
     term.data!("\x1b");
     expect(send).toHaveBeenCalledWith({ type: "term_input", sid: "aaaa1111", data: "\x1b" });
     unmount();
     expect(detach).toHaveBeenCalled();
     expect(term.disposed).toBe(true);
+  });
+
+  it("respostas do xterm à tela guardada não vão para a sessão; teclas depois sim", async () => {
+    const { TerminalView } = await import("./TerminalView");
+    let sink: TermSink | null = null;
+    const send = vi.fn();
+    render(
+      <TerminalView
+        sid="aaaa1111"
+        label="T"
+        attach={(_s, s) => {
+          sink = s;
+          return () => {};
+        }}
+        send={send}
+      />,
+    );
+    const term = fake.terms[0];
+    sink!("replay", new TextEncoder().encode("\x1b[c"));
+    term.data!("\x1b[?1;2c"); // o xterm respondendo à pergunta antiga
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "term_input" }));
+    term.callbacks[0](); // terminou de desenhar
+    term.data!("a");
+    expect(send).toHaveBeenCalledWith({ type: "term_input", sid: "aaaa1111", data: "a" });
   });
 
   it("controle de fluxo: pausa acima de 500 KB e retoma abaixo de 100 KB", async () => {

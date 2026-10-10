@@ -1,5 +1,6 @@
 """Claude Code de verdade num terminal compartilhado (tmux isolado), com o hook de permissão do
-Jarvis (tarefa 3.4). Fora do `pytest` comum: `uv run pytest -m claude tests/jarvis/test_claude_real.py`.
+Jarvis (tarefa 3.4). Fora do `pytest` comum:
+`uv run pytest -m claude tests/jarvis/test_claude_real.py`.
 
 Usa o `claude` instalado e o login dele, com o Haiku e no modo manual (pede permissão para
 `touch`). Custa centavos. A tela não é lida para decidir nada: o efeito (arquivo criado ou não)

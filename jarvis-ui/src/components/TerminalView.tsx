@@ -50,13 +50,19 @@ export function TerminalView({
 
     let pending = 0;
     let paused = false;
-    const write = (data: Uint8Array) => {
+    // Tela guardada (ao anexar) traz as perguntas que o `claude` fez ao terminal ao abrir
+    // (CSI c, CSI ? u, OSC 7501). Redesenhada, o xterm responderia de novo, e a resposta
+    // (começa com Esc) chegaria ao `claude` como tecla: na pergunta de confiança, Esc = sair.
+    let replaying = 0;
+    const write = (data: Uint8Array, replay = false) => {
+      if (replay) replaying += 1;
       pending += data.length;
       if (!paused && pending > HIGH_WATER) {
         paused = true;
         send({ type: "term_pause", sid, on: true });
       }
       term.write(data, () => {
+        if (replay) replaying -= 1;
         pending -= data.length;
         if (paused && pending < LOW_WATER) {
           paused = false;
@@ -66,9 +72,12 @@ export function TerminalView({
     };
     const detach = attach(sid, (kind, data) => {
       if (kind === "replay") term.reset();
-      write(data);
+      write(data, kind === "replay");
     });
-    const input = term.onData((data) => send({ type: "term_input", sid, data }));
+    const input = term.onData((data) => {
+      if (replaying > 0) return; // respostas do xterm à tela antiga, não teclas do Kaio
+      send({ type: "term_input", sid, data });
+    });
     const resized = term.onResize(({ cols, rows }) => send({ type: "term_resize", sid, cols, rows }));
     const doFit = () => {
       try {
