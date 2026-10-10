@@ -44,7 +44,9 @@
    - Os padrões de marcação são gerados uma vez (memo).
 
 4. **Orbe ligado à voz.**
-   - **Cérebro:** `FishSynth` calcula o RMS de cada pedaço escrito em `PortAudioOut` e emite `voice_level(n)`, com `n` de 0 a 1 normalizado pela média móvel. O envio tem limite de 15 por segundo e é atrasado pela latência da saída (`out.latency`), para o pulso coincidir com o som e não com o download.
+   - **Cérebro:** em `FishSynth._play`, no laço do asyncio e antes do `await asyncio.to_thread(out.write, data)`, calcula o RMS de cada pedaço e chama `on_level(n)`, com `n` de 0 a 1 normalizado pela média móvel. O `write` roda numa thread, mas o cálculo e o envio ficam no laço, sem nada entre threads. O envio tem limite de 15 por segundo e é atrasado pela latência da saída (`out.latency`), para o pulso coincidir com o som e não com o download.
+   - **Para todas as interfaces:** o `voice_level` não segue o caminho do `speaking` (que vai só para a conexão do turno, `turn.emit`). O `__main__` liga `on_level` ao `server.broadcast_ui`. Assim, o painel aberto recebe o pulso mesmo quando o pedido veio do HUD, da palavra "Jarvis" ou de uma fala proativa.
+   - **Interface escondida ignora o `voice_level`** (nem muda estado), para o HUD invisível não redesenhar 15 vezes por segundo (change `jarvis-hud-leve`).
    - Na reserva local (`say`), não há como medir o áudio. A interface usa um pulso sintético de cerca de 3 Hz enquanto `speaking` estiver ligado.
    - **Interface:** `PanelOrb` e `Orb` recebem `voiceLevel`, suavizado com ataque de 60 ms e soltura de 180 ms. Ele modula o raio (até +12%), o brilho do núcleo e a velocidade.
    - **Respondendo:** a cada `token`, o orbe recebe um impulso que decai em 400 ms. Com texto chegando seguido, ele fica rápido e brilhante; sem voz (texto digitado), é isso que move o orbe.
@@ -58,7 +60,7 @@
        - swap por `sysctl vm.swapusage`;
        - bateria por `pmset -g batt`, lida por expressão regular (%, se está carregando);
      - **música:** AppleScript, só se o Spotify estiver aberto (`is running`): nome, artista e estado. Timeout de 2 s;
-     - **projetos:** os nomes das pastas de `Folders`.
+     - **projetos:** `JARVIS_PASTAS` são raízes permitidas (como `~/Projetos pessoais`, com mais de 15 pastas), não uma lista de projetos. O lançador usa `"projetos"` do `config.json` (nomes ou caminhos, conferidos com `Folders.allowed`) e, sem essa chave, as 6 subpastas das raízes modificadas mais recentemente.
    - Cada parte que falhar vira `null` (o cartão mostra "indisponível").
    - Os **dias até fechar** são calculados no cérebro a partir de `fechamento` (que já vem pronto do núcleo) e da data de hoje.
    - Atualização: igual à de hoje (60 s e depois de turnos que gravam). Fechado, não busca.
@@ -70,7 +72,7 @@
    - **Projeto:** um clique chama `control.open(pasta, claude=False)` (o mesmo caminho do "abrir terminal" de hoje).
    - Uma lista no código define quais modos aparecem. Os changes futuros acrescentam os deles.
 
-7. **Fontes empacotadas.** Orbitron, Rajdhani e Share Tech Mono (todas OFL), em `woff2` dentro do app, com `font-display: swap`. Nenhuma requisição ao Google Fonts no app.
+7. **Fontes empacotadas.** Orbitron, Rajdhani e Share Tech Mono (todas OFL) entram como dependências npm `@fontsource/orbitron`, `@fontsource/rajdhani` e `@fontsource/share-tech-mono`. O Vite empacota os `woff2` no app, com `font-display: swap`. Nenhuma requisição ao Google Fonts no app.
 
 ## Risks / Trade-offs
 
