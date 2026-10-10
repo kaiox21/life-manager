@@ -428,3 +428,28 @@ async def test_servico_so_o_nome_pede_o_resumo_e_espera_o_pedido():
     svc.feed(blocks((SIL, 60)))
     await asyncio.sleep(0.05)
     assert calls[-1] == "ocioso"
+
+
+async def test_cerebro_segura_a_musica_baixa_ao_ouvir_pensar_e_falar():
+    class Hold:
+        def __init__(self):
+            self.log = []
+
+        def hold(self, reason, on):
+            self.log.append((reason, on))
+
+    b = brain(StreamingScriptedLLM(reply("ok")), FakeCore())
+    b.ducker = Hold()
+    b.set_ptt(True)
+    b.set_ptt(False)
+    b.wake_hold(True)
+    await b.ask("r1", "oi", lambda ev: asyncio.sleep(0))
+    b.wake_hold(False)
+    assert b.ducker.log == [
+        ("ouvindo", True),
+        ("ouvindo", False),
+        ("palavra", True),
+        ("turno", True),
+        ("turno", False),
+        ("palavra", False),
+    ]

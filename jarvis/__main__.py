@@ -35,6 +35,7 @@ from jarvis.mcp_client import CoreClient
 from jarvis.permissions import HookServer, Permissions
 from jarvis.server import JarvisServer
 from jarvis.sessions import Folders
+from jarvis.spotify import Ducker, Spotify
 from jarvis.terminals import Terminals
 from jarvis.tmux import Tmux
 from jarvis.tts import make_speaker
@@ -114,11 +115,25 @@ async def main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
 
+    from jarvis.local_tools import run_command
+
+    ducker = Ducker(run_command)
+    spotify_id = env("SPOTIFY_CLIENT_ID")
+    spotify = Spotify(spotify_id, run_command) if spotify_id else None
+    if spotify is None:
+        log.info("Spotify sem SPOTIFY_CLIENT_ID: só tocar/pausar/próxima/anterior")
+
     async with CoreClient.connect(url, s.mcp_token.get_secret_value()) as core:
         brain = JarvisBrain(
             llm,
             core,
-            LocalTools(config=config, terminals=terminals.snapshot, control=control),
+            LocalTools(
+                config=config,
+                terminals=terminals.snapshot,
+                control=control,
+                spotify=spotify,
+                ducker=ducker,
+            ),
             primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
             escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
             transcriber=transcriber,
@@ -140,6 +155,7 @@ async def main() -> None:
             env("JARVIS_CLIMA_NOME", "Brasília"),
         )
         brain.pending_permissions = permissions.pending_count
+        brain.ducker = ducker
         server = JarvisServer(brain)
         server.control = control
         control.broadcast = server.broadcast

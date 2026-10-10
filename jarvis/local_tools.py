@@ -18,6 +18,8 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from jarvis.spotify import LOGIN_COMMAND, Ducker, Spotify, SpotifyError
+
 log = logging.getLogger(__name__)
 
 CONFIG_FILE = Path.home() / "Library/Application Support/Jarvis/config.json"
@@ -78,7 +80,20 @@ class RodarAtalhoArgs(Args):
 
 
 class MusicaArgs(Args):
-    acao: Literal["tocar", "pausar", "proxima", "anterior"]
+    acao: Literal["tocar", "pausar", "proxima", "anterior", "aleatorio", "repetir", "volume"]
+    ligado: bool = Field(default=True, description="Para aleatorio e repetir: ligar ou desligar")
+    volume: int | None = Field(default=None, ge=0, le=100, description="Para volume: 0 a 100")
+
+
+class TocarMusicaArgs(Args):
+    pedido: str = Field(
+        min_length=1,
+        max_length=120,
+        description="O que tocar, como o Kaio disse (pode incluir o artista para desambiguar)",
+    )
+    tipo: Literal["musica", "artista", "album", "playlist", "minha_playlist"] = Field(
+        description="musica, artista, album, playlist (do catálogo) ou minha_playlist (do Kaio)"
+    )
 
 
 class TimerArgs(Args):
@@ -124,6 +139,15 @@ SPOTIFY = {
     "proxima": 'tell application "Spotify" to next track',
     "anterior": 'tell application "Spotify" to previous track',
 }
+
+
+def _spotify_error(e: SpotifyError) -> dict[str, Any]:
+    out: dict[str, Any] = {"erro": str(e)}
+    if e.login:  # o comando vai só para o cartão da tela (for_model tira as opções)
+        out["opcoes"] = [LOGIN_COMMAND]
+    return out
+
+
 # Texto do usuário vai como argv do AppleScript, nunca concatenado no script.
 NOTIFY = [
     "osascript",
@@ -146,6 +170,8 @@ class LocalTools:
         now: Callable[[], datetime] = datetime.now,
         terminals: Callable[[], list[dict[str, Any]]] | None = None,
         control: TerminalControl | None = None,
+        spotify: Spotify | None = None,
+        ducker: Ducker | None = None,
     ) -> None:
         self._run = runner
         self._confirm = confirm
@@ -155,6 +181,8 @@ class LocalTools:
         self._timers: set[asyncio.Task[None]] = set()
         self._terminals = terminals or (lambda: [])
         self._control = control
+        self._spotify = spotify
+        self._ducker = ducker
 
     def set_confirm(self, confirm: Confirm) -> None:
         self._confirm = confirm
@@ -189,10 +217,46 @@ class LocalTools:
         return {"status": "executado", "atalho": a.nome, "saida": r.stdout.strip()[:500]}
 
     async def controlar_musica(self, a: MusicaArgs) -> dict[str, Any]:
-        r = await self._run(["osascript", "-e", SPOTIFY[a.acao]], None)
-        if r.returncode != 0:
-            return {"erro": "Não consegui controlar o Spotify (está instalado e aberto?)."}
-        return {"status": "ok", "acao": a.acao}
+        if a.acao in SPOTIFY:  # AppleScript: funciona sem o login e sem rede
+            r = await self._run(["osascript", "-e", SPOTIFY[a.acao]], None)
+            if r.returncode != 0:
+                return {"erro": "Não consegui controlar o Spotify (está instalado e aberto?)."}
+            return {"status": "ok", "acao": a.acao}
+        if a.acao == "volume" and a.volume is None:
+            return {"erro": "Diga o volume, de 0 a 100."}
+        if self._spotify is None:
+            return {"erro": "O Spotify não está configurado (falta SPOTIFY_CLIENT_ID no .env)."}
+        try:
+            if a.acao == "aleatorio":
+                await self._spotify.shuffle(a.ligado)
+            elif a.acao == "repetir":
+                await self._spotify.repeat(a.ligado)
+            else:
+                assert a.volume is not None
+                await self._spotify.volume(a.volume)
+                if self._ducker is not None:
+                    self._ducker.requested_volume(a.volume)
+        except SpotifyError as e:
+            return _spotify_error(e)
+        out: dict[str, Any] = {"status": "ok", "acao": a.acao}
+        out |= {"volume": a.volume} if a.acao == "volume" else {"ligado": a.ligado}
+        return out
+
+    async def tocar_musica(self, a: TocarMusicaArgs) -> dict[str, Any]:
+        if self._spotify is None:
+            return {"erro": "O Spotify não está configurado (falta SPOTIFY_CLIENT_ID no .env)."}
+        try:
+            found = await self._spotify.search(a.tipo, a.pedido)
+            if found is None:
+                what = "essa playlist entre as suas" if a.tipo == "minha_playlist" else "isso"
+                return {"erro": f"Não encontrei {what} no Spotify: {a.pedido!r}."}
+            await self._spotify.play(found)
+        except SpotifyError as e:
+            return _spotify_error(e)
+        out = {"status": "tocando", "tipo": a.tipo, "nome": found["nome"]}
+        if found.get("artista") and a.tipo in ("musica", "album"):
+            out["artista"] = found["artista"]
+        return out
 
     async def timer(self, a: TimerArgs) -> dict[str, Any]:
         when = self._now() + timedelta(minutes=a.minutos)
@@ -246,6 +310,8 @@ class LocalTools:
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela."""
+        if name in ("tocar_musica", "controlar_musica") and "opcoes" in data:
+            return {k: v for k, v in data.items() if k != "opcoes"}
         if name == "listar_terminais":
             keep = ("numero", "pasta", "tipo", "estado", "ferramenta")
             return {"terminais": [{k: t.get(k) for k in keep} for t in data["terminais"]]}
@@ -273,9 +339,19 @@ class LocalTools:
                 self.rodar_atalho,
             ),
             "controlar_musica": (
-                "Controla o Spotify: tocar, pausar, proxima, anterior.",
+                "Controla o Spotify: tocar (retomar), pausar, proxima, anterior, aleatorio e "
+                "repetir (ligado=true/false) e volume (0 a 100). Para tocar algo pelo nome, use "
+                "tocar_musica.",
                 MusicaArgs,
                 self.controlar_musica,
+            ),
+            "tocar_musica": (
+                "Busca e toca no Spotify deste Mac algo pelo nome: tipo=musica ('toca Tempo "
+                "Perdido'), artista ('toca Legião Urbana'), album ('toca o álbum Dois'), playlist "
+                "(do catálogo) ou minha_playlist ('toca minha playlist de estudo'). Diga depois o "
+                "que começou a tocar. Para pausar e pular, use controlar_musica.",
+                TocarMusicaArgs,
+                self.tocar_musica,
             ),
             "timer": ("Avisa com uma notificação daqui a N minutos.", TimerArgs, self.timer),
             "listar_terminais": (

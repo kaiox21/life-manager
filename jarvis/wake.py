@@ -303,7 +303,13 @@ class WakeService:
 
         self._rid = "wake-" + secrets.token_hex(4)
         log.info("wake: palavra detectada")
+        self._hold(True)
         self._spawn(self._broadcast(events.wake(self._rid)))
+
+    def _hold(self, on: bool) -> None:
+        hold = getattr(self._brain, "wake_hold", None)
+        if hold is not None:
+            hold(on)
 
     def _request(self, audio: np.ndarray) -> None:
         self._spawn(self._handle(audio))
@@ -316,16 +322,19 @@ class WakeService:
             log.exception("wake: falha no pedido")
             result = "erro"
         if listener is None or listener is not self._listener:
+            self._hold(False)
             return
         if result == "so_nome":  # "Hey Jarvis" sozinho: resumo do dia e depois o pedido
             try:
                 await self._brain.briefing(self._rid, self._broadcast_ui)
             except Exception:
                 log.exception("wake: falha no resumo")
+                self._hold(False)
                 listener.done()
                 return
-            listener.wait_request()
+            listener.wait_request()  # continua com a música baixa até o pedido ou desistir
         else:
+            self._hold(False)
             listener.done()
 
     def _nothing(self) -> None:
@@ -333,6 +342,7 @@ class WakeService:
 
         listener = self._listener
         self._brain.wake_idle()
+        self._hold(False)
         self._spawn(self._broadcast_ui(events.no_speech(self._rid)))
         if listener is not None:
             listener.done()

@@ -142,6 +142,7 @@ def test_schemas_para_o_modelo():
         "buscar_arquivo",
         "rodar_atalho",
         "controlar_musica",
+        "tocar_musica",
         "timer",
         "area_transferencia",
         "listar_terminais",

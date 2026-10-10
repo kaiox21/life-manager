@@ -93,6 +93,7 @@ STEP_LABELS = {
     "confirmar_pendente": "confirmando…",
     "buscar_arquivo": "procurando arquivos…",
     "controlar_musica": "controlando o Spotify…",
+    "tocar_musica": "procurando no Spotify…",
     "timer": "criando o timer…",
     "area_transferencia": "usando a área de transferência…",
     "rodar_atalho": "rodando o atalho…",
@@ -193,6 +194,7 @@ class JarvisBrain:
             if turn.t_release is not None:
                 self._log_timing(turn)
         on = kind == "start"
+        self._music_hold("falando", on)
         if not on:
             self._spoke_at = time.monotonic()
         if on == self._speaking_state:
@@ -225,6 +227,18 @@ class JarvisBrain:
     def set_ptt(self, on: bool) -> None:
         """Atalho de voz segurado: a escuta da palavra pausa (o pedido vai pelo atalho)."""
         self._ptt_active = on
+        self._music_hold("ouvindo", on)
+
+    # música baixa enquanto o Jarvis ouve, pensa e fala (openspec ferramentas-locais)
+    ducker: Any = None
+
+    def _music_hold(self, reason: str, on: bool) -> None:
+        if self.ducker is not None:
+            self.ducker.hold(reason, on)
+
+    def wake_hold(self, on: bool) -> None:
+        """A escuta da palavra está com um pedido aberto (do "Jarvis" até o pedido ou desistir)."""
+        self._music_hold("palavra", on)
 
     def wake_paused(self) -> bool:
         """Escuta pausada: falando (e meio segundo depois), atalho de voz ou turno em andamento."""
@@ -330,10 +344,12 @@ class JarvisBrain:
         self, rid: str, text: str, emit: Emit, mode: str = "texto", t_release: float | None = None
     ) -> None:
         self._turn_running = True
+        self._music_hold("turno", True)
         try:
             await self._ask(rid, text, emit, mode, t_release)
         finally:
             self._turn_running = False
+            self._music_hold("turno", False)
 
     async def _ask(
         self, rid: str, text: str, emit: Emit, mode: str, t_release: float | None
