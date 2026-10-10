@@ -77,7 +77,7 @@ def _spoken_time(hhmm: str) -> str:
 
 def _weather_text(w: Weather, city: str) -> str:
     text = (
-        f"Agora fazem {round(w.now)} graus em {city}, "
+        f"Agora faz {round(w.now)} graus em {city}, "
         f"máxima de {round(w.high)} e mínima de {round(w.low)}."
     )
     if w.rain >= RAIN_MIN:

@@ -24,7 +24,7 @@ def ev(titulo, hora):
 def test_bom_dia_com_clima_e_compromissos():
     text = compose(at(8), SUN, panel([ev("Reunião", "14:00"), ev("Aula", "19:30")]))
     assert text == (
-        "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18."
+        "Bom dia, senhor. Agora faz 22 graus em Brasília, máxima de 31 e mínima de 18."
         " Hoje o senhor tem Reunião às 14h e Aula às 19h30."
     )
 

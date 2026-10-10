@@ -260,7 +260,7 @@ async def test_so_o_nome_resumo_e_depois_o_pedido():
     await b.briefing("wake-1", emit)
     assert [e.type for e in got] == ["heard", "token", "done"]
     assert got[-1].text == (
-        "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18."
+        "Bom dia, senhor. Agora faz 22 graus em Brasília, máxima de 31 e mínima de 18."
         " Hoje o senhor tem Aula às 19h. Tem um pedido de permissão esperando no terminal."
     )
     assert said[0] == "Bom dia, senhor." and len(said) == 4  # o resumo inteiro é falado

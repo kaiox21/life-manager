@@ -16,7 +16,7 @@ Com a escuta ligada, uma frase que comece com "Jarvis" (ou "Hey/Ei/Ô Jarvis") S
 
 #### Scenario: Bom dia
 - **WHEN** às 8h o Kaio diz "Hey Jarvis", tem aula às 19h e reunião às 14h, e fazem 22 °C
-- **THEN** o Jarvis fala algo como "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18. Hoje o senhor tem reunião às 14h e aula às 19h." com o painel aberto e sem chamar o modelo
+- **THEN** o Jarvis fala algo como "Bom dia, senhor. Agora faz 22 graus em Brasília, máxima de 31 e mínima de 18. Hoje o senhor tem reunião às 14h e aula às 19h." com o painel aberto e sem chamar o modelo
 
 #### Scenario: Pedido logo depois do resumo
 - **WHEN** o Jarvis termina o resumo e o Kaio diz "quanto eu gastei esse mês?"
