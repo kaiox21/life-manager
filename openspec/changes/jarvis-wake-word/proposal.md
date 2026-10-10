@@ -8,7 +8,7 @@ Hoje o Kaio fala com o Jarvis segurando ⌘⇧Espaço. Ele quer só dizer "Jarvi
 
 - **"Jarvis, [pedido]"**: com a escuta ligada, uma frase que **começa** com "Jarvis" ativa o Jarvis.
   - O resto da frase vira o pedido: "Jarvis, o que eu tenho amanhã?".
-  - **Nenhuma janela abre:** a resposta sai só falada. Se o painel já estiver aberto, a conversa aparece nele, como hoje.
+  - **Abre o painel** (não o HUD), que mostra a conversa, e a resposta sai falada. Revisão do Kaio no mesmo dia, depois de testar o resumo: "quero que abra a página do Jarvis também, não o HUD, o painel".
 - **"Hey Jarvis" (ou "Jarvis") sozinho = resumo do dia falado**, sem chamar o modelo:
   - cumprimento pela hora ("Bom dia, senhor.");
   - temperatura agora, máxima e mínima de Brasília, e chance de chuva se for relevante (Open-Meteo, grátis e sem chave);
@@ -52,6 +52,6 @@ Hoje o Kaio fala com o Jarvis segurando ⌘⇧Espaço. Ele quer só dizer "Jarvi
 - **Cérebro (Python):**
   - detector de palavra-chave `sherpa-onnx` (dependência nova, Apache 2.0, modelo em inglês de 3,3 M parâmetros, cerca de 19 MB), com o porteiro de voz (VAD) que já existe;
   - ao detectar a palavra, junta o pedido até o silêncio e segue pelo mesmo caminho da voz de hoje.
-- **Interface:** a palavra não abre janela; o HUD deixa de ser mostrado por ela. O painel, se aberto, mostra a conversa.
+- **Interface:** a palavra abre o painel (tela cheia, como o ⌥⇧Espaço) no lugar do HUD.
 - **Rede:** uma chamada ao Open-Meteo por resumo (só latitude e longitude, configuráveis no `.env`; padrão Brasília). Sem internet, o resumo sai sem o clima.
 - **`SPEC.md`:** decisão da palavra de ativação (motor, privacidade, ponto laranja); fecha "push-to-talk antes de wake word".

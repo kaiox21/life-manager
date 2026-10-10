@@ -108,7 +108,7 @@ Motivação: ver `proposal.md`. Como a voz funciona hoje (`openspec/specs/jarvis
    - o detector é criado só com a escuta ligada.
 
 7. **Revisão de 10/10/2026: só voz e resumo do dia** (pedido do Kaio depois do primeiro teste real: "não quero que abra o HUD; falo 'hei Jarvis' e ele abre falando meus compromissos de hoje, quantos graus está etc.").
-   - **Sem HUD:** o `wake` no Rust deixa de chamar `place_and_show`. A interface escondida continua recebendo os eventos do turno (o `broadcast`) e toca a fala como hoje; o painel, se aberto, mostra a conversa. O Esc do HUD não vale para a palavra; para interromper, continua o atalho de voz.
+   - **Painel no lugar do HUD** (o Kaio pediu o painel depois de testar só voz): o `wake` no Rust chama `show_panel` (o mesmo do ⌥⇧Espaço, na thread principal) quando o painel está fechado, e não chama mais `place_and_show`. A interface escondida continua recebendo os eventos do turno (o `broadcast`) e toca a fala como hoje; o painel, se aberto, mostra a conversa. O Esc do HUD não vale para a palavra; para interromper, continua o atalho de voz.
    - **"Só o nome" = resumo**, no lugar de "abrir ouvindo e esperar o pedido". `wake_turn` devolve `so_nome`; o `WakeService` pede ao cérebro `brain.briefing(rid, emit)` e, quando a fala termina, entra em "esperando o pedido" (6 s), como antes.
    - **Texto fixo, sem LLM** (zero token, sem latência do modelo, igual ao "resumo do dia" do WhatsApp em `lembretes`): `jarvis/briefing.py` monta o texto a partir de:
      - `painel` do núcleo (MCP), que já traz agenda de hoje e faturas abertas;

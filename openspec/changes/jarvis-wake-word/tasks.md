@@ -14,7 +14,7 @@
 
 - [x] 5.1 `jarvis/briefing.py`: texto fixo do resumo (cumprimento pela hora, clima Open-Meteo com timeout de 2 s e `JARVIS_CLIMA_*`, compromissos de hoje até 5, faturas que fecham/vencem em 3 dias, permissões pendentes; partes vazias omitidas; sem rede → sem clima; núcleo fora → "agenda indisponível"); testes com relógio fixo e respostas falsas (sem rede)
 - [x] 5.2 `brain.briefing(rid, emit)` falando pelos eventos de sempre; `WakeService`: "só o nome" → resumo → "esperando o pedido" depois da fala; testes
-- [x] 5.3 Rust: `wake` não mostra o HUD nem pega o Esc; UI: a palavra não abre o HUD, o painel aberto mostra a conversa; `NSMicrophoneUsageDescription` atualizado para a escuta contínua; testes
+- [x] 5.3 Rust: `wake` abre o painel (não o HUD, sem pegar o Esc), que mostra a conversa; `NSMicrophoneUsageDescription` atualizado para a escuta contínua; testes
 
 ## 3. Fechamento técnico
 
@@ -24,7 +24,7 @@
 
 - [ ] 4.1 Calibração com a voz do Kaio: script `jarvis/wake_calibrar.py` grava 20 frases "Jarvis, …" e 5 minutos de fala normal dele sem a palavra (o áudio fica só numa pasta temporária e é apagado no fim), mede acertos e alarmes falsos por limiar e variante, e grava o resultado no `design.md`; meta: ≥ 90% de acertos e 0 alarmes falsos nos 5 minutos
 - [ ] 4.2 Aceite real, com memória e CPU anotadas antes e depois (Monitor de Atividade, `kern.memorystatus_level`):
-  - "Jarvis, o que eu tenho amanhã?" com outro app em primeiro plano (nenhuma janela abre, resposta falada);
+  - "Jarvis, o que eu tenho amanhã?" com outro app em primeiro plano (o painel abre, resposta falada);
   - "Hey Jarvis" sozinho: resumo do dia falado (clima, compromissos) em ~15 s; e depois um pedido sem repetir o nome;
   - "Hey Jarvis" sem internet (resumo sem clima);
   - painel aberto;

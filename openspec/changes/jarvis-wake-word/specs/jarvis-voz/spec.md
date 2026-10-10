@@ -1,22 +1,22 @@
 ## ADDED Requirements
 
 ### Requirement: Ativação pela palavra "Jarvis"
-Com a escuta ligada, uma frase que comece com "Jarvis" (ou "Hey/Ei/Ô Jarvis") SHALL ativar o Jarvis sem tocar no teclado e sem abrir nenhuma janela: o que for dito depois do nome, até uma pausa, SHALL virar o pedido, respondido só por voz pelo mesmo caminho do push-to-talk. O nome no começo SHALL ser tirado do texto do pedido. Se o painel já estiver aberto, a pergunta e a resposta SHALL aparecer nele; o HUD SHALL NOT ser mostrado pela palavra, e o foco do app em uso SHALL NOT mudar.
+Com a escuta ligada, uma frase que comece com "Jarvis" (ou "Hey/Ei/Ô Jarvis") SHALL ativar o Jarvis sem tocar no teclado e SHALL abrir o painel (se ainda não estiver aberto), onde a pergunta e a resposta aparecem; o HUD SHALL NOT ser mostrado pela palavra. O que for dito depois do nome, até uma pausa, SHALL virar o pedido, respondido falando pelo mesmo caminho do push-to-talk. O nome no começo SHALL ser tirado do texto do pedido.
 
 #### Scenario: Pedido numa frase
 - **WHEN** a escuta está ligada, o Kaio está em outro app e diz "Jarvis, o que eu tenho amanhã?"
-- **THEN** nenhuma janela aparece, o foco continua no app, e o Jarvis responde falando
+- **THEN** o painel abre (não o HUD), mostra a pergunta e a resposta, e o Jarvis responde falando
 
 #### Scenario: Painel aberto
 - **WHEN** o painel está aberto e o Kaio diz "Jarvis, quanto eu gastei esse mês?"
-- **THEN** a pergunta e a resposta aparecem no painel, e o HUD não aparece por cima
+- **THEN** o painel continua como está, a pergunta e a resposta aparecem nele, e o HUD não aparece por cima
 
 ### Requirement: Resumo do dia ao chamar só o nome
 "Hey Jarvis" ou "Jarvis" sozinho SHALL fazer o Jarvis falar um resumo do dia, montado com texto fixo e sem chamar o modelo de linguagem: cumprimento pela hora do dia, a temperatura agora com máxima e mínima (e a chance de chuva quando for de 30% ou mais), os compromissos de hoje com o horário, a fatura de cartão que fecha ou vence nos próximos 3 dias e os pedidos de permissão de terminal esperando resposta. Partes sem nada SHALL ser omitidas, e um dia sem compromissos SHALL dizer isso numa frase. Sem internet ou com o clima fora, o resumo SHALL sair sem o clima; com o núcleo fora, SHALL dizer que a agenda está indisponível. O clima SHALL vir de um serviço sem chave, recebendo só a latitude e a longitude configuradas. Depois do resumo, o Jarvis SHALL ouvir um pedido por alguns segundos sem exigir o nome de novo; sem fala, volta a esperar a palavra.
 
 #### Scenario: Bom dia
 - **WHEN** às 8h o Kaio diz "Hey Jarvis", tem aula às 19h e reunião às 14h, e fazem 22 °C
-- **THEN** o Jarvis fala algo como "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18. Hoje o senhor tem reunião às 14h e aula às 19h." sem abrir janela e sem chamar o modelo
+- **THEN** o Jarvis fala algo como "Bom dia, senhor. Agora fazem 22 graus em Brasília, máxima de 31 e mínima de 18. Hoje o senhor tem reunião às 14h e aula às 19h." com o painel aberto e sem chamar o modelo
 
 #### Scenario: Pedido logo depois do resumo
 - **WHEN** o Jarvis termina o resumo e o Kaio diz "quanto eu gastei esse mês?"

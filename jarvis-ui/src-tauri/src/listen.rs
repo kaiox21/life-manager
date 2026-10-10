@@ -227,11 +227,15 @@ impl Resampler {
     }
 }
 
-/// "Jarvis": só voz, nenhuma janela abre (pedido do Kaio, 10/10). O painel, se aberto, mostra a
-/// conversa pelos eventos do cérebro; o evento fica para quem quiser saber da ativação.
+/// "Jarvis": abre o painel (não o HUD), que mostra a conversa pelos eventos do cérebro
+/// (pedido do Kaio, 10/10). Já aberto, fica como está.
 fn on_wake(app: &AppHandle) {
     let panel_open = super::window_visible(app, "painel");
     let visible = super::is_visible(app);
+    if !panel_open {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || super::show_panel(&handle));
+    }
     let target = if panel_open { "painel" } else { "hud" };
     let _ = app.emit("jarvis://wake", Wake { target, visible });
 }
@@ -244,7 +248,7 @@ mod tests {
     fn reamostra_48k_para_16k() {
         let mut r = Resampler::new(48_000.0);
         let mut out = Vec::new();
-        let input: Vec<f32> = (0..4_800).map(|i| (i as f32 / 4_800.0)).collect();
+        let input: Vec<f32> = (0..4_800).map(|i| i as f32 / 4_800.0).collect();
         r.push(&input, &mut out);
         r.push(&input, &mut out);
         assert!((3_195..=3_201).contains(&out.len()), "{}", out.len()); // 2 × 100 ms
