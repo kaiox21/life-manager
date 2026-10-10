@@ -17,7 +17,6 @@ from tests.fakes import StreamingScriptedLLM, reply
 from tests.jarvis.test_agent import FakeCore
 from tests.jarvis.test_voice import FakeTranscriber, FakeVad, brain
 
-
 # --- nome no começo
 
 
@@ -188,7 +187,8 @@ def test_modelo_real_acha_jarvis_e_ignora_fala_comum(tmp_path):
 # --- turno do cérebro
 
 
-async def run_turn(b, audio=np.zeros(16000, np.float32)):
+async def run_turn(b, audio=None):
+    audio = np.zeros(16000, np.float32) if audio is None else audio
     got = []
 
     async def emit(ev):
