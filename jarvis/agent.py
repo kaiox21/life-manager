@@ -231,6 +231,8 @@ class JarvisBrain:
 
     # música baixa enquanto o Jarvis ouve, pensa e fala (openspec ferramentas-locais)
     ducker: Any = None
+    # dados locais do painel HUD (jarvis/panel_extras.py)
+    panel_extras: Any = None
 
     def _music_hold(self, reason: str, on: bool) -> None:
         if self.ducker is not None:
@@ -401,7 +403,15 @@ class JarvisBrain:
             await emit(events.panel(rid, {"erro": "núcleo indisponível"}))
             return
         questions = [m["content"] for m in self._history if m["role"] == "user"]
-        await emit(events.panel(rid, {**result.data, "perguntas": questions[-PANEL_QUESTIONS:]}))
+        data = {**result.data, "perguntas": questions[-PANEL_QUESTIONS:]}
+        if self.panel_extras is not None:  # clima, Mac, música, projetos e dias até fechar
+            data |= await self.panel_extras(result.data.get("faturas") or [])
+        await emit(events.panel(rid, data))
+
+    async def local_action(self, acao: str) -> None:
+        """Botões do painel que não passam pelo modelo (lista fechada)."""
+        if acao == "musica_tocar_pausar":
+            await self._local.musica_alternar()
 
     def _log_timing(self, turn: _Turn) -> None:
         t0 = turn.t_release or 0.0

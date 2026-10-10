@@ -216,3 +216,34 @@ async def test_fish_frase_fixa_guardada_sai_sem_rede():
     await _settle()
     assert ("start", "Um instante, senhor.") in events
     assert calls == ["Um instante, senhor."]  # baixou uma vez só, no prefetch
+
+
+async def test_fish_manda_o_nivel_da_voz_no_ritmo_do_som():
+    import numpy as np
+
+    loud = (np.sin(np.arange(9_600) / 3) * 12_000).astype(np.int16).tobytes()  # 0,4 s alto
+    quiet = np.zeros(4_800, np.int16).tobytes()  # 0,2 s de silêncio
+
+    async def chunks(text):
+        yield loud + quiet
+
+    synth, _, _, out = _fish(chunks)
+    levels: list[float] = []
+    synth.on_level = levels.append
+    synth.speak("Frase.")
+    await _settle(synth)
+    assert len(levels) <= 2  # os níveis saem quando o som sai, não quando o áudio chega
+    await asyncio.sleep(0.75)
+    # ~15 por segundo: 0,6 s de áudio dá ~9 níveis, mais o zero do fim
+    assert 8 <= len(levels) <= 12
+    assert max(levels[:5]) > 0.8 and levels[-2] < 0.05 and levels[-1] == 0.0
+
+
+async def test_fish_sem_ouvinte_de_nivel_nao_faz_nada():
+    async def chunks(text):
+        yield _audio(text)
+
+    synth, _, events, _ = _fish(chunks)
+    synth.speak("Frase.")
+    await _settle(synth)
+    assert ("start", "Frase.") in events  # tocou normalmente, sem on_level

@@ -1,8 +1,8 @@
 ## 1. Cérebro
 
-- [ ] 1.1 `voice_level`: RMS de cada pedaço em `FishSynth._play` (no laço, antes do `write`), normalizado, no máximo ~15/s, atrasado pela latência da saída; `on_level` ligado ao `server.broadcast_ui` (todas as interfaces, não só a do turno); evento novo em `events.py` (documentado); testes com saída falsa
-- [ ] 1.2 `jarvis/panel_extras.py`: clima (cache 10 min), Mac (`kern.memorystatus_level`, `vm.swapusage`, `pmset -g batt`), Spotify (AppleScript só se aberto, 2 s), projetos (`config.json` `"projetos"` conferidos por `Folders.allowed`, senão as 6 subpastas mais recentes das raízes), dias até fechar por cartão; cada parte falha para `null`; junto do `panel`; testes com executores falsos
-- [ ] 1.3 Mensagens `briefing` e `local` (só `musica_tocar_pausar`) no servidor e abrir terminal por pasta pelo lançador; testes
+- [x] 1.1 `voice_level`: RMS de cada pedaço em `FishSynth._play` (no laço, antes do `write`), normalizado, no máximo ~15/s, atrasado pela latência da saída; `on_level` ligado ao `server.broadcast_ui` (todas as interfaces, não só a do turno); evento novo em `events.py` (documentado); testes com saída falsa
+- [x] 1.2 `jarvis/panel_extras.py`: clima (cache 10 min), Mac (`kern.memorystatus_level`, `vm.swapusage`, `pmset -g batt`), Spotify (AppleScript só se aberto, 2 s), projetos (`config.json` `"projetos"` conferidos por `Folders.allowed`, senão as 6 subpastas mais recentes das raízes), dias até fechar por cartão; cada parte falha para `null`; junto do `panel`; testes com executores falsos
+- [x] 1.3 Mensagens `briefing` e `local` (só `musica_tocar_pausar`) no servidor e abrir terminal por pasta pelo lançador; testes
 
 ## 2. Interface
 

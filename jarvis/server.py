@@ -194,6 +194,11 @@ class JarvisServer:
                     voice = None
                     if getattr(self.brain, "set_ptt", None) is not None:
                         self.brain.set_ptt(False)
+                elif kind == "briefing" and hasattr(self.brain, "briefing"):
+                    # botão Resumo do painel: o mesmo resumo do "Hey Jarvis"
+                    launch(self._run(rid, emit, self.brain.briefing(rid, emit)))
+                elif kind == "local" and hasattr(self.brain, "local_action"):
+                    await self.brain.local_action(str(msg.get("acao", "")))
                 elif kind == "panel":
                     # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
                     task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))

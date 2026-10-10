@@ -32,6 +32,7 @@ from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
 from jarvis.control import TerminalControl
 from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import CoreClient
+from jarvis.panel_extras import PanelExtras
 from jarvis.permissions import HookServer, Permissions
 from jarvis.server import JarvisServer
 from jarvis.sessions import Folders
@@ -102,11 +103,12 @@ async def main() -> None:
     terminals = Terminals()
     terminals.load()
     permissions = Permissions()
+    folders = Folders.from_env(env("JARVIS_PASTAS"))
     control = TerminalControl(
         Tmux(),
         terminals,
         permissions,
-        Folders.from_env(env("JARVIS_PASTAS")),
+        folders,
         max_claude=int(env("JARVIS_TERMINAIS_MAX", "4")),
         min_memory=int(env("JARVIS_TERMINAIS_MEM_MIN", "20")),
     )
@@ -157,6 +159,17 @@ async def main() -> None:
         brain.pending_permissions = permissions.pending_count
         brain.ducker = ducker
         server = JarvisServer(brain)
+        brain.panel_extras = PanelExtras(
+            run_command, folders, load_config, lambda: brain.weather_place
+        )
+        level_tasks: set[asyncio.Task[None]] = set()
+
+        def voice_level(n: float) -> None:  # orbe pulsando com a voz, em todas as interfaces
+            task = asyncio.create_task(server.broadcast_ui(events.voice_level(n)))
+            level_tasks.add(task)
+            task.add_done_callback(level_tasks.discard)
+
+        brain.speaker.set_on_level(voice_level)
         server.control = control
         control.broadcast = server.broadcast
         server.greeting = lambda: [events.terminals(terminals.snapshot())]

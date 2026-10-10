@@ -147,6 +147,9 @@ class PortAudioOut:
         self._stream = self._open()
 
 
+LEVEL_HZ = 15  # nível da voz para o orbe: ~15 por segundo (change jarvis-painel-hud)
+LEVEL_FLOOR = 800.0  # RMS mínimo de referência (silêncio não vira "voz alta")
+
 FISH_RATE = 24_000  # medido em 09/10/2026: em 44,1 kHz o 1º byte demora ~1,8 s; em 24 kHz, ~0,7 s
 PREBUFFER = FISH_RATE * 2 // 10  # 0,1 s de áudio antes de começar a tocar (bytes Int16)
 Chunks = Callable[[str], AsyncIterator[bytes]]
@@ -189,6 +192,11 @@ class FishSynth:
         self._down_until = 0.0
         self._cache: dict[str, bytes] = {}
         self._http: Any = None
+        # nível da voz tocada (0–1), entregue no instante em que o som sai (orbe do painel)
+        self.on_level: Callable[[float], None] | None = None
+        self._level_ref = LEVEL_FLOOR
+        self._level_clock = 0.0
+        self._level_calls: list[asyncio.TimerHandle] = []
 
     # --- interface do Synth
 
@@ -234,6 +242,7 @@ class FishSynth:
             self._player = None
             if self._out is not None:
                 self._out.abort()  # corta o que ainda estava no buffer
+            self._levels_stop()
             if self._current:
                 self._on_event("cancel", self._current)
                 self._current = ""
@@ -288,18 +297,57 @@ class FishSynth:
                 started = True
                 self._current = text
                 self._on_event("start", text)
+            self._levels(data, out)
             await asyncio.to_thread(out.write, data)
         if pending[: len(pending) - len(pending) % 2]:
             if not started:
                 self._current = text
                 self._on_event("start", text)
                 started = True
+            self._levels(pending[: len(pending) - len(pending) % 2], out)
             await asyncio.to_thread(out.write, pending[: len(pending) - len(pending) % 2])
         if started:
+            self._level_at_end()
             await asyncio.sleep(getattr(out, "latency", 0.0))  # o fim ainda está no buffer
             self._current = ""
             self._on_event("finish", text)
         return True
+
+    def _levels(self, data: bytes, out: Any) -> None:
+        """RMS por janela de ~66 ms, agendado para quando o pedaço vai soar (no laço do asyncio,
+        antes do `write` que roda numa thread): o pulso do orbe coincide com o som."""
+        if self.on_level is None:
+            return
+        import numpy as np
+
+        loop = asyncio.get_running_loop()
+        samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+        window = FISH_RATE // LEVEL_HZ
+        at = max(loop.time() + float(getattr(out, "latency", 0.0)), self._level_clock)
+        self._level_calls = [h for h in self._level_calls if not h.cancelled()][-64:]
+        for i in range(0, len(samples), window):
+            chunk = samples[i : i + window]
+            rms = float(np.sqrt(np.mean(chunk * chunk))) if len(chunk) else 0.0
+            self._level_ref = max(rms, self._level_ref * 0.98, LEVEL_FLOOR)
+            self._level_calls.append(
+                loop.call_at(at, self.on_level, min(1.0, rms / self._level_ref))
+            )
+            at += len(chunk) / FISH_RATE
+        self._level_clock = at
+
+    def _level_at_end(self) -> None:
+        if self.on_level is not None:
+            loop = asyncio.get_running_loop()
+            at = max(loop.time(), self._level_clock)
+            self._level_calls.append(loop.call_at(at, self.on_level, 0.0))
+
+    def _levels_stop(self) -> None:
+        for h in self._level_calls:
+            h.cancel()
+        self._level_calls = []
+        self._level_clock = 0.0
+        if self.on_level is not None:
+            self.on_level(0.0)
 
     def _give_up(self, text: str) -> None:
         log.warning("usando a voz local por %ds", FISH_COOLDOWN_S)
@@ -373,6 +421,11 @@ class Speaker:
 
     def close(self) -> None:
         self._task.cancel()
+
+    def set_on_level(self, on_level: Callable[[float], None]) -> None:
+        """Nível da voz tocada (0–1) para o orbe; só a Fish dá o áudio (a reserva local não)."""
+        if hasattr(self._synth, "on_level"):
+            self._synth.on_level = on_level
 
     def prefetch(self, texts: list[str]) -> None:
         prefetch = getattr(self._synth, "prefetch", None)

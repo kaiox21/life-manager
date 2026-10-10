@@ -7,6 +7,8 @@ Interface -> cérebro:
   {"type": "voice_start", "id": "<id>", "sampleRate": 16000}, quadros binários PCM Int16 mono,
   {"type": "voice_end", "id": "<id>"} | {"type": "voice_cancel", "id": "<id>"}
   {"type": "panel", "id": "<id>"}           dados do painel (sem o modelo)
+  {"type": "briefing", "id": "<id>"}        botão Resumo: resumo do dia falado (sem o modelo)
+  {"type": "local", "acao": "musica_tocar_pausar"}   botões do painel sem o modelo (lista fechada)
 Cérebro -> interface:
   step    passo em andamento ("consultando a agenda…")
   token   pedaço do texto da resposta (streaming)
@@ -18,7 +20,9 @@ Cérebro -> interface:
   no_speech  a gravação não tinha fala: a interface vira modo texto
   status  texto curto de estado ("transcrevendo…", "baixando o modelo de voz…")
   speaking  data.on: começou/terminou de falar
-  panel   data: saída da ferramenta `painel` + "perguntas" da sessão, ou {"erro": "..."}
+  voice_level  data.n: volume da voz tocando (0–1), ~15/s, a todas as interfaces (orbe)
+  panel   data: saída da ferramenta `painel` + "perguntas" da sessão + dados locais (clima, mac,
+          musica, projetos; faturas com dias_para_fechar e fracao_ciclo), ou {"erro": "..."}
   terminals       data.terminais: lista dos terminais do Claude Code (a todas as conexões)
   terminal_alert  data: aviso de um terminal (permissão, espera, fim) com o texto pronto; numa
                   sessão aberta pelo Jarvis, com `pedido` (para os botões Permitir/Negar) e `aba`
@@ -55,6 +59,7 @@ EventType = Literal[
     "no_speech",
     "status",
     "speaking",
+    "voice_level",
     "panel",
     "terminals",
     "terminal_alert",
@@ -139,6 +144,10 @@ def no_speech(rid: str) -> Event:
 
 def status(rid: str, text: str) -> Event:
     return Event("status", rid, text=text)
+
+
+def voice_level(n: float) -> Event:
+    return Event("voice_level", "tts", data={"n": round(n, 2)})
 
 
 def speaking(rid: str, on: bool) -> Event:

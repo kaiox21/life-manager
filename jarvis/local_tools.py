@@ -242,6 +242,11 @@ class LocalTools:
         out |= {"volume": a.volume} if a.acao == "volume" else {"ligado": a.ligado}
         return out
 
+    async def musica_alternar(self) -> dict[str, Any]:
+        """Botão Música do painel (não é ferramenta do modelo): pausa ou retoma o Spotify."""
+        r = await self._run(["osascript", "-e", 'tell application "Spotify" to playpause'], None)
+        return {"status": "ok"} if r.returncode == 0 else {"erro": "Spotify indisponível."}
+
     async def tocar_musica(self, a: TocarMusicaArgs) -> dict[str, Any]:
         if self._spotify is None:
             return {"erro": "O Spotify não está configurado (falta SPOTIFY_CLIENT_ID no .env)."}
