@@ -5,22 +5,24 @@ import { useEffect, useRef } from "react";
 import type { TermSink } from "../lib/useJarvis";
 
 // Controle de fluxo (guia do xterm.js): acima de 500 KB ainda não desenhados, pede ao cérebro
-// para parar de ler a sessão; abaixo de 100 KB, retoma.
+// para parar de ler; abaixo de 100 KB, retoma.
 export const HIGH_WATER = 500_000;
 export const LOW_WATER = 100_000;
 
 type Send = (msg: Record<string, unknown>) => void;
 
-/** Um terminal real: a tela do `claude` daquela sessão, com as teclas indo direto para ela. */
+/** Um terminal real: a tela do terminal compartilhado (tmux), com as teclas indo direto para ele.
+ * Ao montar, o cérebro abre um `tmux attach`, e o tmux redesenha a tela inteira; ao desmontar,
+ * desconecta (o terminal continua vivo). */
 export function TerminalView({
-  sid,
+  sessao,
   label,
   attach,
   send,
 }: {
-  sid: string;
+  sessao: string;
   label: string;
-  attach: (sid: string, sink: TermSink) => () => void;
+  attach: (sessao: string, sink: TermSink, cols: number, rows: number) => () => void;
   send: Send;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -50,35 +52,20 @@ export function TerminalView({
 
     let pending = 0;
     let paused = false;
-    // Tela guardada (ao anexar) traz as perguntas que o `claude` fez ao terminal ao abrir
-    // (CSI c, CSI ? u, OSC 7501). Redesenhada, o xterm responderia de novo, e a resposta
-    // (começa com Esc) chegaria ao `claude` como tecla: na pergunta de confiança, Esc = sair.
-    let replaying = 0;
-    const write = (data: Uint8Array, replay = false) => {
-      if (replay) replaying += 1;
+    const write = (data: Uint8Array) => {
       pending += data.length;
       if (!paused && pending > HIGH_WATER) {
         paused = true;
-        send({ type: "term_pause", sid, on: true });
+        send({ type: "term_pause", sessao, on: true });
       }
       term.write(data, () => {
-        if (replay) replaying -= 1;
         pending -= data.length;
         if (paused && pending < LOW_WATER) {
           paused = false;
-          send({ type: "term_pause", sid, on: false });
+          send({ type: "term_pause", sessao, on: false });
         }
       });
     };
-    const detach = attach(sid, (kind, data) => {
-      if (kind === "replay") term.reset();
-      write(data, kind === "replay");
-    });
-    const input = term.onData((data) => {
-      if (replaying > 0) return; // respostas do xterm à tela antiga, não teclas do Kaio
-      send({ type: "term_input", sid, data });
-    });
-    const resized = term.onResize(({ cols, rows }) => send({ type: "term_resize", sid, cols, rows }));
     const doFit = () => {
       try {
         fit.fit();
@@ -86,21 +73,22 @@ export function TerminalView({
         // janela ainda sem tamanho (painel escondido)
       }
     };
+    doFit();
+    const detach = attach(sessao, write, term.cols, term.rows);
+    const input = term.onData((data) => send({ type: "term_input", sessao, data }));
+    const resized = term.onResize(({ cols, rows }) => send({ type: "term_resize", sessao, cols, rows }));
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(doFit);
     observer?.observe(el);
-    doFit();
-    send({ type: "term_resize", sid, cols: term.cols, rows: term.rows });
     term.focus();
 
     return () => {
       observer?.disconnect();
       input.dispose();
       resized.dispose();
-      if (paused) send({ type: "term_pause", sid, on: false });
       detach();
       term.dispose();
     };
-  }, [sid, attach, send]);
+  }, [sessao, attach, send]);
 
   return <div className="term-view" ref={box} role="region" aria-label={label} />;
 }

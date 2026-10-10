@@ -42,13 +42,14 @@ export function resolveAlert(alert: ShownAlert | null, pedido: string, resultado
   return { ...alert, resolvido: resultado, resolvidoAt: now };
 }
 
-/** Estado de uma aba, pela lista de terminais (a sessão aberta pelo Jarvis tem `aba` = sid). */
-export function tabState(sid: string, terminals: TerminalInfo[]): TerminalInfo["estado"] | undefined {
-  return terminals.find((t) => t.aba === sid)?.estado;
+/** Abas do painel: terminais compartilhados marcados como abertos numa aba (vem do cérebro). */
+export function tabsOf(terminals: TerminalInfo[]): TerminalInfo[] {
+  return terminals.filter((t) => t.tmux && t.aba);
 }
 
-export function isBusy(estado: TerminalInfo["estado"] | undefined): boolean {
-  return estado === "trabalhando" || estado === "pedindo permissão";
+/** Fechar a aba encerra o terminal? (sem janela do Terminal.app e não aberto pelo Jarvis) */
+export function closingEnds(t: TerminalInfo): boolean {
+  return t.origem === "terminal" && !t.janela;
 }
 
 export function sinceLabel(epochSeconds: number): string {

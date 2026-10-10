@@ -4,7 +4,7 @@ import { MicCapture, chime } from "./audio";
 import { applyEvent, clearConfirm, startTurn } from "./conversation";
 import { EMPTY_PANEL, applyPanel, panelFailed, panelLoading, type PanelState } from "./panel";
 import { resolveAlert, type ShownAlert } from "./terminals";
-import type { ServerEvent, TerminalInfo, TerminalOpened, TerminalTab, Turn } from "./types";
+import type { ServerEvent, TerminalInfo, TerminalOpened, Turn } from "./types";
 
 type Link = "connecting" | "online" | "offline";
 
@@ -15,15 +15,15 @@ interface Session {
 
 const LEVELS = 40;
 
-/** Saída de uma aba: "replay" = tela guardada no cérebro (ao anexar), "output" = ao vivo. */
-export type TermSink = (kind: "replay" | "output", data: Uint8Array) => void;
+/** Saída ao vivo de uma aba (cliente `tmux attach` no cérebro; o tmux redesenha ao conectar). */
+export type TermSink = (data: Uint8Array) => void;
 
-/** Quadro binário do cérebro: tipo (1) + id da sessão (8) + bytes (jarvis/control.py). */
-export function parseFrame(buf: ArrayBuffer): { kind: "replay" | "output"; sid: string; data: Uint8Array } | null {
+/** Quadro binário do cérebro: 0x01 + id da sessão do tmux (8) + bytes (jarvis/control.py). */
+export function parseFrame(buf: ArrayBuffer): { sessao: string; data: Uint8Array } | null {
   const bytes = new Uint8Array(buf);
-  if (bytes.length < 9 || (bytes[0] !== 1 && bytes[0] !== 2)) return null;
-  const sid = new TextDecoder().decode(bytes.subarray(1, 9)).trim();
-  return { kind: bytes[0] === 2 ? "replay" : "output", sid, data: bytes.subarray(9) };
+  if (bytes.length < 9 || bytes[0] !== 1) return null;
+  const sessao = new TextDecoder().decode(bytes.subarray(1, 9)).trim();
+  return { sessao, data: bytes.subarray(9) };
 }
 
 /** Conexão com o cérebro local (WebSocket em 127.0.0.1, token do arquivo de sessão). */
@@ -44,8 +44,7 @@ export function useJarvis() {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [alert, setAlert] = useState<ShownAlert | null>(null);
   const onAlert = useRef<(a: ShownAlert) => void>(() => {});
-  const [tabs, setTabs] = useState<TerminalTab[]>([]);
-  const sinks = useRef(new Map<string, TermSink>());
+  const sinks = useRef(new Map<string, { sink: TermSink; cols: number; rows: number }>());
   const opening = useRef<((r: TerminalOpened) => void) | null>(null);
 
   const send = useCallback((msg: Record<string, unknown>) => {
@@ -68,7 +67,9 @@ export function useJarvis() {
       setLink("online");
       setProblem("");
       // reconexão: as abas anexadas pedem a tela de novo
-      for (const sid of sinks.current.keys()) socket.send(JSON.stringify({ type: "term_attach", sid }));
+      for (const [sessao, s] of sinks.current) {
+        socket.send(JSON.stringify({ type: "term_attach", sessao, cols: s.cols, rows: s.rows }));
+      }
     };
     socket.onclose = () => {
       setLink("offline");
@@ -77,7 +78,7 @@ export function useJarvis() {
     socket.onmessage = (msg) => {
       if (msg.data instanceof ArrayBuffer) {
         const frame = parseFrame(msg.data);
-        if (frame) sinks.current.get(frame.sid)?.(frame.kind, frame.data);
+        if (frame) sinks.current.get(frame.sessao)?.sink(frame.data);
         return;
       }
       const ev = JSON.parse(msg.data as string) as ServerEvent;
@@ -95,9 +96,6 @@ export function useJarvis() {
           return;
         case "terminals":
           setTerminals(ev.data.terminais);
-          return;
-        case "terminal_tabs":
-          setTabs(ev.data.abas);
           return;
         case "terminal_opened":
           opening.current?.(ev.data);
@@ -225,21 +223,23 @@ export function useJarvis() {
     send({ type: "panel", id: crypto.randomUUID() });
   }, [connect, send]);
 
-  /** Liga uma aba à saída da sessão (anexa) e devolve a função que desliga (desanexa). */
+  /** Liga uma aba visível ao terminal (o cérebro abre um `tmux attach`) e devolve a função que
+   * desliga. Só uma aba visível por janela. */
   const attachTerminal = useCallback(
-    (sid: string, sink: TermSink) => {
-      sinks.current.set(sid, sink);
-      send({ type: "term_attach", sid });
+    (sessao: string, sink: TermSink, cols: number, rows: number) => {
+      const entry = { sink, cols, rows };
+      sinks.current.set(sessao, entry);
+      send({ type: "term_attach", sessao, cols, rows });
       return () => {
-        if (sinks.current.get(sid) === sink) sinks.current.delete(sid);
-        send({ type: "term_detach", sid });
+        if (sinks.current.get(sessao) === entry) sinks.current.delete(sessao);
+        send({ type: "term_detach", sessao });
       };
     },
     [send],
   );
 
   const openTerminal = useCallback(
-    (req: { pasta?: string; retomar?: string }) =>
+    (req: { pasta: string; claude: boolean }) =>
       new Promise<TerminalOpened>((resolve) => {
         if (ws.current?.readyState !== WebSocket.OPEN) {
           resolve({ erro: "Sem conexão com o cérebro do Jarvis." });
@@ -261,11 +261,18 @@ export function useJarvis() {
     [send],
   );
 
+  /** Abrir ou fechar (×) a aba de um terminal compartilhado. */
+  const setTab = useCallback(
+    (sessao: string, open: boolean) => send({ type: open ? "term_tab_open" : "term_tab_close", sessao }),
+    [send],
+  );
+  const dismissAlert = useCallback(() => setAlert(null), []);
+
   const thinking = turns.some((t) => t.status === "thinking");
   return {
     turns, link, problem, status, speaking, listening, levels, thinking,
     panel, requestPanel, terminals, alert,
-    tabs, attachTerminal, openTerminal, answerPermission,
+    attachTerminal, openTerminal, answerPermission, setTab, dismissAlert,
     termSend: send,
     stop: () => send({ type: "interrupt" }),
     setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },

@@ -231,3 +231,19 @@ Motivação: ver `proposal.md`. Este change parte do `jarvis-terminais`, que já
 - o servidor com quadros binários.
 
 **Build depois da mudança de pasta:** o cache do Cargo guardava caminhos de `~/Downloads/life-manager`. Apagar só as 50 saídas de build script com o caminho velho resolveu.
+
+**Versão com tmux (09/10/2026, noite):**
+- Testes passando:
+  - 380 em Python, entre eles os testes contra um servidor tmux isolado:
+    - segredo do cérebro não vaza para o terminal;
+    - linha pela metade apagada antes do comando;
+    - aba mantém vivo um terminal do Terminal.app sem janela;
+    - "ficou ocupado entre a confirmação e o envio";
+  - 45 na interface;
+  - 3 com o `claude` real dentro do tmux (permitir e negar; tecla na aba vencendo; cérebro fora).
+- **Bloco do `.zshrc` sem `exec`:** fica `tmux … && exit`. Com `exec`, uma falha do tmux fecharia a janela, e a spec pede que ela fique num shell normal. Testado com um zsh de verdade e um tmux falso que falha.
+- **Instalado às 21h09.** Teste ao vivo com uma janela real do Terminal.app (aberta por AppleScript):
+  - ela entrou no tmux e apareceu como "Terminal 3 · life-manager · shell", com a janela marcada;
+  - a aba anexada recebeu a tela, e o que se digitou pela aba apareceu na janela;
+  - abrir pelo Jarvis criou o Terminal 4;
+  - fechar a janela encerrou a sessão.

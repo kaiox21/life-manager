@@ -105,7 +105,7 @@ fn grab_esc_now(app: &AppHandle, on: bool) {
 /// a põe por cima, deixando o app em uso ativo.
 #[tauri::command]
 fn show_hud(app: AppHandle, focus: bool) {
-    place_and_show(&app, focus);
+    place_and_show(&app, focus, !focus);
 }
 
 fn is_visible(app: &AppHandle) -> bool {
@@ -120,6 +120,8 @@ fn window_visible(app: &AppHandle, label: &str) -> bool {
 
 /// Aviso de um terminal do Claude Code: mostra o HUD sem roubar o foco, a não ser que o painel
 /// esteja aberto (ele mostra o aviso). Devolve "painel", "ja_aberto" ou "mostrado".
+/// Não pega o Esc: o Kaio pode estar no Terminal.app, onde o Esc interrompe o Claude Code
+/// (change jarvis-terminais-controle). O aviso some quando o pedido se resolve, ou pelo ×.
 #[tauri::command]
 fn show_alert(app: AppHandle) -> &'static str {
     if window_visible(&app, "painel") {
@@ -128,7 +130,7 @@ fn show_alert(app: AppHandle) -> &'static str {
     if is_visible(&app) {
         return "ja_aberto";
     }
-    place_and_show(&app, false);
+    place_and_show(&app, false, false);
     "mostrado"
 }
 
@@ -165,7 +167,8 @@ fn toggle_panel(app: &AppHandle) {
     }
 }
 
-fn place_and_show(app: &AppHandle, focus: bool) {
+/// `esc`: pegar o Esc global enquanto o HUD está sem foco (só o HUD aberto pela voz).
+fn place_and_show(app: &AppHandle, focus: bool, esc: bool) {
     let Some(w) = app.get_webview_window("main") else { return };
     if !w.is_visible().unwrap_or(false) {
         if let (Ok(Some(monitor)), Ok(size)) = (w.current_monitor(), w.outer_size()) {
@@ -178,7 +181,7 @@ fn place_and_show(app: &AppHandle, focus: bool) {
     }
     let _ = w.set_focusable(focus);
     let _ = w.show();
-    grab_esc(app, !focus);
+    grab_esc(app, esc && !focus);
     if focus {
         let _ = w.set_focus();
         let _ = w.emit("jarvis://shown", ());
@@ -189,7 +192,7 @@ fn toggle_text_mode(app: &AppHandle) {
     if is_visible(app) {
         hide_hud(app.clone());
     } else {
-        place_and_show(app, true);
+        place_and_show(app, true, false);
     }
 }
 
@@ -242,7 +245,7 @@ pub fn run() {
                             let target = if panel_open { "painel" } else { "hud" };
                             let visible = is_visible(app);
                             if !panel_open {
-                                place_and_show(app, false);
+                                place_and_show(app, false, true);
                             }
                             let _ = app.emit("jarvis://ptt", Ptt { state: "down", target, visible });
                         }

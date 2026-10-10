@@ -39,11 +39,27 @@ export function Panel() {
   const openRef = useRef(open);
   openRef.current = open;
   // "central" ou o id da aba de terminal em primeiro plano
-  const [view, setView] = useState(CENTRAL);
-  const tab = j.tabs.find((t) => t.sid === view);
+  // "central" ou a sessão do tmux da aba em primeiro plano (lembrada neste Mac)
+  const [view, setViewState] = useState<string>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) || CENTRAL;
+    } catch {
+      return CENTRAL;
+    }
+  });
+  const setView = (v: string) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // sem armazenamento: só não lembra a aba
+    }
+  };
+  const tab = j.terminals.find((t) => t.tmux && t.aba && t.tmux === view);
+  const known = j.terminals.length > 0;
   useEffect(() => {
-    if (view !== CENTRAL && !tab) setView(CENTRAL); // a aba sumiu (fechada)
-  }, [view, tab]);
+    if (view !== CENTRAL && known && !tab) setViewState(CENTRAL); // a aba sumiu (fechada)
+  }, [view, tab, known]);
 
   // Abrir/fechar vem do Rust (atalho, menu, Esc); a fala só chega aqui com o painel aberto.
   useEffect(() => {
@@ -106,16 +122,15 @@ export function Panel() {
     link === "offline" ? "offline" : listening ? "ouvindo" : status ? status.replace(/…$/, "") : speaking ? "falando" : thinking ? "pensando" : "online";
   const last = turns[turns.length - 1];
   const alertBar = showAlert && j.alert && (
-    <AlertBar alert={j.alert} onAnswer={j.answerPermission} className="painel__alert" />
+    <AlertBar alert={j.alert} onAnswer={j.answerPermission} onDismiss={j.dismissAlert} className="painel__alert" />
   );
   const tabsBar = (
     <TerminalTabs
-      tabs={j.tabs}
       terminals={j.terminals}
       active={tab ? view : CENTRAL}
       onSelect={setView}
       onOpen={j.openTerminal}
-      onClose={(sid) => j.termSend({ type: "term_close", sid })}
+      onCloseTab={(sessao) => j.setTab(sessao, false)}
     />
   );
 
@@ -128,20 +143,14 @@ export function Panel() {
         {tabsBar}
         <section className="painel__termarea" aria-label={`Terminal ${tab.numero}`}>
           {alertBar}
-          {tab.aberta && open ? (
+          {open && tab.tmux && (
             <TerminalView
-              key={tab.sid}
-              sid={tab.sid}
+              key={tab.tmux}
+              sessao={tab.tmux}
               label={`Terminal ${tab.numero} · ${tab.pasta}`}
               attach={j.attachTerminal}
               send={j.termSend}
             />
-          ) : (
-            !tab.aberta && (
-              <p className="painel__empty painel__closed">
-                O Terminal {tab.numero} ({tab.pasta}) foi encerrado. Use "Retomar" na aba para continuar a conversa.
-              </p>
-            )
           )}
           {pendingTurn && (
             <div className="painel__mini" aria-live="polite">
@@ -198,10 +207,19 @@ export function Panel() {
       </section>
 
       <Money panel={panel} />
-      <Log panel={panel} terminals={j.terminals} />
+      <Log
+        panel={panel}
+        terminals={j.terminals}
+        onOpenTab={(sessao) => {
+          j.setTab(sessao, true);
+          setView(sessao);
+        }}
+      />
     </main>
   );
 }
+
+const VIEW_KEY = "jarvis.aba";
 
 export function inTerminal(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest(".term-view");
@@ -348,7 +366,15 @@ export function Money({ panel }: { panel: PanelState }) {
   );
 }
 
-export function Log({ panel, terminals = [] }: { panel: PanelState; terminals?: TerminalInfo[] }) {
+export function Log({
+  panel,
+  terminals = [],
+  onOpenTab,
+}: {
+  panel: PanelState;
+  terminals?: TerminalInfo[];
+  onOpenTab?: (sessao: string) => void;
+}) {
   return (
     <Column title="Registro" panel={panel} className="painel__log">
       {(d) => (
@@ -367,7 +393,7 @@ export function Log({ panel, terminals = [] }: { panel: PanelState; terminals?: 
           </ul>
           <div className="painel__terms" aria-label="Terminais">
             <h3 className="painel__sub">Terminais</h3>
-            <TerminalList items={terminals} />
+            <TerminalList items={terminals} onOpenTab={onOpenTab} />
           </div>
           <ul className="painel__list painel__questions" aria-label="Perguntas desta sessão">
             {d.perguntas.map((q, i) => (

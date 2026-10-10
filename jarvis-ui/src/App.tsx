@@ -164,7 +164,19 @@ export default function App() {
         )}
         <kbd className="prompt__hint">esc</kbd>
       </form>
-      {showAlert && j.alert && <AlertBar alert={j.alert} onAnswer={j.answerPermission} />}
+      {showAlert && j.alert && (
+        <AlertBar
+          alert={j.alert}
+          onAnswer={j.answerPermission}
+          onDismiss={() => {
+            j.dismissAlert();
+            if (alertOpened) {
+              setAlertOpened(false);
+              void invoke("hide_hud");
+            }
+          }}
+        />
+      )}
       {link === "offline" && problem && (
         <p className="banner" role="status">
           {problem}{" "}

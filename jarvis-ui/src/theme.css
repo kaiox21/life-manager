@@ -676,6 +676,29 @@ body {
 .term-alert__result {
   color: var(--text-dim);
 }
+.term-alert {
+  position: relative;
+}
+.term-alert__close {
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 6px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.term-alert__close:hover,
+.term-alert__close:focus-visible {
+  color: var(--text);
+}
+.term-alert__text {
+  padding-inline-end: 22px;
+}
 .term-alert__actions {
   display: flex;
   justify-content: flex-end;

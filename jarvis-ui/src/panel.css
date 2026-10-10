@@ -451,3 +451,21 @@
   max-block-size: 30vh;
   overflow: auto;
 }
+.tabs__kind {
+  display: inline-flex;
+  gap: 12px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.tabs__kind label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.terms__open {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 3px 8px;
+}
