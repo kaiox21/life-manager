@@ -50,6 +50,15 @@ class Vad:
         self._chunk = self._vad.chunk_samples()
         self._threshold = threshold
 
+    def is_speech(self, block: np.ndarray) -> bool:
+        """Escuta contínua: há fala neste bloco? (mantém o estado entre blocos; usar uma
+        instância só para isso, separada da usada no `trim`)."""
+        pcm = (np.clip(block, -1, 1) * 32767).astype(np.int16)
+        for i in range(0, len(pcm) - self._chunk + 1, self._chunk):
+            if self._vad(pcm[i : i + self._chunk].tobytes()) >= self._threshold:
+                return True
+        return False
+
     def trim(self, audio: np.ndarray) -> Speech | None:
         self._vad.reset()
         pcm = (np.clip(audio, -1, 1) * 32767).astype(np.int16)

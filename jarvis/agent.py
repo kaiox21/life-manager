@@ -189,6 +189,8 @@ class JarvisBrain:
             if turn.t_release is not None:
                 self._log_timing(turn)
         on = kind == "start"
+        if not on:
+            self._spoke_at = time.monotonic()
         if on == self._speaking_state:
             return
         self._speaking_state = on
@@ -201,6 +203,50 @@ class JarvisBrain:
     _speaking_state = False
 
     _last_emit: Emit | None = None
+
+    # --- palavra de ativação ("Jarvis, …")
+
+    _ptt_active = False
+    _turn_running = False
+    _spoke_at = 0.0
+
+    def set_ptt(self, on: bool) -> None:
+        """Atalho de voz segurado: a escuta da palavra pausa (o pedido vai pelo atalho)."""
+        self._ptt_active = on
+
+    def wake_paused(self) -> bool:
+        """Escuta pausada: falando (e meio segundo depois), atalho de voz ou turno em andamento."""
+        if self._speaking_state or self._ptt_active or self._turn_running:
+            return True
+        return time.monotonic() - self._spoke_at < 0.5
+
+    async def wake_turn(self, rid: str, audio: Any, emit: Emit) -> str:
+        """Pedido dito depois de "Jarvis": "ok", "so_nome" (esperar o pedido), "vazio" ou
+        "falso" (a transcrição não começa com o nome: alarme falso, descartado)."""
+        from jarvis.wake import strip_name
+
+        t_release = time.monotonic()
+        speech = self._vad.trim(audio) if self._vad else Speech(audio, len(audio) / RATE)
+        if speech is None or self._transcriber is None:
+            await emit(events.no_speech(rid))
+            return "vazio"
+        text, ms = await self._transcriber.transcribe(speech.audio)
+        if getattr(self, "_waiting_request", False):
+            request: str | None = text.strip()
+            self._waiting_request = False
+        else:
+            request = strip_name(text)
+        if request is None:
+            log.info("wake: descartado (a transcrição não começa com o nome)")
+            await emit(events.no_speech(rid))
+            return "falso"
+        if not request:
+            self._waiting_request = True  # só o nome: o próximo trecho é o pedido
+            return "so_nome"
+        log.info("wake: %.1fs de fala transcrita em %dms", speech.seconds, ms)
+        await emit(events.heard(rid, request))
+        await self.ask(rid, request, emit, mode="voz", t_release=t_release)
+        return "ok"
 
     def interrupt(self) -> None:
         if self.speaker is not None:
@@ -232,6 +278,15 @@ class JarvisBrain:
 
     async def ask(
         self, rid: str, text: str, emit: Emit, mode: str = "texto", t_release: float | None = None
+    ) -> None:
+        self._turn_running = True
+        try:
+            await self._ask(rid, text, emit, mode, t_release)
+        finally:
+            self._turn_running = False
+
+    async def _ask(
+        self, rid: str, text: str, emit: Emit, mode: str, t_release: float | None
     ) -> None:
         self._loop = asyncio.get_running_loop()
         self._last_emit = emit

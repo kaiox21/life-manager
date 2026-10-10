@@ -1,8 +1,8 @@
 ## 1. Detector no cérebro
 
-- [ ] 1.1 Dependência `sherpa-onnx` no extra `jarvis` do `pyproject.toml`; `install_mac.sh` baixa o modelo de detecção (gigaspeech 3,3 M, int8) para `~/Library/Application Support/Jarvis/kws/` conferindo o hash; teste do download com arquivo falso e hash errado (recusa)
-- [ ] 1.2 `jarvis/wake.py`: VAD como porteiro, buffer circular de 1,5 s, detector com variantes e limiar do `.env` (`JARVIS_WAKE_*`), pausas (falando + 0,5 s, push-to-talk, turno em andamento), juntar o pedido até 0,8 s de silêncio ou 15 s, tirar "Jarvis" do começo, "esperando o pedido" por 6 s; log de cada ativação sem áudio nem texto; testes com os áudios do `say` (positivos, negativos, pausas, só o nome, só o nome e silêncio)
-- [ ] 1.3 Servidor: conexão "escuta" (do Rust) com quadros `0x10` (PCM) e `wake_listen` on/off; `wake` vai só ao cliente do Rust; o turno aberto pela palavra segue por `brain.ask(mode="voz")` com os eventos mandados às interfaces (`broadcast`, sem a conexão de escuta) e `confirm` respondível por qualquer uma; testes em `test_server.py` e `test_voice.py`
+- [x] 1.1 Dependência `sherpa-onnx` no extra `jarvis` do `pyproject.toml`; `install_mac.sh` baixa o modelo de detecção (gigaspeech 3,3 M, int8) para `~/Library/Application Support/Jarvis/kws/` conferindo o hash; teste do download com arquivo falso e hash errado (recusa)
+- [x] 1.2 `jarvis/wake.py`: VAD como porteiro, buffer circular de 1,5 s, detector com variantes e limiar do `.env` (`JARVIS_WAKE_*`), pausas (falando + 0,5 s, push-to-talk, turno em andamento), juntar o pedido até 0,8 s de silêncio ou 15 s, tirar "Jarvis" do começo, "esperando o pedido" por 6 s; log de cada ativação sem áudio nem texto; testes com os áudios do `say` (positivos, negativos, pausas, só o nome, só o nome e silêncio)
+- [x] 1.3 Servidor: conexão "escuta" (do Rust) com quadros `0x10` (PCM) e `wake_listen` on/off; `wake` vai só ao cliente do Rust; o turno aberto pela palavra segue por `brain.ask(mode="voz")` com os eventos mandados às interfaces (`broadcast`, sem a conexão de escuta) e `confirm` respondível por qualquer uma; testes em `test_server.py` e `test_voice.py`
 
 ## 2. App (Rust)
 

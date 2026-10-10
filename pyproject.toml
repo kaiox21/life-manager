@@ -31,6 +31,9 @@ jarvis = [
     "mlx-whisper>=0.4.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
     "pyobjc-framework-avfoundation>=11 ; sys_platform == 'darwin'",
     "pysilero-vad>=3.4",
+    "sentencepiece>=0.2.2",
+    "sherpa-onnx>=1.13.8",
+    "sherpa-onnx-core>=1.13.8",
     "sounddevice>=0.5",
 ]
 

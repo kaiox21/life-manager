@@ -24,6 +24,7 @@ Cérebro -> interface:
                   sessão aberta pelo Jarvis, com `pedido` (para os botões Permitir/Negar) e `aba`
   terminal_opened data: resultado de `term_open` (status/numero/sessao/tipo, ou erro/opcoes)
   terminal_resolved  data: {pedido, resultado}: o pedido de permissão foi resolvido
+  wake    a palavra "Jarvis" foi detectada (id do turno de voz que vem em seguida)
   quadros binários: 0x01 + id da sessão do tmux (8) + saída do terminal (aba anexada)
 Interface -> cérebro (terminais compartilhados; `sessao` = session_id do tmux, ex.: "$3"):
   {"type": "term_attach", "sessao": "...", "cols": 120, "rows": 32}   cliente da aba visível
@@ -34,6 +35,9 @@ Interface -> cérebro (terminais compartilhados; `sessao` = session_id do tmux, 
   {"type": "term_open", "pasta": "...", "claude": true|false}
   {"type": "term_tab_open"|"term_tab_close", "sessao": "..."}  abrir/fechar a aba (×)
   {"type": "permission_answer", "pedido": "...", "decisao": "permitir"|"negar"}  (só clique)
+Escuta da palavra "Jarvis" (conexão do app, em Rust):
+  {"type": "wake_listen", "on": true|false}   liga/desliga; a conexão vira "escuta"
+  quadros binários 0x10 + PCM Int16 mono 16 kHz (blocos de ~100 ms)
 """
 
 import json
@@ -56,6 +60,7 @@ EventType = Literal[
     "terminal_alert",
     "terminal_opened",
     "terminal_resolved",
+    "wake",
 ]
 
 
@@ -108,6 +113,12 @@ def terminal_opened(result: dict[str, Any]) -> Event:
 
 def terminal_resolved(pedido: str, resultado: str) -> Event:
     return Event("terminal_resolved", "terminais", data={"pedido": pedido, "resultado": resultado})
+
+
+def wake(rid: str) -> Event:
+    """A palavra "Jarvis" foi detectada: o app mostra o HUD (ou o painel cuida) e as interfaces
+    começam um turno de voz com este id; `heard`/`no_speech`/... vêm em seguida."""
+    return Event("wake", rid)
 
 
 def panel(rid: str, data: dict[str, Any]) -> Event:

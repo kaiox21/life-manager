@@ -83,6 +83,10 @@ PLIST
 # permissão só age nos terminais compartilhados e espera o Permitir/Negar do Jarvis).
 /usr/bin/python3 "$ROOT/jarvis/hooks/install.py" || echo "hooks do Claude Code não instalados" >&2
 
+# Dependências do cérebro (com o extra da voz) e o modelo do detector da palavra "Jarvis".
+"$UV" sync --project "$ROOT" --extra jarvis >/dev/null || echo "uv sync falhou" >&2
+/usr/bin/python3 "$ROOT/jarvis/wake_model.py" || echo "sem o modelo, a escuta da palavra 'Jarvis' fica desligada" >&2
+
 # Terminais compartilhados: tmux do Jarvis (socket `jarvis`) e janelas novas do Terminal.app nele.
 # Os terminais vivem no servidor do tmux: reinstalar o Jarvis não fecha nenhum.
 mkdir -p "$HOME/Library/Application Support/Jarvis"

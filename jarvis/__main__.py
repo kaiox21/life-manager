@@ -8,6 +8,9 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
   FISH_API_KEY / FISH_VOICE_ID / FISH_VOICE_SPEED   voz da Fish Audio (vazio = voz local)
   JARVIS_PASTAS          pastas onde o Jarvis abre terminais, separadas por ":" (padrão:
                          ~/Projetos pessoais:~/AmicusIA:~/Faculdade)
+  JARVIS_WAKE_PALAVRAS / JARVIS_WAKE_LIMIAR / JARVIS_WAKE_PESO   variantes de "Jarvis" (vírgula),
+                         limiar e peso do detector da palavra (padrão: JARVIS,JARVES,JAR VIS,JAVIS;
+                         0.2; 1.5)
   JARVIS_TERMINAIS_MAX / JARVIS_TERMINAIS_MEM_MIN   Claude Code rodando nos terminais (4) e
                          memória livre mínima em % para abrir um terminal (20)
 Valem as do ambiente e, na falta, as do .env.
@@ -35,6 +38,8 @@ from jarvis.sessions import Folders
 from jarvis.terminals import Terminals
 from jarvis.tmux import Tmux
 from jarvis.tts import make_speaker
+from jarvis.wake import WORDS, SherpaSpotter, WakeService
+from jarvis.wake_model import model_dir, present
 
 log = logging.getLogger(__name__)
 _DOTENV = {k: v for k, v in dotenv_values(".env").items() if v is not None}
@@ -133,6 +138,19 @@ async def main() -> None:
         server.control = control
         control.broadcast = server.broadcast
         server.greeting = lambda: [events.terminals(terminals.snapshot())]
+        if present():
+            words = tuple(w.strip() for w in env("JARVIS_WAKE_PALAVRAS").split(",") if w.strip())
+            threshold = float(env("JARVIS_WAKE_LIMIAR", "0.2"))
+            score = float(env("JARVIS_WAKE_PESO", "1.5"))
+            server.wake = WakeService(
+                brain,
+                lambda: SherpaSpotter(model_dir(), words or WORDS, threshold, score),
+                Vad,
+                server.broadcast,
+                server.broadcast_ui,
+            )
+        else:
+            log.warning("sem o modelo da palavra 'Jarvis' (python3 jarvis/wake_model.py)")
         await control.refresh()
         watcher = asyncio.create_task(watch_terminals(terminals, server, control))
         watcher.add_done_callback(_log_task_error)

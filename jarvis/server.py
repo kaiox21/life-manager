@@ -85,11 +85,19 @@ class JarvisServer:
         # eventos mandados a cada conexão nova (ex.: a lista atual de terminais)
         self.greeting: Callable[[], list[Event]] = lambda: []
         self.control: Control | None = None
+        self.wake: Any = None  # WakeService (escuta da palavra "Jarvis"), se houver
+        self._listen: set[Emit] = set()  # conexões de escuta (o app em Rust)
 
     async def broadcast(self, event: Event) -> None:
-        """Manda um evento a todas as interfaces conectadas (HUD e painel)."""
+        """Manda um evento a todas as conexões (HUD, painel e a escuta do app)."""
         for emit in list(self._clients):
             await emit(event)
+
+    async def broadcast_ui(self, event: Event) -> None:
+        """Só às interfaces que desenham (HUD e painel), sem a conexão de escuta."""
+        for emit in list(self._clients):
+            if emit not in self._listen:
+                await emit(event)
 
     def _authorize(self, conn: ServerConnection, request: Request) -> Response | None:
         query = parse_qs(urlparse(request.path).query)
@@ -129,6 +137,10 @@ class JarvisServer:
         try:
             async for raw in conn:
                 if isinstance(raw, bytes):
+                    if emit in self._listen:
+                        if raw[:1] == b"\x10" and self.wake is not None:
+                            self.wake.feed(raw[1:])
+                        continue
                     if voice is not None and voice.size + len(raw) <= MAX_VOICE_BYTES:
                         voice.chunks.append(raw)
                         voice.size += len(raw)
@@ -140,6 +152,11 @@ class JarvisServer:
                 if not isinstance(msg, dict):
                     continue
                 kind = msg.get("type")
+                if kind == "wake_listen":
+                    self._listen.add(emit)
+                    if self.wake is not None:
+                        self.wake.set_listening(bool(msg.get("on")))
+                    continue
                 if isinstance(kind, str) and kind.startswith(("term_", "permission_")):
                     if self.control is not None:
                         try:
@@ -161,15 +178,22 @@ class JarvisServer:
                         active.cancel()
                 elif kind == "voice_start":
                     voice = _Voice(rid, int(msg.get("sampleRate") or 16_000))
+                    set_ptt = getattr(self.brain, "set_ptt", None)
+                    if set_ptt is not None:
+                        set_ptt(True)
                     prewarm = getattr(self.brain, "prewarm", None)
                     if prewarm is not None:
                         prewarm()
                 elif kind == "voice_end" and voice is not None and voice.rid == rid:
                     pcm, rate = b"".join(voice.chunks), voice.sample_rate
                     voice = None
+                    if getattr(self.brain, "set_ptt", None) is not None:
+                        self.brain.set_ptt(False)
                     launch(self._run(rid, emit, self.brain.voice(rid, pcm, rate, emit)))
                 elif kind == "voice_cancel":
                     voice = None
+                    if getattr(self.brain, "set_ptt", None) is not None:
+                        self.brain.set_ptt(False)
                 elif kind == "panel":
                     # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
                     task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))
@@ -177,6 +201,10 @@ class JarvisServer:
                     task.add_done_callback(self._tasks.discard)
         finally:
             self._clients.discard(emit)
+            if emit in self._listen:
+                self._listen.discard(emit)
+                if self.wake is not None and not self._listen:
+                    self.wake.set_listening(False)
             if self.control is not None:
                 self.control.detach(client)
 
