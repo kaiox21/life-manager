@@ -99,3 +99,28 @@ async def test_painel_e_pergunta_sem_nucleo():
     await b.ask("r1", "quanto gastei?", emit)
     assert got[-1].type == "done" and "fora do ar" in got[-1].text
     assert "indisponível agora" in llm.calls[0]["messages"][0]["content"]
+
+
+async def test_nucleo_reiniciado_sessao_velha_reconecta_e_repete_a_chamada():
+    class Stale(FakeClient):
+        async def call(self, name, args):
+            raise RuntimeError("404 Not Found: sessão desconhecida")
+
+    clients = [Stale(), FakeClient()]
+    opened = []
+
+    @contextlib.asynccontextmanager
+    async def connect(url, token):
+        c = clients[min(len(opened), 1)]
+        opened.append(c)
+        yield c
+        raise RuntimeError("fechar a sessão velha também falha")
+
+    core = ResilientCore("u", "t", retry=30, connect=connect)
+    task = asyncio.create_task(core.run())
+    await asyncio.wait_for(core.ready.wait(), 1)
+    result = await asyncio.wait_for(core.call("painel", {}), 3)  # sem esperar os 30 s
+    assert result.data == {"ok": "painel"} and len(opened) == 2
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task

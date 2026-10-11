@@ -100,6 +100,8 @@ class ResilientCore:
         self._client: CoreClient | None = None
         self._tools: list[dict[str, Any]] = []
         self.ready = asyncio.Event()
+        self._broken = asyncio.Event()
+        self._generation = 0  # sobe a cada conexão nova
 
     @property
     def online(self) -> bool:
@@ -110,13 +112,19 @@ class ResilientCore:
         while True:
             try:
                 async with self._connect(self._url, self._token) as client:
-                    self._client = client
+                    self._broken = asyncio.Event()
                     with contextlib.suppress(Exception):
                         self._tools = await client.openai_tools()
+                    self._client = client
+                    self._generation += 1
                     self.ready.set()
                     log.info("núcleo conectado")
                     down_logged = False
-                    await asyncio.Event().wait()  # até a sessão cair (o grupo de tarefas cancela)
+                    # até a sessão cair (o grupo de tarefas cancela) ou uma chamada falhar: o
+                    # núcleo reiniciado responde 404 à sessão antiga, sem a conexão cair
+                    await self._broken.wait()
+                    log.info("sessão com o núcleo perdida; reconectando")
+                    continue
             except asyncio.CancelledError:
                 raise  # o próprio cérebro parando (a queda da sessão chega como ExceptionGroup)
             except Exception as exc:  # noqa: BLE001 (inclui o ExceptionGroup da sessão MCP)
@@ -130,14 +138,29 @@ class ResilientCore:
             finally:
                 self._client = None
                 self.ready.clear()
-            await asyncio.sleep(self._retry)
+            # sessão perdida numa chamada: reconecta logo (a chamada espera a sessão nova)
+            await asyncio.sleep(0.2 if self._broken.is_set() else self._retry)
 
     async def openai_tools(self) -> list[dict[str, Any]]:
         # sem o núcleo, as ferramentas dele não são oferecidas ao modelo
         return self._tools if self._client is not None else []
 
     async def call(self, name: str, args: dict[str, Any]) -> ToolResult:
-        client = self._client
-        if client is None:
-            raise CoreUnavailable("núcleo indisponível")
-        return await client.call(name, args)
+        for attempt in (0, 1):
+            client, generation = self._client, self._generation
+            if client is None:
+                raise CoreUnavailable("núcleo indisponível")
+            try:
+                return await client.call(name, args)
+            except Exception as exc:
+                if client is self._client:
+                    self._client = None
+                    self._broken.set()
+                if attempt == 1:
+                    raise CoreUnavailable("núcleo indisponível") from exc
+                # espera a sessão nova (até 5 s) e tenta de novo uma vez
+                for _ in range(50):
+                    if self._client is not None and self._generation > generation:
+                        break
+                    await asyncio.sleep(0.1)
+        raise CoreUnavailable("núcleo indisponível")
