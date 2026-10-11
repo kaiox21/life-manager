@@ -199,8 +199,11 @@ async def main() -> None:
             finally:
                 log.info("parando: encerrando as abas de terminal")
                 with contextlib.suppress(Exception):
-                    await control.shutdown()
+                    await asyncio.wait_for(control.shutdown(), 5)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # threads de fundo (transcrição, áudio) podem segurar a saída: ao parar, sai de vez, para o
+    # launchd não deixar um cérebro órfão rodando ao lado do novo
+    os._exit(0)

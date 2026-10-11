@@ -892,6 +892,21 @@
   background: var(--line-strong);
 }
 
+/* cartões de tamanho fixo não encolhem; os de lista ocupam o resto e rolam por dentro (antes, a
+   lista de terminais espremia o cartão do Mac até sumir) */
+.painel__clock,
+.painel__mac,
+.painel__weather {
+  flex: none;
+}
+.painel__terms,
+.painel__month,
+.painel__agenda,
+.painel__projects {
+  flex: 1 1 0;
+  min-block-size: 96px;
+}
+
 /* telas baixas: anéis menores, conversa mais curta */
 @media (max-height: 820px) {
   .painel--hud .hud-card {

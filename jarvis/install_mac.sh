@@ -57,8 +57,9 @@ cat > "$AGENTS/$BRAIN.plist" <<PLIST
 <plist version="1.0"><dict>
   <key>Label</key><string>$BRAIN</string>
   <key>ProgramArguments</key><array>
-    <string>$UV</string><string>run</string><string>--project</string><string>$ROOT</string>
-    <string>python</string><string>-m</string><string>jarvis</string>
+    <string>$ROOT/.venv/bin/python</string><string>-m</string><string>jarvis</string>
+    <!-- python direto (não "uv run"): ao reiniciar, o launchd encerrava o uv e o python
+         ficava órfão, com 1,4 GB (encontrado em 11/10/2026) -->
   </array>
   <key>WorkingDirectory</key><string>$ROOT</string>
   <key>RunAtLoad</key><true/>
