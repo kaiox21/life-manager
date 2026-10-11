@@ -1,4 +1,4 @@
-import type { PanelData } from "./types";
+import type { PanelData, PanelEvent } from "./types";
 
 export interface PanelState {
   /** Últimos dados bons (ficam visíveis, esmaecidos, quando o núcleo cai). */
@@ -48,4 +48,15 @@ export function whenShort(iso: string, now: Date = new Date()): string {
 export function dayShort(data: string): string {
   const [weekday, date = ""] = data.split(" ");
   return `${weekday.slice(0, 3)} ${date.replace(/\/\d{4}$/, "")}`.trim();
+}
+
+/** Compromisso de hoje já passou? ("dia inteiro" nunca passa.) */
+export function isPast(e: PanelEvent, now: Date): boolean {
+  if (!/^\d\d:\d\d$/.test(e.hora)) return false;
+  return e.hora < now.toTimeString().slice(0, 5);
+}
+
+/** O próximo compromisso de hoje (o primeiro que não passou, inclusive o de dia inteiro). */
+export function nextEvent(hoje: PanelEvent[], now: Date): PanelEvent | null {
+  return hoje.find((e) => !isPast(e, now)) ?? null;
 }

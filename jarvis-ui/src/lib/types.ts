@@ -35,6 +35,7 @@ export type ServerEvent =
   | { type: "no_speech"; id: string }
   | { type: "status"; id: string; text: string }
   | { type: "speaking"; id: string; data: { on: boolean } }
+  | { type: "voice_level"; id: string; data: { n: number } }
   | { type: "done"; id: string; text: string; data?: { wrote?: boolean } }
   | { type: "panel"; id: string; data: PanelData | { erro: string } }
   | { type: "terminals"; id: string; data: { terminais: TerminalInfo[] } }
@@ -88,9 +89,21 @@ export interface PanelData {
     total: string;
     total_centavos: number;
     lancamentos: number;
+    // calculados no cérebro a partir do fechamento (painel HUD)
+    dias_para_fechar?: number;
+    fracao_ciclo?: number;
   }[];
   registro: { tipo: "gasto" | "evento"; quando: string; texto: string; origem: "whatsapp" | "mac" | null }[];
   perguntas: string[];
+  // dados locais do cérebro (jarvis/panel_extras.py); null = indisponível
+  clima?: { agora: number; max: number; min: number; chuva: number; cidade: string } | null;
+  mac?: {
+    memoria_livre: number | null;
+    swap_gb: number | null;
+    bateria: { pct: number; carregando: boolean } | null;
+  } | null;
+  musica?: { faixa: string; artista: string; tocando: boolean } | null;
+  projetos?: { nome: string; caminho: string }[];
 }
 
 // Terminais (jarvis/terminals.py): sessões do Claude Code e terminais compartilhados (tmux).

@@ -141,7 +141,7 @@ export default function App() {
           setDraft("");
         }}
       >
-        <Orb state={orb} size={60} />
+        <Orb state={orb} size={60} pulse={j.pulse} />
         {listening ? (
           <Waveform levels={levels} />
         ) : (

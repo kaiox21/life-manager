@@ -20,6 +20,11 @@
   --ok: oklch(0.82 0.15 165);
   --glow: 0 0 12px color-mix(in oklch, var(--accent) 55%, transparent);
 
+  --track: color-mix(in oklch, var(--accent) 14%, transparent); /* trilho dos anéis */
+  --hud-display: "Orbitron", var(--mono);
+  --hud-text: "Rajdhani", var(--sans);
+  --hud-data: "Share Tech Mono", var(--mono);
+
   --radius: 6px;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --mono: "SF Mono", ui-monospace, Menlo, monospace;
@@ -645,6 +650,16 @@ body {
 }
 .orb--speaking .orb__core {
   animation-duration: 3s;
+}
+/* Pulso pela voz real (change jarvis-painel-hud): o orbe escreve --voice-scale/--voice-glow a
+   cada quadro enquanto fala; sem as variáveis, vale a animação de antes. */
+.orb--voice.orb--speaking .orb__glow {
+  animation: none;
+  scale: var(--voice-scale, 1);
+  opacity: var(--voice-glow, 0.85);
+}
+.orb--voice .orb__core {
+  scale: var(--voice-scale, 1); /* compõe com o giro (propriedade rotate) */
 }
 
 @media (prefers-reduced-motion: reduce) {

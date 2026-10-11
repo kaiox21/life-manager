@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
+import { pulseOut, pulsing, smooth, tokenBoost, voiceTarget, type Pulse } from "../lib/pulse";
 import type { OrbState } from "./Orb";
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
   /** Só anima com o painel aberto. */
   active: boolean;
   size?: number;
+  /** Voz tocando e texto chegando (pulso do orbe; change jarvis-painel-hud). */
+  pulse?: MutableRefObject<Pulse>;
 }
 
 // Medido em 09/10/2026: 800 pontos a 60 fps davam ~30% de CPU com o painel aberto.
@@ -40,10 +43,12 @@ function reducedMotion() {
 }
 
 /** Orbe do painel: esfera de partículas girando, com anéis marcados (Canvas 2D). */
-export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
+const NO_PULSE: Pulse = { level: 0, levelAt: -1e9, tokenAt: -1e9 };
+
+export function PanelOrb({ state, level = 0, active, size = 420, pulse }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ state, level });
-  live.current = { state, level };
+  const live = useRef({ state, level, pulse });
+  live.current = { state, level, pulse };
 
   useEffect(() => {
     const el = canvas.current;
@@ -117,18 +122,24 @@ export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
     let ring = 0;
     let last = performance.now();
     let frame = 0;
+    let voice = 0;
 
     const draw = (now: number) => {
       const { state: st, level: lv } = live.current;
+      const p = live.current.pulse?.current ?? NO_PULSE;
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      angle += SPEED[st] * dt;
-      ring += (SPEED[st] * 0.5 + 0.05) * dt;
-      const pulse =
-        st === "listening" ? 1 + Math.min(lv * 4, 0.25) : st === "speaking" ? 1 + Math.sin(now / 160) * 0.04 : 1;
+      // resposta: a voz que toca pulsa o orbe; o texto chegando acelera e brilha
+      voice = smooth(voice, voiceTarget(p, st === "speaking", now), dt * 1000);
+      const out = pulseOut(voice, tokenBoost(p, now));
+      const busy = pulsing(p, st === "speaking", now, voice);
+      angle += SPEED[st] * out.speed * dt;
+      ring += (SPEED[st] * 0.5 + 0.05) * out.speed * dt;
+      const pulse = st === "listening" ? 1 + Math.min(lv * 4, 0.25) : out.scale;
       const radius = size * 0.27 * pulse;
       ctx.clearRect(0, 0, size, size);
-      stamp(glow, 0, st === "offline" ? 0.25 : st === "thinking" ? 0.75 : 0.55);
+      const base = st === "offline" ? 0.25 : st === "thinking" ? 0.75 : 0.55;
+      stamp(glow, 0, busy ? Math.max(base, out.glow) : base);
 
       // partículas: gira em Y, inclina um pouco em X, mais claras na frente
       const cos = Math.cos(angle);
@@ -156,7 +167,9 @@ export function PanelOrb({ state, level = 0, active, size = 420 }: Props) {
     let previous = 0;
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
-      const fps = live.current.state === "idle" ? FPS_IDLE : FPS;
+      const p = live.current.pulse?.current ?? NO_PULSE;
+      const busy = pulsing(p, live.current.state === "speaking", now, voice);
+      const fps = live.current.state === "idle" && !busy ? FPS_IDLE : FPS;
       if (now - previous < 1000 / fps - 2) return;
       previous = now;
       draw(now);

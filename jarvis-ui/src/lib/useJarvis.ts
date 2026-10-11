@@ -45,6 +45,14 @@ export function useJarvis() {
   const [alert, setAlert] = useState<ShownAlert | null>(null);
   const onAlert = useRef<(a: ShownAlert) => void>(() => {});
   const sinks = useRef(new Map<string, { sink: TermSink; cols: number; rows: number }>());
+  // Pulso do orbe: nível da voz (~15/s) e hora do último pedaço de texto. Em refs (sem
+  // re-render): o orbe lê a cada quadro. Janela escondida ignora (change jarvis-painel-hud).
+  const pulse = useRef({ level: 0, levelAt: 0, tokenAt: 0 });
+  // janela na tela (o WebKit marca a página como escondida com a janela fora) e, no painel,
+  // aberto; escondida, ignora o pulso
+  const pageShown = useRef(typeof document === "undefined" || !document.hidden);
+  const shownFlag = useRef(true);
+  const visible = useRef(pageShown.current);
   const opening = useRef<((r: TerminalOpened) => void) | null>(null);
 
   const send = useCallback((msg: Record<string, unknown>) => {
@@ -89,6 +97,12 @@ export function useJarvis() {
         case "speaking":
           setSpeaking(ev.data.on);
           return;
+        case "voice_level":
+          if (visible.current) {
+            pulse.current.level = ev.data.n;
+            pulse.current.levelAt = performance.now();
+          }
+          return;
         case "no_speech":
           setStatus("");
           setTurns((prev) => applyEvent(prev, ev));
@@ -119,6 +133,9 @@ export function useJarvis() {
         case "panel":
           setPanel((prev) => applyPanel(prev, ev.data, Date.now()));
           return;
+        case "token":
+          if (visible.current) pulse.current.tokenAt = performance.now();
+          break;
         case "done":
           setStatus("");
           if (ev.data?.wrote) onWrite.current();
@@ -137,6 +154,15 @@ export function useJarvis() {
     void connect();
     return () => ws.current?.close();
   }, [connect]);
+
+  useEffect(() => {
+    const onVis = () => {
+      pageShown.current = !document.hidden;
+      visible.current = pageShown.current && shownFlag.current;
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   const ask = useCallback(
     (text: string) => {
@@ -280,6 +306,13 @@ export function useJarvis() {
     panel, requestPanel, terminals, alert,
     attachTerminal, openTerminal, answerPermission, setTab, dismissAlert,
     termSend: send,
+    pulse,
+    setVisible: (on: boolean) => {
+      shownFlag.current = on;
+      visible.current = pageShown.current && on;
+    },
+    briefing: () => send({ type: "briefing", id: crypto.randomUUID() }),
+    toggleMusic: () => send({ type: "local", acao: "musica_tocar_pausar" }),
     stop: () => send({ type: "interrupt" }),
     setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,

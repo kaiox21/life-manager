@@ -1,10 +1,45 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { pulseOut, pulsing, smooth, tokenBoost, voiceTarget, type Pulse } from "../lib/pulse";
 
 export type OrbState = "idle" | "listening" | "thinking" | "speaking" | "offline";
 
 interface Props {
   state: OrbState;
   size?: number;
+  /** Voz tocando e texto chegando: o orbe pulsa com a resposta (change jarvis-painel-hud). */
+  pulse?: MutableRefObject<Pulse>;
+}
+
+function reducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Laço de quadros só enquanto há voz ou texto chegando; escreve variáveis CSS (sem re-render). */
+function useVoicePulse(el: React.RefObject<HTMLDivElement | null>, state: OrbState, pulse?: MutableRefObject<Pulse>) {
+  const speaking = state === "speaking";
+  const tokenAt = pulse?.current.tokenAt ?? 0;
+  useEffect(() => {
+    const node = el.current;
+    if (!node || !pulse || reducedMotion()) return;
+    let voice = 0;
+    let last = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const p = pulse.current;
+      voice = smooth(voice, voiceTarget(p, speaking, now), now - last);
+      last = now;
+      const out = pulseOut(voice, tokenBoost(p, now));
+      node.style.setProperty("--voice-scale", out.scale.toFixed(3));
+      node.style.setProperty("--voice-glow", out.glow.toFixed(3));
+      if (pulsing(p, speaking, now, voice)) frame = requestAnimationFrame(tick);
+      else {
+        node.style.removeProperty("--voice-scale");
+        node.style.removeProperty("--voice-glow");
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [el, pulse, speaking, tokenAt]);
 }
 
 /** Pontos do núcleo: mais densos no centro, posições fixas (gerador com semente). */
@@ -25,10 +60,12 @@ const ticks = Array.from({ length: 72 }, (_, i) => i * 5);
 const markers = [0, 60, 120, 180, 240, 300];
 
 /** Orbe holográfico: núcleo de partículas e anéis marcados girando em sentidos opostos. */
-export function Orb({ state, size = 64 }: Props) {
+export function Orb({ state, size = 64, pulse }: Props) {
   const dots = useMemo(() => particles(140), []);
+  const el = useRef<HTMLDivElement>(null);
+  useVoicePulse(el, state, pulse);
   return (
-    <div className={`orb orb--${state}`} style={{ inlineSize: size, blockSize: size }} role="img" aria-label={`Jarvis ${labels[state]}`}>
+    <div ref={el} className={`orb orb--${state}${pulse ? " orb--voice" : ""}`} style={{ inlineSize: size, blockSize: size }} role="img" aria-label={`Jarvis ${labels[state]}`}>
       <svg viewBox="0 0 200 200" aria-hidden="true">
         <defs>
           <radialGradient id="orb-glow">

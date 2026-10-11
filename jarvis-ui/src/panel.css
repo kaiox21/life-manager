@@ -469,3 +469,438 @@
   justify-self: start;
   padding: 3px 8px;
 }
+
+/* ===================================================================================
+   Painel HUD (change jarvis-painel-hud). Maquete aprovada em 10/10/2026:
+   claude.ai/artifact/FtWvJdN6FFMtU6pnpPqCSu; referências em referencias-visuais/ (fora do git).
+   Anéis e medidores são SVG parados: só mudam quando o dado muda.
+   =================================================================================== */
+
+.painel--hud {
+  grid-template-columns: minmax(300px, 23%) minmax(0, 1fr) minmax(300px, 23%);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "top top top"
+    "tabs tabs tabs"
+    "left center right";
+  font-family: var(--hud-text);
+  font-size: 15px;
+}
+.painel--hud .painel__top {
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+}
+.painel--hud .painel__brand {
+  font-family: var(--hud-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.5em;
+  color: var(--text);
+}
+.painel__chips {
+  display: flex;
+  gap: 16px;
+  font-family: var(--hud-data);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.painel__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* colunas laterais: cartões empilhados; em tela baixa, cada um rola por dentro */
+.painel__side {
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.4vh, 18px);
+  overflow: hidden;
+}
+.painel__side--left {
+  grid-area: left;
+}
+.painel__side--right {
+  grid-area: right;
+}
+
+/* cartão de cantos chanfrados, com cantoneiras */
+.hud-card {
+  position: relative;
+  box-sizing: border-box;
+  min-block-size: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in oklch, var(--accent-2) 14%, transparent), color-mix(in oklch, var(--bg-deep) 70%, transparent));
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+.hud-card::before,
+.hud-card::after {
+  content: "";
+  position: absolute;
+  inline-size: 26px;
+  block-size: 26px;
+  pointer-events: none;
+  border: 2px solid var(--accent);
+  opacity: 0.75;
+}
+.hud-card::before {
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  border-inline-end: 0;
+  border-block-end: 0;
+}
+.hud-card::after {
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  border-inline-start: 0;
+  border-block-start: 0;
+}
+.hud-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-block-end: 8px;
+}
+.hud-card__title,
+.hud-label {
+  margin: 0;
+  font-family: var(--hud-text);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.hud-label--small {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+.hud-card__note {
+  font-family: var(--hud-data);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.hud-stack {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+/* anéis */
+.hud-ring {
+  flex: none;
+  overflow: visible;
+}
+.hud-ring__value {
+  transition: stroke-dasharray 300ms ease-out;
+}
+.hud-ring__num {
+  font-family: var(--hud-display);
+  font-weight: 700;
+  font-size: 34px;
+  fill: var(--text);
+}
+.hud-ring__num--mid {
+  font-size: 24px;
+}
+.hud-ring__num--big {
+  font-size: 40px;
+}
+.hud-ring__cap {
+  font-family: var(--hud-text);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  fill: var(--text-dim);
+}
+.hud-ring__small {
+  font-family: var(--hud-display);
+  font-weight: 700;
+  font-size: 14px;
+  fill: var(--text);
+}
+.hud-gauges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+}
+.hud-gauges li {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.painel--hud .painel__time {
+  font-family: var(--hud-display);
+  font-weight: 700;
+  font-size: clamp(28px, 2.6vw, 40px);
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+.painel__next,
+.painel__muted {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.painel__next strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.painel__money {
+  font-family: var(--hud-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text);
+}
+.painel__total {
+  margin: 10px 0 4px;
+  color: var(--text-dim);
+}
+.painel__total strong {
+  font-family: var(--hud-display);
+  color: var(--text);
+  margin-inline-start: 6px;
+}
+.painel--hud .painel__value,
+.painel--hud .painel__when {
+  font-family: var(--hud-data);
+}
+
+/* centro: orbe com os modos em volta, conversa, campo e música */
+.painel--hud .painel__center {
+  grid-area: center;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  justify-items: stretch;
+  inline-size: min(100%, 680px);
+  justify-self: center;
+}
+.painel__stage {
+  position: relative;
+  min-block-size: 0;
+  display: grid;
+  place-items: center;
+}
+.painel--hud .panel-orb {
+  max-block-size: min(46vh, 380px);
+}
+.painel__state {
+  position: absolute;
+  inset-block-end: 0;
+  margin: 0;
+  font-family: var(--hud-data);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.painel__modes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hud-mode {
+  pointer-events: auto;
+  position: absolute;
+  min-inline-size: 118px;
+  min-block-size: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in oklch, var(--bg-deep) 85%, transparent);
+  color: var(--text);
+  font-family: var(--hud-text);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.hud-mode:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--accent-2) 45%, transparent);
+  border-color: var(--accent);
+}
+.hud-mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.hud-mode:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.hud-mode--a {
+  inset-block-start: 22%;
+  inset-inline-start: 0;
+}
+.hud-mode--b {
+  inset-block-start: 22%;
+  inset-inline-end: 0;
+}
+.hud-mode--c {
+  inset-block-start: 58%;
+  inset-inline-start: 0;
+}
+
+.painel__talk {
+  max-block-size: 22vh;
+}
+.painel__tabs {
+  display: flex;
+  gap: 4px;
+  margin-block-end: 8px;
+}
+.painel__tabs button {
+  min-block-size: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--hud-text);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.painel__tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+}
+.painel__music {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.painel__music-track {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* agenda: linha do tempo com o próximo aceso */
+.hud-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 22px;
+  position: relative;
+}
+.hud-timeline::before {
+  content: "";
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 5px;
+  inline-size: 1px;
+  background: var(--line);
+}
+.hud-timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.2em 1fr;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 40px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.hud-timeline__item::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -22px;
+  inline-size: 11px;
+  block-size: 11px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+}
+.hud-timeline__item--past {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+.hud-timeline__item--next {
+  color: var(--text);
+}
+.hud-timeline__item--next::before {
+  background: var(--accent);
+  box-shadow: var(--glow);
+}
+
+/* lançador de projetos (linhas e pontos da referência) */
+.hud-launcher {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hud-launcher__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  min-block-size: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-family: var(--hud-text);
+  font-weight: 600;
+  font-size: 16px;
+  text-align: start;
+  cursor: pointer;
+}
+.hud-launcher__item:hover {
+  color: var(--glow-core);
+}
+.hud-launcher__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.hud-launcher__dot {
+  flex: none;
+  inline-size: 12px;
+  block-size: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: color-mix(in oklch, var(--accent) 25%, transparent);
+}
+.hud-launcher__line {
+  flex: none;
+  inline-size: 30px;
+  block-size: 1px;
+  background: var(--line-strong);
+}
+
+/* telas baixas: anéis menores, conversa mais curta */
+@media (max-height: 820px) {
+  .painel--hud .hud-card {
+    padding: 10px 14px;
+  }
+  .painel--hud .panel-orb {
+    max-block-size: 38vh;
+  }
+  .painel__talk {
+    max-block-size: 18vh;
+  }
+}

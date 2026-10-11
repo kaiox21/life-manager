@@ -6,10 +6,10 @@
 
 ## 2. Interface
 
-- [ ] 2.1 Fontes OFL pelos pacotes `@fontsource/orbitron`, `@fontsource/rajdhani` e `@fontsource/share-tech-mono` e tokens do tema HUD (cartão chanfrado, cantos, grade de fundo) em `theme.css`/`panel.css`
-- [ ] 2.2 Componentes `Ring` e `Gauge` (SVG, marcações memorizadas, transição só na mudança do valor); testes de componente
-- [ ] 2.3 `Panel.tsx` no layout da maquete: relógio, Mac, terminais, mês (anel da fatura + categorias + outros cartões), orbe com anéis e modos, conversa com abas Conversa/Registro, faixa da música, agenda em linha do tempo, projetos, clima; indisponível por cartão; telas baixas; testes (`Panel.test.tsx` atualizado)
-- [ ] 2.4 Orbe reagindo: `voiceLevel` (ataque/soltura), impulso por `token`, pulso sintético com `say`, sem nada com "Reduzir movimento"; em `PanelOrb` e `Orb`; interface escondida ignora `voice_level`; testes
+- [x] 2.1 Fontes OFL pelos pacotes `@fontsource/orbitron`, `@fontsource/rajdhani` e `@fontsource/share-tech-mono` e tokens do tema HUD (cartão chanfrado, cantos, grade de fundo) em `theme.css`/`panel.css`
+- [x] 2.2 Componentes `Ring` e `Gauge` (SVG, marcações memorizadas, transição só na mudança do valor); testes de componente
+- [x] 2.3 `Panel.tsx` no layout da maquete: relógio, Mac, terminais, mês (anel da fatura + categorias + outros cartões), orbe com anéis e modos, conversa com abas Conversa/Registro, faixa da música, agenda em linha do tempo, projetos, clima; indisponível por cartão; telas baixas; testes (`Panel.test.tsx` atualizado)
+- [x] 2.4 Orbe reagindo: `voiceLevel` (ataque/soltura), impulso por `token`, pulso sintético com `say`, sem nada com "Reduzir movimento"; em `PanelOrb` e `Orb`; interface escondida ignora `voice_level`; testes
 
 ## 3. Fechamento
 
