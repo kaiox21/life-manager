@@ -177,7 +177,7 @@ export function Panel() {
 
   return (
     <main className="painel painel--hud">
-      <Header now={now} link={link} label={label} musica={panel.data?.musica} />
+      <Header now={now} link={link} label={label} musica={panel.local?.musica} />
       {tabsBar}
 
       <div className="painel__side painel__side--left">
@@ -364,7 +364,7 @@ export function ClockCard({ now, panel }: { now: Date; panel: PanelState }) {
 }
 
 export function MacCard({ panel }: { panel: PanelState }) {
-  const mac = panel.data?.mac;
+  const mac = panel.local?.mac;
   const items = [
     {
       label: "Memória livre",
@@ -390,7 +390,7 @@ export function MacCard({ panel }: { panel: PanelState }) {
   ];
   return (
     <HudCard title="Sistema" className="painel__mac">
-      {panel.data && !mac ? (
+      {panel.local && !mac ? (
         <p className="painel__empty">Dados do Mac indisponíveis.</p>
       ) : (
         <ul className="hud-gauges">
@@ -599,11 +599,11 @@ export function Agenda({ panel, now = new Date() }: { panel: PanelState; now?: D
 }
 
 export function Projects({ panel, onOpen }: { panel: PanelState; onOpen: (caminho: string) => void }) {
-  const items = panel.data?.projetos ?? [];
+  const items = panel.local?.projetos ?? [];
   return (
     <HudCard title="Projetos" className="painel__projects">
       {items.length === 0 ? (
-        <p className="painel__empty">{panel.data ? "Nenhuma pasta de projeto." : "carregando…"}</p>
+        <p className="painel__empty">{panel.local ? "Nenhuma pasta de projeto." : "carregando…"}</p>
       ) : (
         <ul className="hud-launcher">
           {items.map((p) => (
@@ -622,11 +622,11 @@ export function Projects({ panel, onOpen }: { panel: PanelState; onOpen: (caminh
 }
 
 export function Weather({ panel }: { panel: PanelState }) {
-  const c = panel.data?.clima;
+  const c = panel.local?.clima;
   return (
     <HudCard title={`Clima${c ? ` · ${c.cidade}` : ""}`} note="open-meteo" className="painel__weather">
       {!c ? (
-        <p className="painel__empty">{panel.data ? "Clima indisponível." : "carregando…"}</p>
+        <p className="painel__empty">{panel.local ? "Clima indisponível." : "carregando…"}</p>
       ) : (
         <div className="hud-row">
           <Gauge value={c.agora} min={0} max={40} size={150} label={`${Math.round(c.agora)} graus agora`}>
@@ -647,7 +647,7 @@ export function Weather({ panel }: { panel: PanelState }) {
 }
 
 function MusicStrip({ panel }: { panel: PanelState }) {
-  const m = panel.data?.musica;
+  const m = panel.local?.musica;
   if (!m) return null;
   return (
     <p className="painel__music">

@@ -119,4 +119,24 @@ describe("cartões do painel HUD", () => {
     fireEvent.click(screen.getByRole("button", { name: /life-manager/ }));
     expect(onOpen).toHaveBeenCalledWith("/Users/k/Projetos pessoais/life-manager");
   });
+
+  it("núcleo fora: clima e Mac aparecem, agenda avisa", () => {
+    const down = applyPanel(EMPTY_PANEL, {
+      erro: "núcleo indisponível",
+      clima: { agora: 28, max: 32, min: 20, chuva: 0, cidade: "Brasília" },
+      mac: { memoria_livre: 34, swap_gb: 18.7, bateria: { pct: 27, carregando: false } },
+      musica: null,
+      projetos: [],
+    }, Date.now());
+    render(
+      <>
+        <Weather panel={down} />
+        <MacCard panel={down} />
+        <Agenda panel={down} />
+      </>,
+    );
+    expect(screen.getByText("28°")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Memória livre: 34%" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("núcleo indisponível");
+  });
 });

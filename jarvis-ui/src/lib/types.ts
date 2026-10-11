@@ -37,7 +37,7 @@ export type ServerEvent =
   | { type: "speaking"; id: string; data: { on: boolean } }
   | { type: "voice_level"; id: string; data: { n: number } }
   | { type: "done"; id: string; text: string; data?: { wrote?: boolean } }
-  | { type: "panel"; id: string; data: PanelData | { erro: string } }
+  | { type: "panel"; id: string; data: PanelData | ({ erro: string } & Partial<PanelData>) }
   | { type: "terminals"; id: string; data: { terminais: TerminalInfo[] } }
   | { type: "terminal_alert"; id: string; data: TerminalAlert }
   | { type: "terminal_opened"; id: string; data: TerminalOpened }

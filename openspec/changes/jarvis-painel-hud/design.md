@@ -85,3 +85,10 @@
 ## Open Questions
 
 - Nenhuma.
+
+## Registro da implementação (11/10/2026)
+
+- **Núcleo fora derrubava o cérebro inteiro.** O cérebro vivia dentro de `CoreClient.connect`: sem o Docker ele não subia, e quando o Docker parava, a sessão MCP (grupo de tarefas) levava o processo junto. O painel ficava todo "cérebro indisponível", contra a spec ("Núcleo indisponível": abre assim mesmo). Agora `ResilientCore` mantém a sessão numa tarefa própria e tenta de novo a cada 10 s. As chamadas levantam `CoreUnavailable`. As perguntas seguem só com as ferramentas do Mac, e o painel manda `{"erro", clima, mac, musica, projetos}`: a interface guarda os dados locais à parte (`PanelState.local`).
+- **Cérebro órfão.** O launchd rodava `uv run python -m jarvis`. No `kickstart -k`, ele matava o `uv`, e o python ficava órfão (pai = launchd), com 1,4 GB, ao lado do novo. Agora o plist chama `.venv/bin/python -m jarvis` direto. O `__main__` sai com `os._exit(0)` depois de parar (threads de transcrição seguravam a saída) e limita o encerramento das abas a 5 s.
+- **Cartão do Mac sumia** espremido pela lista de terminais na coluna: os cartões de tamanho fixo têm `flex: none`, e os de lista rolam por dentro.
+- **Dados reais na primeira leitura:** 34% de memória livre, 18,7 GB de swap e bateria em 27%. O Docker reservava 8,2 GB para uma VM cujos containers usavam ~1,3 GB.

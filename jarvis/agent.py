@@ -115,6 +115,13 @@ def _label(name: str, args: dict[str, Any]) -> str:
     return STEP_LABELS.get(name, f"usando {name}…")
 
 
+NO_CORE = (
+    "\n\nO núcleo (agenda, gastos, faturas) está indisponível agora. Para pedidos sobre isso, "
+    "diga em uma frase que o núcleo está fora do ar; o resto (apps, música, terminais, timer) "
+    "funciona normalmente."
+)
+
+
 @dataclass
 class _Turn:
     rid: str
@@ -362,8 +369,12 @@ class JarvisBrain:
         self._turn = turn
         self._local.set_confirm(lambda msg: self._ask_user(rid, emit, msg))
         await emit(events.step(rid, "lendo o contexto…"))
-        ctx = await self._core.call("contexto", {})
-        system = PERSONA + (ctx.data if isinstance(ctx.data, str) else json.dumps(ctx.data))
+        try:
+            ctx = await self._core.call("contexto", {})
+            system = PERSONA + (ctx.data if isinstance(ctx.data, str) else json.dumps(ctx.data))
+        except Exception:  # núcleo fora: segue com as ferramentas do Mac (sem agenda e gastos)
+            log.warning("pergunta sem o núcleo (indisponível)")
+            system = PERSONA + NO_CORE
         if mode == "voz":
             system += VOICE_RULES
         tools = [
@@ -392,15 +403,19 @@ class JarvisBrain:
     # --- painel
 
     async def panel(self, rid: str, emit: Emit) -> None:
-        """Dados do painel direto do núcleo, sem o modelo (nenhum token)."""
+        """Dados do painel direto do núcleo, sem o modelo (nenhum token). Núcleo fora: o aviso vai
+        junto dos dados locais (clima, Mac, música, projetos), que não dependem dele."""
         try:
             result = await self._core.call("painel", {})
+            ok = result.ok and isinstance(result.data, dict)
         except Exception:
-            log.exception("painel: núcleo indisponível")
-            await emit(events.panel(rid, {"erro": "núcleo indisponível"}))
-            return
-        if not result.ok or not isinstance(result.data, dict):
-            await emit(events.panel(rid, {"erro": "núcleo indisponível"}))
+            log.warning("painel: núcleo indisponível")
+            ok = False
+        if not ok:
+            down: dict[str, Any] = {"erro": "núcleo indisponível"}
+            if self.panel_extras is not None:
+                down |= await self.panel_extras(None)
+            await emit(events.panel(rid, down))
             return
         questions = [m["content"] for m in self._history if m["role"] == "user"]
         data = {**result.data, "perguntas": questions[-PANEL_QUESTIONS:]}

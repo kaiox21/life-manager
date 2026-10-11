@@ -8,9 +8,18 @@ export interface PanelState {
   /** Momento (ms) da última atualização bem-sucedida. */
   updatedAt: number | null;
   loading: boolean;
+  /** Dados locais do cérebro (clima, Mac, música, projetos): chegam mesmo com o núcleo fora. */
+  local?: LocalData;
 }
 
+export type LocalData = Pick<PanelData, "clima" | "mac" | "musica" | "projetos">;
+
 export const EMPTY_PANEL: PanelState = { data: null, error: "", updatedAt: null, loading: false };
+
+function localOf(payload: Partial<PanelData>): LocalData | undefined {
+  if (!("clima" in payload || "mac" in payload || "musica" in payload || "projetos" in payload)) return undefined;
+  return { clima: payload.clima, mac: payload.mac, musica: payload.musica, projetos: payload.projetos };
+}
 export const PANEL_REFRESH_MS = 60_000;
 
 export function panelLoading(state: PanelState): PanelState {
@@ -18,9 +27,14 @@ export function panelLoading(state: PanelState): PanelState {
 }
 
 /** Resposta do cérebro: dados novos ou erro (mantendo os antigos marcados como antigos). */
-export function applyPanel(state: PanelState, payload: PanelData | { erro: string }, now: number): PanelState {
-  if ("erro" in payload) return { ...state, error: payload.erro, loading: false };
-  return { data: payload, error: "", updatedAt: now, loading: false };
+export function applyPanel(
+  state: PanelState,
+  payload: PanelData | ({ erro: string } & Partial<PanelData>),
+  now: number,
+): PanelState {
+  const local = localOf(payload) ?? state.local;
+  if ("erro" in payload) return { ...state, error: payload.erro, loading: false, local };
+  return { data: payload, error: "", updatedAt: now, loading: false, local };
 }
 
 export function panelFailed(state: PanelState, error: string): PanelState {

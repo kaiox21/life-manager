@@ -31,7 +31,7 @@ from jarvis.agent import FILLERS, JarvisBrain
 from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
 from jarvis.control import TerminalControl
 from jarvis.local_tools import LocalTools, load_config
-from jarvis.mcp_client import CoreClient
+from jarvis.mcp_client import ResilientCore
 from jarvis.panel_extras import PanelExtras
 from jarvis.permissions import HookServer, Permissions
 from jarvis.server import JarvisServer
@@ -125,81 +125,82 @@ async def main() -> None:
     if spotify is None:
         log.info("Spotify sem SPOTIFY_CLIENT_ID: só tocar/pausar/próxima/anterior")
 
-    async with CoreClient.connect(url, s.mcp_token.get_secret_value()) as core:
-        brain = JarvisBrain(
-            llm,
-            core,
-            LocalTools(
-                config=config,
-                terminals=terminals.snapshot,
-                control=control,
-                spotify=spotify,
-                ducker=ducker,
-            ),
-            primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
-            escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
-            transcriber=transcriber,
-            vad=vad,
-            filler=env("JARVIS_FILLER", "true").lower() != "false",
-        )
-        brain.speaker = make_speaker(
-            brain.on_speech_event,
-            voice=env("JARVIS_VOICE", "Luciana"),
-            rate=float(env("JARVIS_VOICE_RATE", "0.52")),
-            fish_key=env("FISH_API_KEY", ""),
-            fish_voice=env("FISH_VOICE_ID", ""),
-            fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
-        )
-        brain.speaker.prefetch(FILLERS)
-        brain.weather_place = (
-            float(env("JARVIS_CLIMA_LAT", "-15.79")),
-            float(env("JARVIS_CLIMA_LON", "-47.88")),
-            env("JARVIS_CLIMA_NOME", "Brasília"),
-        )
-        brain.pending_permissions = permissions.pending_count
-        brain.ducker = ducker
-        server = JarvisServer(brain)
-        brain.panel_extras = PanelExtras(
-            run_command, folders, load_config, lambda: brain.weather_place
-        )
-        level_tasks: set[asyncio.Task[None]] = set()
+    # o núcleo pode estar fora (Docker parado): o cérebro sobe assim mesmo e reconecta sozinho
+    core = ResilientCore(url, s.mcp_token.get_secret_value())
+    core_task = asyncio.create_task(core.run())
+    core_task.add_done_callback(_log_task_error)
+    brain = JarvisBrain(
+        llm,
+        core,
+        LocalTools(
+            config=config,
+            terminals=terminals.snapshot,
+            control=control,
+            spotify=spotify,
+            ducker=ducker,
+        ),
+        primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
+        escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
+        transcriber=transcriber,
+        vad=vad,
+        filler=env("JARVIS_FILLER", "true").lower() != "false",
+    )
+    brain.speaker = make_speaker(
+        brain.on_speech_event,
+        voice=env("JARVIS_VOICE", "Luciana"),
+        rate=float(env("JARVIS_VOICE_RATE", "0.52")),
+        fish_key=env("FISH_API_KEY", ""),
+        fish_voice=env("FISH_VOICE_ID", ""),
+        fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
+    )
+    brain.speaker.prefetch(FILLERS)
+    brain.weather_place = (
+        float(env("JARVIS_CLIMA_LAT", "-15.79")),
+        float(env("JARVIS_CLIMA_LON", "-47.88")),
+        env("JARVIS_CLIMA_NOME", "Brasília"),
+    )
+    brain.pending_permissions = permissions.pending_count
+    brain.ducker = ducker
+    server = JarvisServer(brain)
+    brain.panel_extras = PanelExtras(run_command, folders, load_config, lambda: brain.weather_place)
+    level_tasks: set[asyncio.Task[None]] = set()
 
-        def voice_level(n: float) -> None:  # orbe pulsando com a voz, em todas as interfaces
-            task = asyncio.create_task(server.broadcast_ui(events.voice_level(n)))
-            level_tasks.add(task)
-            task.add_done_callback(level_tasks.discard)
+    def voice_level(n: float) -> None:  # orbe pulsando com a voz, em todas as interfaces
+        task = asyncio.create_task(server.broadcast_ui(events.voice_level(n)))
+        level_tasks.add(task)
+        task.add_done_callback(level_tasks.discard)
 
-        brain.speaker.set_on_level(voice_level)
-        server.control = control
-        control.broadcast = server.broadcast
-        server.greeting = lambda: [events.terminals(terminals.snapshot())]
-        if present():
-            words = tuple(w.strip() for w in env("JARVIS_WAKE_PALAVRAS").split(",") if w.strip())
-            threshold = float(env("JARVIS_WAKE_LIMIAR", "0.2"))
-            score = float(env("JARVIS_WAKE_PESO", "1.5"))
-            server.wake = WakeService(
-                brain,
-                lambda: SherpaSpotter(model_dir(), words or WORDS, threshold, score),
-                Vad,
-                server.broadcast,
-                server.broadcast_ui,
-            )
-        else:
-            log.warning("sem o modelo da palavra 'Jarvis' (python3 jarvis/wake_model.py)")
-        await control.refresh()
-        watcher = asyncio.create_task(watch_terminals(terminals, server, control))
-        watcher.add_done_callback(_log_task_error)
-        hooks = HookServer(server.check_token, control.on_hook)
-        async with (
-            hooks.run() as hook_port,
-            server.run(port=int(env("JARVIS_PORT", "0")), extra={"hook_port": hook_port}),
-        ):
-            try:
-                await stop.wait()
-            finally:
-                log.info("parando: encerrando as abas de terminal")
-                with contextlib.suppress(Exception):
-                    await asyncio.wait_for(control.shutdown(), 5)
+    brain.speaker.set_on_level(voice_level)
+    server.control = control
+    control.broadcast = server.broadcast
+    server.greeting = lambda: [events.terminals(terminals.snapshot())]
+    if present():
+        words = tuple(w.strip() for w in env("JARVIS_WAKE_PALAVRAS").split(",") if w.strip())
+        threshold = float(env("JARVIS_WAKE_LIMIAR", "0.2"))
+        score = float(env("JARVIS_WAKE_PESO", "1.5"))
+        server.wake = WakeService(
+            brain,
+            lambda: SherpaSpotter(model_dir(), words or WORDS, threshold, score),
+            Vad,
+            server.broadcast,
+            server.broadcast_ui,
+        )
+    else:
+        log.warning("sem o modelo da palavra 'Jarvis' (python3 jarvis/wake_model.py)")
+    await control.refresh()
+    watcher = asyncio.create_task(watch_terminals(terminals, server, control))
+    watcher.add_done_callback(_log_task_error)
+    hooks = HookServer(server.check_token, control.on_hook)
+    async with (
+        hooks.run() as hook_port,
+        server.run(port=int(env("JARVIS_PORT", "0")), extra={"hook_port": hook_port}),
+    ):
+        try:
+            await stop.wait()
+        finally:
+            log.info("parando: encerrando as abas de terminal")
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(control.shutdown(), 5)
 
 
 if __name__ == "__main__":

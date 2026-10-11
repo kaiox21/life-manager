@@ -4,6 +4,8 @@
 - [x] 1.2 `jarvis/panel_extras.py`: clima (cache 10 min), Mac (`kern.memorystatus_level`, `vm.swapusage`, `pmset -g batt`), Spotify (AppleScript só se aberto, 2 s), projetos (`config.json` `"projetos"` conferidos por `Folders.allowed`, senão as 6 subpastas mais recentes das raízes), dias até fechar por cartão; cada parte falha para `null`; junto do `panel`; testes com executores falsos
 - [x] 1.3 Mensagens `briefing` e `local` (só `musica_tocar_pausar`) no servidor e abrir terminal por pasta pelo lançador; testes
 
+- [x] 1.4 Núcleo fora não derruba o Jarvis (achado no aceite de 11/10/2026): conexão MCP própria que se refaz a cada 10 s (`ResilientCore`), pergunta sem o núcleo só com as ferramentas do Mac, painel com o aviso e os dados locais; serviço do launchd com o python direto (sem cérebro órfão ao reiniciar); testes
+
 ## 2. Interface
 
 - [x] 2.1 Fontes OFL pelos pacotes `@fontsource/orbitron`, `@fontsource/rajdhani` e `@fontsource/share-tech-mono` e tokens do tema HUD (cartão chanfrado, cantos, grade de fundo) em `theme.css`/`panel.css`
