@@ -13,6 +13,6 @@
 
 ## 3. Fechamento
 
-- [ ] 3.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `npx vitest run`, `openspec validate --all --strict`, `npm run tauri build -- --bundles app`, `bash jarvis/install_mac.sh`
+- [x] 3.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `npx vitest run`, `openspec validate --all --strict`, `npm run tauri build -- --bundles app`, `bash jarvis/install_mac.sh`
 - [ ] 3.2 Aceite real com o Kaio: painel igual à maquete com dados reais no MacBook e num monitor externo; orbe pulsando com a voz (pergunta falada) e acelerando com texto (pergunta digitada); botões Resumo, Música, Terminais e um projeto; sem internet (clima indisponível); "Reduzir movimento" ligado; CPU do painel parado e falando anotada (Monitor de Atividade, app + WebKit)
 - [ ] 3.3 `SPEC.md` (Jarvis: visual HUD, orbe ligado à voz) e `/opsx:archive`
