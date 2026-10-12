@@ -7,7 +7,9 @@ Copia os scripts para um lugar fixo (fora do repositório), faz backup do settin
 mexe nas entradas do Jarvis, reconhecidas pelo nome do script:
 - claude_event.py: anota os eventos (assíncrono; jarvis-terminais);
 - claude_permission.py: Permitir/Negar pelo Jarvis nos terminais compartilhados (síncrono,
-  600 s; sai na hora fora do tmux do Jarvis; jarvis-terminais-controle).
+  600 s; sai na hora fora do tmux do Jarvis; jarvis-terminais-controle);
+- claude_statusline.py: barra de status com os limites de uso (5 h, semana, contexto), que
+  também vão para o painel. Só entra se não houver outra barra configurada.
 """
 
 import json
@@ -20,6 +22,7 @@ SETTINGS = HOME / ".claude/settings.json"
 HOOK_DIR = HOME / "Library/Application Support/Jarvis/hooks"
 SCRIPT_NAME = "claude_event.py"
 PERMISSION_SCRIPT = "claude_permission.py"
+STATUSLINE_SCRIPT = "claude_statusline.py"
 MARKS = ("/" + SCRIPT_NAME + '"', "/" + PERMISSION_SCRIPT + '"')  # comandos do Jarvis
 PERMISSION_TIMEOUT = 600
 PYTHON = "/usr/bin/python3"
@@ -87,6 +90,29 @@ def add_ours(settings, script, permission_script=None):
     return settings
 
 
+def is_our_statusline(settings):
+    cmd = str((settings.get("statusLine") or {}).get("command", ""))
+    return "/" + STATUSLINE_SCRIPT + '"' in cmd
+
+
+def add_statusline(settings, script):
+    """Barra de status do Jarvis, sem tomar o lugar de uma barra que o Kaio já tenha."""
+    if settings.get("statusLine") and not is_our_statusline(settings):
+        return settings
+    settings["statusLine"] = {
+        "type": "command",
+        "command": f'{PYTHON} "{script}" 2>/dev/null || true',
+        "padding": 0,
+    }
+    return settings
+
+
+def remove_statusline(settings):
+    if is_our_statusline(settings):
+        del settings["statusLine"]
+    return settings
+
+
 def load(path):
     if not path.exists():
         return {}
@@ -110,14 +136,17 @@ def install(settings_path=SETTINGS, hook_dir=HOOK_DIR, source=None, permission_s
     shutil.copy2(source, script)
     permission_script = hook_dir / PERMISSION_SCRIPT
     shutil.copy2(permission_source, permission_script)
+    statusline = hook_dir / STATUSLINE_SCRIPT
+    shutil.copy2(Path(__file__).with_name(STATUSLINE_SCRIPT), statusline)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    save(settings_path, add_ours(load(settings_path), script, permission_script))
+    settings = add_ours(load(settings_path), script, permission_script)
+    save(settings_path, add_statusline(settings, statusline))
     return script
 
 
 def uninstall(settings_path=SETTINGS):
     if settings_path.exists():
-        save(settings_path, remove_ours(load(settings_path)))
+        save(settings_path, remove_statusline(remove_ours(load(settings_path))))
 
 
 def main(argv):

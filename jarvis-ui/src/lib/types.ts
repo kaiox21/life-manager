@@ -104,6 +104,20 @@ export interface PanelData {
   } | null;
   musica?: { faixa: string; artista: string; tocando: boolean } | null;
   projetos?: { nome: string; caminho: string }[];
+  // limites do Claude Code, gravados pela barra de status (jarvis/hooks/claude_statusline.py)
+  claude?: ClaudeLimits | null;
+}
+
+export interface ClaudeWindow {
+  pct: number;
+  resets_at: number | null; // epoch (s)
+}
+
+export interface ClaudeLimits {
+  cinco_horas: ClaudeWindow | null;
+  semana: ClaudeWindow | null;
+  atualizado: number | null; // epoch (s)
+  sessoes: Record<string, { contexto: number; pasta: string; em: number }>;
 }
 
 // Terminais (jarvis/terminals.py): sessões do Claude Code e terminais compartilhados (tmux).

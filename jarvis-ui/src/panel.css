@@ -896,8 +896,18 @@
    lista de terminais espremia o cartão do Mac até sumir) */
 .painel__clock,
 .painel__mac,
-.painel__weather {
+.painel__weather,
+.painel__claude {
   flex: none;
+}
+.hud-gauges--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.painel__reset {
+  font-size: 12px;
+}
+.terms__ctx {
+  color: var(--text-dim);
 }
 .painel__terms,
 .painel__month,

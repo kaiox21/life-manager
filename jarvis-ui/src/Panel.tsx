@@ -12,7 +12,7 @@ import { TerminalList } from "./components/Cards";
 import { AlertBar } from "./components/AlertBar";
 import { CENTRAL, TerminalTabs } from "./components/TerminalTabs";
 import { TerminalView } from "./components/TerminalView";
-import { PANEL_REFRESH_MS, barShare, dayShort, hhmm, isPast, nextEvent, whenShort, type PanelState } from "./lib/panel";
+import { PANEL_REFRESH_MS, barShare, dayShort, hhmm, isPast, nextEvent, resetsIn, whenShort, type PanelState } from "./lib/panel";
 import type { PanelData, Turn } from "./lib/types";
 import { useJarvis } from "./lib/useJarvis";
 
@@ -186,6 +186,7 @@ export function Panel() {
         <HudCard title="Terminais" className="painel__terms">
           <TerminalList
             items={j.terminals}
+            contexts={panel.local?.claude?.sessoes}
             onOpenTab={(sessao) => {
               j.setTab(sessao, true);
               setView(sessao);
@@ -255,6 +256,7 @@ export function Panel() {
 
       <div className="painel__side painel__side--right">
         <Agenda panel={panel} now={now} />
+        <ClaudeCard panel={panel} now={now} />
         <Projects panel={panel} onOpen={(c) => void openProject(c)} />
         <Weather panel={panel} />
       </div>
@@ -660,5 +662,46 @@ function MusicStrip({ panel }: { panel: PanelState }) {
       <span className="painel__muted">· {m.artista}</span>
       {!m.tocando && <span className="painel__muted">(pausado)</span>}
     </p>
+  );
+}
+
+/** Limites do Claude Code (janela de 5 h e semana), lidos da barra de status. */
+export function ClaudeCard({ panel, now = new Date() }: { panel: PanelState; now?: Date }) {
+  const c = panel.local?.claude;
+  const windows = [
+    { key: "5 horas", w: c?.cinco_horas },
+    { key: "Semana", w: c?.semana },
+  ];
+  const color = (pct: number) => (pct >= 80 ? "var(--danger)" : pct >= 60 ? "oklch(0.85 0.14 85)" : "var(--accent)");
+  return (
+    <HudCard
+      title="Claude Code"
+      note={c?.atualizado ? `lido ${hhmm(c.atualizado * 1000)}` : undefined}
+      className="painel__claude"
+    >
+      {!c ? (
+        <p className="painel__empty">{panel.local ? "Sem dados: abra uma sessão do Claude Code." : "carregando…"}</p>
+      ) : (
+        <ul className="hud-gauges hud-gauges--two">
+          {windows.map(({ key, w }) => (
+            <li key={key}>
+              <Ring
+                value={w ? w.pct / 100 : 0}
+                size={84}
+                stroke={7}
+                color={w ? color(w.pct) : "var(--track)"}
+                label={`Limite de ${key.toLowerCase()}: ${w ? `${Math.round(w.pct)}% usado` : "sem dado"}`}
+              >
+                <text x="42" y="47" textAnchor="middle" className="hud-ring__small">
+                  {w ? `${Math.round(w.pct)}%` : "—"}
+                </text>
+              </Ring>
+              <span className="hud-label hud-label--small">{key.toUpperCase()}</span>
+              <span className="painel__muted painel__reset">{w ? resetsIn(w.resets_at, now.getTime()) : "zerou"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </HudCard>
   );
 }

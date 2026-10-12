@@ -161,7 +161,16 @@ function TextCard({ card }: { card: Extract<Card, { kind: "texto" }> }) {
 }
 
 /** Lista de terminais (cartão e painel). Terminais compartilhados sem aba ganham "abrir aba". */
-export function TerminalList({ items, onOpenTab }: { items: TerminalInfo[]; onOpenTab?: (sessao: string) => void }) {
+export function TerminalList({
+  items,
+  onOpenTab,
+  contexts,
+}: {
+  items: TerminalInfo[];
+  onOpenTab?: (sessao: string) => void;
+  /** % de contexto usado por sessão do Claude Code (barra de status). */
+  contexts?: Record<string, { contexto: number }>;
+}) {
   if (items.length === 0) return <p className="card__empty">Nenhum terminal aberto.</p>;
   return (
     <ul className="terms">
@@ -175,6 +184,7 @@ export function TerminalList({ items, onOpenTab }: { items: TerminalInfo[]; onOp
           <span className="terms__state">
             {t.tmux ? (t.tipo === "claude" ? "Claude Code · " : "terminal · ") : ""}
             {t.estado}
+            {contexts?.[t.sessao] && <small className="terms__ctx"> · contexto {Math.round(contexts[t.sessao].contexto)}%</small>}
           </span>
           {onOpenTab && t.tmux && !t.aba && (
             <button type="button" className="terms__open btn btn--ghost" onClick={() => onOpenTab(t.tmux!)}>

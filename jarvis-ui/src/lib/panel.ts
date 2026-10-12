@@ -12,13 +12,14 @@ export interface PanelState {
   local?: LocalData;
 }
 
-export type LocalData = Pick<PanelData, "clima" | "mac" | "musica" | "projetos">;
+export type LocalData = Pick<PanelData, "clima" | "mac" | "musica" | "projetos" | "claude">;
 
 export const EMPTY_PANEL: PanelState = { data: null, error: "", updatedAt: null, loading: false };
 
 function localOf(payload: Partial<PanelData>): LocalData | undefined {
-  if (!("clima" in payload || "mac" in payload || "musica" in payload || "projetos" in payload)) return undefined;
-  return { clima: payload.clima, mac: payload.mac, musica: payload.musica, projetos: payload.projetos };
+  const keys = ["clima", "mac", "musica", "projetos", "claude"];
+  if (!keys.some((k) => k in payload)) return undefined;
+  return { clima: payload.clima, mac: payload.mac, musica: payload.musica, projetos: payload.projetos, claude: payload.claude };
 }
 export const PANEL_REFRESH_MS = 60_000;
 
@@ -73,4 +74,13 @@ export function isPast(e: PanelEvent, now: Date): boolean {
 /** O próximo compromisso de hoje (o primeiro que não passou, inclusive o de dia inteiro). */
 export function nextEvent(hoje: PanelEvent[], now: Date): PanelEvent | null {
   return hoje.find((e) => !isPast(e, now)) ?? null;
+}
+
+/** "zera em 2h10" / "zera em 3 dias" a partir do epoch (s) de reinício da janela. */
+export function resetsIn(epoch: number | null, now: number = Date.now()): string {
+  if (!epoch) return "";
+  const min = Math.max(0, Math.round((epoch * 1000 - now) / 60000));
+  if (min < 60) return `zera em ${min} min`;
+  if (min < 48 * 60) return `zera em ${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
+  return `zera em ${Math.round(min / 1440)} dias`;
 }

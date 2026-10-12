@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import calendar
+import json
 import logging
 import re
 import time
@@ -20,6 +21,7 @@ from jarvis.sessions import Folders
 log = logging.getLogger(__name__)
 
 WEATHER_TTL = 600.0
+CLAUDE_LIMITS = Path.home() / "Library/Application Support/Jarvis/claude_limits.json"
 MAX_PROJECTS = 6
 TIMEOUT = 2.0
 
@@ -59,6 +61,27 @@ def parse_battery(text: str) -> dict[str, Any] | None:
         "pct": int(m.group(1)),
         "carregando": state in ("charging", "charged", "finishing charge"),
     }
+
+
+def claude_limits(path: Path = CLAUDE_LIMITS, now: float | None = None) -> dict[str, Any] | None:
+    """Limites do Claude Code gravados pela barra de status (jarvis/hooks/claude_statusline.py):
+    janela de 5 h e semana (%, quando zera) e contexto por sessão. Janela que já zerou some."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    now = time.time() if now is None else now
+    out: dict[str, Any] = {
+        "atualizado": data.get("atualizado"),
+        "sessoes": data.get("sessoes") or {},
+    }
+    for key in ("cinco_horas", "semana"):
+        w = data.get(key)
+        if isinstance(w, dict) and not (w.get("resets_at") and w["resets_at"] < now):
+            out[key] = w
+        else:
+            out[key] = None
+    return out
 
 
 def _br_date(text: Any) -> date | None:
@@ -104,7 +127,9 @@ class PanelExtras:
         fetch: Callable[[float, float], Awaitable[Weather | None]] = fetch_weather,
         clock: Callable[[], float] = time.monotonic,
         today: Callable[[], date] = date.today,
+        limits: Path = CLAUDE_LIMITS,
     ) -> None:
+        self._limits = limits
         self._run = run
         self._folders = folders
         self._config = config
@@ -123,6 +148,7 @@ class PanelExtras:
             "mac": mac,
             "musica": musica,
             "projetos": self.projects(),
+            "claude": claude_limits(self._limits),
         }
         if faturas is not None:
             out["faturas"] = bill_days(faturas, self._today())

@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE } from "./lib/panel.sample";
 import { EMPTY_PANEL, applyPanel, nextEvent, type PanelState } from "./lib/panel";
-import { Agenda, ClockCard, Conversation, Log, MacCard, Month, Projects, Weather } from "./Panel";
+import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, Projects, Weather } from "./Panel";
+import { resetsIn } from "./lib/panel";
 import type { PanelData } from "./lib/types";
 
 const ok = (data: PanelData = SAMPLE): PanelState =>
@@ -138,5 +139,30 @@ describe("cartões do painel HUD", () => {
     expect(screen.getByText("28°")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Memória livre: 34%" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("núcleo indisponível");
+  });
+
+  it("limites do Claude Code: 5 horas e semana, com quando zeram", () => {
+    const now = new Date("2026-10-12T10:00:00-03:00");
+    const t = now.getTime() / 1000;
+    const panel = applyPanel(EMPTY_PANEL, {
+      erro: "núcleo indisponível",
+      claude: {
+        cinco_horas: { pct: 82.4, resets_at: t + 2 * 3600 + 600 },
+        semana: null,
+        atualizado: t - 60,
+        sessoes: {},
+      },
+    }, Date.now());
+    render(<ClaudeCard panel={panel} now={now} />);
+    expect(screen.getByRole("img", { name: "Limite de 5 horas: 82% usado" })).toBeTruthy();
+    expect(screen.getByText("zera em 2h10")).toBeTruthy();
+    expect(screen.getByText("zerou")).toBeTruthy();
+    expect(resetsIn(t + 3 * 86400, now.getTime())).toBe("zera em 3 dias");
+  });
+
+  it("sem barra de status ainda: explica como aparecer", () => {
+    const panel = applyPanel(EMPTY_PANEL, { erro: "x", claude: null }, Date.now());
+    render(<ClaudeCard panel={panel} />);
+    expect(screen.getByText("Sem dados: abra uma sessão do Claude Code.")).toBeTruthy();
   });
 });
