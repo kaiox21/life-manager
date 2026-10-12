@@ -9,6 +9,7 @@ imprime uma linha curta ("5h 23% · semana 41% · contexto 8%") e grava os núme
 Roda com o /usr/bin/python3 do macOS (3.9): só biblioteca padrão. Nunca falha para fora.
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -83,15 +84,11 @@ def main(stdin=sys.stdin, path=OUT, now=None):
             previous = json.load(f)
     except (OSError, ValueError):
         previous = {}
-    try:
+    with contextlib.suppress(OSError):  # sem gravar, a barra continua aparecendo
         save(path, merge(previous, data, now if now is not None else time.time()))
-    except OSError:
-        pass
     print(line(data))
 
 
 if __name__ == "__main__":
-    try:
+    with contextlib.suppress(Exception):  # a barra nunca pode quebrar o Claude Code
         main()
-    except Exception:  # a barra nunca pode quebrar o Claude Code
-        pass
