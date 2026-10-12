@@ -453,3 +453,64 @@ async def test_cerebro_segura_a_musica_baixa_ao_ouvir_pensar_e_falar():
         ("turno", False),
         ("palavra", False),
     ]
+
+
+# --- captação (12/10/2026): ganho automático e VAD contínuo
+
+
+def test_ganho_leva_voz_baixa_ao_nivel_de_trabalho_e_nao_mexe_em_voz_alta():
+    from jarvis.wake import Gain
+
+    g = Gain()
+    quiet = np.full(BLOCK, 0.02, np.float32)
+    out = [g(quiet) for _ in range(40)][-1]
+    assert 0.08 < float(np.sqrt(np.mean(out * out))) < 0.12  # ~5x
+    g = Gain()
+    loud = np.full(BLOCK, 0.3, np.float32)
+    assert np.array_equal(g(loud), loud)  # alto: ganho 1
+    g = Gain()
+    silence = np.zeros(BLOCK, np.float32)
+    assert np.array_equal(g(silence), silence)
+
+
+def test_vad_recebe_todo_o_audio_em_ordem():
+    from jarvis.audio import Vad
+
+    calls = []
+
+    class FakeSilero:
+        def chunk_samples(self):
+            return 512
+
+        def __call__(self, raw):
+            calls.append(len(raw) // 2)
+            return 0.9  # "fala" em todo pedaço: antes, o laço parava no primeiro
+
+    vad = Vad.__new__(Vad)
+    vad._vad, vad._chunk, vad._threshold = FakeSilero(), 512, 0.5
+    vad._carry = np.zeros(0, np.int16)
+    for _ in range(10):  # 1 s em blocos de 100 ms
+        assert vad.is_speech(np.zeros(BLOCK, np.float32))
+    assert sum(calls) == 16000 // 512 * 512 and len(calls) == 31  # nada pulado, sobra guardada
+
+
+@pytest.mark.skipif(
+    not present() or shutil.which("say") is None, reason="sem o modelo ou sem o say"
+)
+def test_modelo_real_acha_jarvis_em_voz_baixa(tmp_path):
+    from jarvis.audio import Vad
+    from jarvis.wake import SherpaSpotter
+
+    got = {"wake": 0}
+    li = WakeListener(
+        SherpaSpotter(model_dir()),
+        Vad(),
+        on_wake=lambda: got.__setitem__("wake", got["wake"] + 1),
+        on_request=lambda a: None,
+        on_nothing=lambda: None,
+    )
+    voice = np.frombuffer(say(tmp_path, "Jarvis, abre o Spotify", "baixo"), np.int16)
+    quiet = (voice.astype(np.float32) / 25).astype(np.int16)  # pico ~1/25: falando longe
+    sil = np.zeros(16000, np.int16)
+    li.feed(np.concatenate([sil, sil, quiet, sil, sil]).tobytes())
+    assert got["wake"] == 1

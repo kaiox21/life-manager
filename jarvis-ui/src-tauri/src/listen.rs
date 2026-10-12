@@ -16,6 +16,12 @@ use tungstenite::{stream::MaybeTlsStream, Message, WebSocket};
 
 /// Escuta ligada (item "Ouvir 'Jarvis'" no menu da barra).
 pub static LISTEN: AtomicBool = AtomicBool::new(false);
+/// O CoreAudio avisou erro no stream (dispositivo sumiu, Mac acordou…): reabrir.
+static MIC_ERROR: AtomicBool = AtomicBool::new(false);
+/// Sem áudio por este tempo, o stream morreu (antes ficava surdo até reiniciar; visto em 11/10).
+const MIC_SILENT: Duration = Duration::from_secs(3);
+/// De quanto em quanto tempo conferir se o microfone padrão mudou (fone, AirPods…).
+const DEVICE_CHECK: Duration = Duration::from_secs(2);
 
 const RATE: f64 = 16_000.0;
 const BLOCK: usize = 1_600; // 100 ms
@@ -65,7 +71,8 @@ pub fn start(app: AppHandle) {
                 super::ui_log(format!("escuta: {e}"));
             }
         }
-        std::thread::sleep(Duration::from_millis(if LISTEN.load(Ordering::SeqCst) { 5_000 } else { 300 }));
+        // reabre logo: microfone que parou ou mudou volta em ~2 s (o cérebro fora, idem)
+        std::thread::sleep(Duration::from_millis(if LISTEN.load(Ordering::SeqCst) { 2_000 } else { 300 }));
     });
 }
 
@@ -86,7 +93,8 @@ fn session(app: &AppHandle) -> Result<(), String> {
     // keepalive do cérebro estourava nesse meio-tempo (visto em 10/10/2026).
     let (port, token) = brain_address()?;
     let (tx, rx) = mpsc::sync_channel::<Vec<f32>>(64);
-    let (stream, rate) = open_mic(tx)?;
+    MIC_ERROR.store(false, Ordering::SeqCst);
+    let (stream, rate, device) = open_mic(tx)?;
     stream.play().map_err(|e| e.to_string())?;
     if !LISTEN.load(Ordering::SeqCst) {
         return Ok(()); // desligada enquanto esperava a permissão
@@ -101,7 +109,7 @@ fn session(app: &AppHandle) -> Result<(), String> {
     let mut resampler = Resampler::new(rate as f64);
     let mut pending: Vec<i16> = Vec::with_capacity(BLOCK * 2);
     let mut last_audio = std::time::Instant::now();
-    let mut warned = false;
+    let mut last_check = std::time::Instant::now();
 
     let result = loop {
         if !LISTEN.load(Ordering::SeqCst) {
@@ -110,12 +118,20 @@ fn session(app: &AppHandle) -> Result<(), String> {
         while let Ok(chunk) = rx.try_recv() {
             resampler.push(&chunk, &mut pending);
             last_audio = std::time::Instant::now();
-            warned = false;
         }
-        if !warned && last_audio.elapsed() > Duration::from_secs(5) {
-            // microfone aberto mas sem áudio: permissão de Microfone pendente ou negada
-            super::ui_log("escuta: o microfone não entrega áudio (permissão de Microfone do Jarvis?)".into());
-            warned = true;
+        // microfone que parou (Mac acordou, erro do CoreAudio) ou mudou: fecha e reabre
+        if MIC_ERROR.load(Ordering::SeqCst) {
+            break Err("o microfone deu erro; reabrindo".into());
+        }
+        if last_audio.elapsed() > MIC_SILENT {
+            break Err("o microfone parou de entregar áudio; reabrindo".into());
+        }
+        if last_check.elapsed() > DEVICE_CHECK {
+            last_check = std::time::Instant::now();
+            let now = cpal::default_host().default_input_device().map(|d| d.to_string());
+            if now.as_deref() != Some(device.as_str()) {
+                break Err(format!("o microfone padrão mudou ({device} → {}); reabrindo", now.unwrap_or_default()));
+            }
         }
         if pending.len() > BLOCK * 50 {
             pending.clear(); // atrasado demais (cérebro lento): descarta
@@ -160,14 +176,18 @@ fn send_text(ws: &mut WebSocket<MaybeTlsStream<TcpStream>>, text: &str) -> Resul
     ws.send(Message::Text(text.to_string().into())).map_err(|e| e.to_string())
 }
 
-/// Microfone padrão; manda blocos mono f32 pelo canal (descarta se o canal encher).
-fn open_mic(tx: mpsc::SyncSender<Vec<f32>>) -> Result<(cpal::Stream, u32), String> {
+/// Microfone padrão (e o nome dele); manda blocos mono f32 pelo canal (descarta se encher).
+fn open_mic(tx: mpsc::SyncSender<Vec<f32>>) -> Result<(cpal::Stream, u32, String), String> {
     let host = cpal::default_host();
     let device = host.default_input_device().ok_or("sem microfone")?;
+    let name = device.to_string();
     let config = device.default_input_config().map_err(|e| e.to_string())?;
     let channels = config.channels() as usize;
     let rate = config.sample_rate();
-    let err = |e| eprintln!("microfone: {e}");
+    let err = |e| {
+        eprintln!("microfone: {e}");
+        MIC_ERROR.store(true, Ordering::SeqCst);
+    };
     let stream = match config.sample_format() {
         cpal::SampleFormat::F32 => device.build_input_stream(
             config.clone().into(),
@@ -188,7 +208,7 @@ fn open_mic(tx: mpsc::SyncSender<Vec<f32>>) -> Result<(cpal::Stream, u32), Strin
         other => return Err(format!("formato de áudio não suportado: {other:?}")),
     }
     .map_err(|e| e.to_string())?;
-    Ok((stream, rate))
+    Ok((stream, rate, name))
 }
 
 fn mono<T: Copy>(data: &[T], channels: usize, to_f32: impl Fn(T) -> f32) -> Vec<f32> {
@@ -196,19 +216,62 @@ fn mono<T: Copy>(data: &[T], channels: usize, to_f32: impl Fn(T) -> f32) -> Vec<
     data.chunks(channels).map(|frame| frame.iter().map(|&s| to_f32(s)).sum::<f32>() / channels as f32).collect()
 }
 
-/// Reamostragem linear para 16 kHz (voz; o detector e o VAD não precisam de mais que isso).
+/// Reamostragem para 16 kHz: passa-baixa (FIR com janela de Hamming, corte em 90% de 8 kHz)
+/// e interpolação linear. Sem o filtro, o som acima de 8 kHz (sibilantes, ventoinha) "dobrava"
+/// para dentro da faixa da voz e sujava o que o detector ouve (corrigido em 12/10/2026).
 struct Resampler {
     step: f64,
     pos: f64,
     last: f32,
+    taps: Vec<f32>,
+    hist: Vec<f32>,
+}
+
+const FIR_TAPS: usize = 33;
+
+fn lowpass(rate: f64) -> Vec<f32> {
+    if rate <= RATE * 1.01 {
+        return vec![1.0]; // já em 16 kHz (ou menos): nada a filtrar
+    }
+    let fc = 0.9 * (RATE / 2.0) / rate; // corte normalizado pela taxa de entrada
+    let m = (FIR_TAPS - 1) as f64 / 2.0;
+    let mut h: Vec<f64> = (0..FIR_TAPS)
+        .map(|n| {
+            let x = n as f64 - m;
+            let sinc = if x == 0.0 { 2.0 * fc } else { (2.0 * std::f64::consts::PI * fc * x).sin() / (std::f64::consts::PI * x) };
+            let w = 0.54 - 0.46 * (2.0 * std::f64::consts::PI * n as f64 / (FIR_TAPS - 1) as f64).cos();
+            sinc * w
+        })
+        .collect();
+    let sum: f64 = h.iter().sum();
+    h.iter_mut().for_each(|v| *v /= sum);
+    h.into_iter().map(|v| v as f32).collect()
 }
 
 impl Resampler {
     fn new(rate: f64) -> Self {
-        Self { step: rate / RATE, pos: 0.0, last: 0.0 }
+        let taps = lowpass(rate);
+        let hist = vec![0.0; taps.len()];
+        Self { step: rate / RATE, pos: 0.0, last: 0.0, taps, hist }
+    }
+
+    fn filter(&mut self, input: &[f32]) -> Vec<f32> {
+        if self.taps.len() == 1 {
+            return input.to_vec();
+        }
+        let n = self.taps.len();
+        input
+            .iter()
+            .map(|&x| {
+                self.hist.rotate_left(1);
+                self.hist[n - 1] = x;
+                self.taps.iter().zip(self.hist.iter().rev()).map(|(t, h)| t * h).sum()
+            })
+            .collect()
     }
 
     fn push(&mut self, input: &[f32], out: &mut Vec<i16>) {
+        let input = self.filter(input);
         // `pos` é a posição (em amostras da entrada) da próxima saída, relativa ao início de
         // `input`; -1 indica a última amostra do bloco anterior.
         while self.pos < input.len() as f64 - 1.0 {
@@ -252,6 +315,34 @@ mod tests {
         r.push(&input, &mut out);
         r.push(&input, &mut out);
         assert!((3_195..=3_201).contains(&out.len()), "{}", out.len()); // 2 × 100 ms
+    }
+
+    fn tone(freq: f64, rate: f64, seconds: f64) -> Vec<f32> {
+        (0..(rate * seconds) as usize).map(|i| (0.5 * (2.0 * std::f64::consts::PI * freq * i as f64 / rate).sin()) as f32).collect()
+    }
+
+    fn rms(x: &[i16]) -> f64 {
+        let tail = &x[x.len() / 4..]; // depois do transitório do filtro
+        (tail.iter().map(|&s| (s as f64 / 32767.0).powi(2)).sum::<f64>() / tail.len() as f64).sqrt()
+    }
+
+    #[test]
+    fn filtro_tira_o_agudo_e_deixa_a_voz() {
+        // 1 kHz (voz) passa quase inteiro; 12 kHz viraria 4 kHz sem o filtro e quase some
+        let mut out = Vec::new();
+        Resampler::new(48_000.0).push(&tone(1_000.0, 48_000.0, 0.5), &mut out);
+        assert!(rms(&out) > 0.33, "voz atenuada: {}", rms(&out));
+        let mut out = Vec::new();
+        Resampler::new(48_000.0).push(&tone(12_000.0, 48_000.0, 0.5), &mut out);
+        assert!(rms(&out) < 0.02, "agudo dobrou para a faixa da voz: {}", rms(&out));
+    }
+
+    #[test]
+    fn em_16k_nao_filtra() {
+        let mut r = Resampler::new(16_000.0);
+        let mut out = Vec::new();
+        r.push(&[0.5; 160], &mut out);
+        assert!(out.iter().skip(1).all(|&s| s == 16_383), "{:?}", &out[..4]);
     }
 
     #[test]

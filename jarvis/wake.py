@@ -105,6 +105,27 @@ class SherpaSpotter:
 IDLE, COLLECT, WAIT, BUSY = "ouvindo", "pedido", "esperando o pedido", "ocupado"
 
 
+class Gain:
+    """Ganho automático lento: o microfone embutido, aberto direto, não ajusta o volume, e o pico
+    variou de 170 a 31.667 entre um dia e outro (12/10/2026). Leva a voz a um nível parecido
+    antes do VAD e do detector. Segue o nível alto (ataque rápido) e solta em ~2 s."""
+
+    TARGET = 0.1  # RMS de voz que o detector e o VAD recebem
+    FLOOR = 0.004  # nível de referência mínimo (silêncio não vira ganho infinito)
+    MAX = 8.0
+    DECAY = 0.97  # por bloco de 100 ms (meia-vida ~2,3 s)
+    START = 0.03
+
+    def __init__(self) -> None:
+        self.env = self.START
+
+    def __call__(self, block: np.ndarray) -> np.ndarray:
+        rms = float(np.sqrt(np.mean(block * block))) if len(block) else 0.0
+        self.env = max(rms, self.env * self.DECAY, self.FLOOR)
+        gain = min(self.MAX, max(1.0, self.TARGET / self.env))
+        return block if gain == 1.0 else np.clip(block * gain, -1.0, 1.0)
+
+
 class WakeListener:
     """Máquina de estados da escuta, por blocos de 100 ms (tempo contado pelos blocos)."""
 
@@ -133,6 +154,7 @@ class WakeListener:
         self._max = round(max_request_s / BLOCK_S)
         self._wait = round(wait_s / BLOCK_S)
         self._tail = np.zeros(0, np.float32)
+        self._gain = Gain()
         self.state = IDLE
         self._in_voice = False
         self._quiet = 0
@@ -148,7 +170,7 @@ class WakeListener:
         n = len(audio) // BLOCK * BLOCK
         self._tail = audio[n:]
         for i in range(0, n, BLOCK):
-            self._block(audio[i : i + BLOCK])
+            self._block(self._gain(audio[i : i + BLOCK]))
 
     def _block(self, b: np.ndarray) -> None:
         if self._paused():

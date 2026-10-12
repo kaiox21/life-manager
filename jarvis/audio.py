@@ -49,15 +49,23 @@ class Vad:
         self._vad = SileroVoiceActivityDetector()
         self._chunk = self._vad.chunk_samples()
         self._threshold = threshold
+        self._carry = np.zeros(0, np.int16)
 
     def is_speech(self, block: np.ndarray) -> bool:
         """Escuta contínua: há fala neste bloco? (mantém o estado entre blocos; usar uma
-        instância só para isso, separada da usada no `trim`)."""
-        pcm = (np.clip(block, -1, 1) * 32767).astype(np.int16)
-        for i in range(0, len(pcm) - self._chunk + 1, self._chunk):
+        instância só para isso, separada da usada no `trim`).
+
+        O Silero é uma rede com memória: precisa ver o áudio inteiro, em ordem. Antes, o laço
+        parava no primeiro pedaço com fala e o resto do bloco (e as 64 amostras que sobravam de
+        cada bloco de 100 ms) nunca chegava a ele (corrigido em 12/10/2026)."""
+        pcm = np.concatenate([self._carry, (np.clip(block, -1, 1) * 32767).astype(np.int16)])
+        n = len(pcm) // self._chunk * self._chunk
+        self._carry = pcm[n:]
+        speech = False
+        for i in range(0, n, self._chunk):
             if self._vad(pcm[i : i + self._chunk].tobytes()) >= self._threshold:
-                return True
-        return False
+                speech = True
+        return speech
 
     def trim(self, audio: np.ndarray) -> Speech | None:
         self._vad.reset()
