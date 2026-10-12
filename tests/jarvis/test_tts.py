@@ -311,8 +311,46 @@ def test_saida_segue_o_dispositivo_padrao(monkeypatch):
 def test_dispositivo_some_no_meio_da_frase(monkeypatch):
     out, sd, _ = _out(monkeypatch, 41)
     sd.fail_next_write = True
-    out.write(b"\0\0" * 10)  # não estoura: reabre e escreve
+    out.write(b"\0\0" * 10)  # não estoura: a thread de áudio reabre e escreve
+    out.drain()
     assert sd.log[-3:] == ["reinicia-portaudio", "abre", "escreve"]
+
+
+def test_thread_de_audio_mantem_o_ritmo_e_a_folga(monkeypatch):
+    import time
+
+    out, sd, _ = _out(monkeypatch, 41)
+    second = 24_000 * 2  # bytes de 1 s
+    written = []
+    sd_write = sd.RawOutputStream.write
+
+    def realtime(self, data):  # o dispositivo consome em tempo real
+        time.sleep(len(data) / second)
+        written.append(len(data))
+        return sd_write(self, data)
+
+    monkeypatch.setattr(sd.RawOutputStream, "write", realtime)
+    t0 = time.monotonic()
+    out.write(b"\0" * (second // 10))  # 0,1 s: entra na fila sem esperar
+    assert time.monotonic() - t0 < 0.05
+    for _ in range(6):  # mais 0,6 s: espera a fila ficar abaixo de 0,4 s (ritmo do som)
+        out.write(b"\0" * (second // 10))
+    assert time.monotonic() - t0 > 0.2
+    out.drain()
+    assert sum(written) == 7 * (second // 10)
+
+
+def test_calar_descarta_a_fila(monkeypatch):
+    import time
+
+    out, sd, _ = _out(monkeypatch, 41)
+    monkeypatch.setattr(sd.RawOutputStream, "write", lambda self, d: time.sleep(0.05))
+    for _ in range(5):
+        out.write(b"\0" * 2400)
+    out.abort()
+    t0 = time.monotonic()
+    out.drain()
+    assert time.monotonic() - t0 < 0.2  # não toca o resto
 
 
 async def test_fish_confere_a_saida_antes_de_cada_frase():

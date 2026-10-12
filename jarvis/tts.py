@@ -10,6 +10,8 @@ import contextlib
 import logging
 import re
 import subprocess
+import threading
+from collections import deque
 from collections.abc import AsyncIterator, Callable
 from typing import Any, Protocol
 
@@ -151,12 +153,30 @@ def default_output_id() -> int | None:
         return None
 
 
+AHEAD_S = 0.4  # áudio na fila à frente do dispositivo: folga para o laço do cérebro atrasar
+# Folga do próprio dispositivo. Com "low" (17 ms), a thread de áudio perdia a vez para as outras
+# do cérebro (transcrição, escuta) e o buffer esvaziava: 7 a 41 buracos por frase, voz picotada
+# e esticada ("craquelada e estranha"). Medido no cérebro em 12/10/2026: 0,05 s (o CoreAudio
+# entrega ~220 ms) zerou os buracos; custa ~0,2 s a mais até o 1º som. Calar continua imediato.
+OUTPUT_LATENCY = 0.05
+
+
 class PortAudioOut:
-    """Saída pelo PortAudio (`sounddevice`), reaproveitada enquanto a saída padrão do macOS for a
-    mesma. Antes, aberta uma vez na subida, ficava presa ao dispositivo daquele momento: ligar ou
-    tirar o fone (ou conectar AirPods) mandava a voz para o lugar errado ou para lugar nenhum
-    (12/10/2026). O PortAudio guarda a lista de dispositivos de quando foi iniciado, então trocar
-    de saída exige reiniciá-lo antes de reabrir."""
+    """Saída pelo PortAudio (`sounddevice`) com uma thread de escrita própria.
+
+    Estalos (12/10/2026): cada pedaço era escrito numa thread chamada a partir do laço do
+    asyncio, com 17 ms de folga no dispositivo; no cérebro de verdade a volta ao laço e a
+    disputa com as outras threads passavam disso e o buffer esvaziava: 36 a 76 buracos por
+    frase. Agora uma thread permanente escreve a partir de uma fila com até `AHEAD_S` de áudio
+    (`write` só enfileira e espera se a fila estiver cheia) e o dispositivo tem `OUTPUT_LATENCY`
+    de folga.
+
+    Também segue a saída padrão do macOS: ligar ou tirar o fone (ou AirPods) reabre no
+    dispositivo novo; o PortAudio guarda a lista de dispositivos de quando foi iniciado, então
+    trocar exige reiniciá-lo antes de reabrir.
+    """
+
+    underflows = 0  # buracos no buffer (diagnóstico de estalos)
 
     def __init__(self, rate: int, current: Callable[[], int | None] = default_output_id) -> None:
         import sounddevice as sd
@@ -164,13 +184,57 @@ class PortAudioOut:
         self._sd, self._rate, self._current = sd, rate, current
         self._device = current()
         self._stream = self._open()
+        self._cond = threading.Condition()
+        self._chunks: deque[bytes] = deque()
+        self._queued = 0  # bytes na fila
+        self._writing = False  # a thread está escrevendo um pedaço agora
+        self._max_ahead = int(AHEAD_S * rate) * 2
+        self._thread = threading.Thread(target=self._run, name="jarvis-audio", daemon=True)
+        self._thread.start()
 
     def _open(self) -> Any:
         stream = self._sd.RawOutputStream(
-            samplerate=self._rate, channels=1, dtype="int16", latency="low"
+            samplerate=self._rate, channels=1, dtype="int16", latency=OUTPUT_LATENCY
         )
         stream.start()
         return stream
+
+    def _run(self) -> None:
+        while True:
+            with self._cond:
+                while not self._chunks:
+                    self._cond.wait()
+                data = self._chunks.popleft()
+                self._writing = True
+            try:
+                if self._stream.write(data):
+                    self.underflows += 1
+            except Exception:  # noqa: BLE001 (o dispositivo sumiu no meio da frase)
+                log.warning("saída de áudio falhou no meio da frase: reabrindo", exc_info=True)
+                with contextlib.suppress(Exception):
+                    self._device = self._current()
+                    self.reopen()
+                    self._stream.write(data)
+            finally:
+                with self._cond:
+                    self._writing = False
+                    self._queued -= len(data)
+                    self._cond.notify_all()
+
+    def write(self, data: bytes) -> None:
+        """Enfileira; espera só se já houver `AHEAD_S` de áudio à frente."""
+        with self._cond:
+            while self._queued >= self._max_ahead:
+                self._cond.wait(timeout=1.0)
+            self._chunks.append(data)
+            self._queued += len(data)
+            self._cond.notify_all()
+
+    def drain(self) -> None:
+        """Espera a fila acabar (o fim da frase saiu para o dispositivo)."""
+        with self._cond:
+            while self._chunks or self._writing:
+                self._cond.wait(timeout=1.0)
 
     def follow_default(self) -> bool:
         """Antes de cada frase: se a saída padrão mudou, reabre nela. True se reabriu."""
@@ -178,6 +242,7 @@ class PortAudioOut:
         if now is None or now == self._device:
             return False
         log.info("saída de áudio mudou (%s → %s): reabrindo", self._device, now)
+        self.drain()
         self.reopen()
         self._device = now
         return True
@@ -194,18 +259,16 @@ class PortAudioOut:
     def latency(self) -> float:
         return float(self._stream.latency)
 
-    def write(self, data: bytes) -> None:
-        try:
-            self._stream.write(data)
-        except Exception:  # noqa: BLE001 (o dispositivo sumiu no meio da frase)
-            log.warning("saída de áudio falhou no meio da frase: reabrindo", exc_info=True)
-            self._device = self._current()
-            self.reopen()
-            self._stream.write(data)
-
     def abort(self) -> None:
-        self._stream.abort()
-        self._stream.close()
+        """Cala na hora: descarta a fila e o que estava no buffer do dispositivo."""
+        with self._cond:
+            for chunk in self._chunks:
+                self._queued -= len(chunk)
+            self._chunks.clear()
+            self._cond.notify_all()
+        with contextlib.suppress(Exception):
+            self._stream.abort()
+            self._stream.close()
         self._stream = self._open()
 
 
@@ -342,6 +405,7 @@ class FishSynth:
     async def _play(self, text: str, audio: asyncio.Queue[bytes | None]) -> bool:
         """Toca uma frase; False se a Fish falhou antes de sair qualquer som."""
         out = self._output()
+        under_before = getattr(out, "underflows", 0)
         follow = getattr(out, "follow_default", None)
         if follow is not None:  # fone ligado ou tirado desde a última frase: segue a saída nova
             try:
@@ -381,7 +445,13 @@ class FishSynth:
             self._levels(pending[: len(pending) - len(pending) % 2], out)
             await asyncio.to_thread(out.write, pending[: len(pending) - len(pending) % 2])
         if started:
+            holes = getattr(out, "underflows", 0) - under_before
+            if holes > 1:  # o 1º é o começo do stream (sem som ainda), não estala
+                log.warning("fala: %d buracos no buffer (estalos) na frase %r", holes, text[:40])
             self._level_at_end()
+            drain = getattr(out, "drain", None)
+            if drain is not None:
+                await asyncio.to_thread(drain)  # a fila da thread de áudio acabou
             await asyncio.sleep(getattr(out, "latency", 0.0))  # o fim ainda está no buffer
             self._current = ""
             self._on_event("finish", text)
