@@ -54,10 +54,10 @@ def line(data):
     for name, label in (("five_hour", "5h"), ("seven_day", "semana")):
         w = _window(data, name)
         if w is not None:
-            parts.append("%s %d%%" % (label, round(w["pct"])))
+            parts.append(f"{label} {round(w['pct'])}%")
     ctx = (data.get("context_window") or {}).get("used_percentage")
     if ctx is not None:
-        parts.append("contexto %d%%" % round(float(ctx)))
+        parts.append(f"contexto {round(float(ctx))}%")
     model = (data.get("model") or {}).get("display_name")
     if model:
         parts.insert(0, model)
