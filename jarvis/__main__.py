@@ -152,6 +152,8 @@ async def main() -> None:
         fish_key=env("FISH_API_KEY", ""),
         fish_voice=env("FISH_VOICE_ID", ""),
         fish_speed=float(env("FISH_VOICE_SPEED", "1.0")),
+        fish_latency=env("FISH_LATENCY", "normal"),
+        fish_quality_guard=env("FISH_QUALITY_GUARD", "true").lower() != "false",
     )
     brain.speaker.prefetch(FILLERS)
     brain.weather_place = (

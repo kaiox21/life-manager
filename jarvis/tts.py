@@ -234,6 +234,8 @@ class FishSynth:
         api_key: str,
         voice_id: str,
         model: str = "s2.1-pro-free",
+        latency: str = "normal",
+        quality_guard: bool = True,
         speed: float = 1.0,
         chunks: Chunks | None = None,
         out: AudioOut | None = None,
@@ -244,6 +246,10 @@ class FishSynth:
         self._on_event = on_event
         self._fallback = fallback
         self._key, self._voice, self._model, self._speed = api_key, voice_id, model, speed
+        # "normal" + quality-guard: a voz em "balanced" saía craquelada (A/B com o Kaio em
+        # 12/10/2026); custa ~1,9 s a mais até a 1ª frase (0,7 s → 2,6 s), as seguintes baixam
+        # enquanto a anterior toca
+        self._latency, self._quality_guard = latency, quality_guard
         self._chunks = chunks or self._http_chunks
         self._out: AudioOut | None = out
         self._clock = clock or time.monotonic
@@ -446,8 +452,9 @@ class FishSynth:
                 "reference_id": self._voice,
                 "format": "pcm",
                 "sample_rate": FISH_RATE,
-                "latency": "balanced",
+                "latency": self._latency,
                 "prosody": {"speed": self._speed},
+                **({"features": ["quality-guard"]} if self._quality_guard else {}),
             },
         ) as resp:
             resp.raise_for_status()
@@ -531,6 +538,8 @@ def make_speaker(
     fish_key: str = "",
     fish_voice: str = "",
     fish_speed: float = 1.0,
+    fish_latency: str = "normal",
+    fish_quality_guard: bool = True,
 ) -> Speaker:
     """Voz da Fish Audio se houver chave e voz no `.env`; senão (ou se ela falhar), a local."""
 
@@ -544,7 +553,15 @@ def make_speaker(
     def make(cb: OnEvent) -> Synth:
         if fish_key and fish_voice:
             log.info("voz: Fish Audio (local de reserva)")
-            return FishSynth(cb, local(cb), fish_key, fish_voice, speed=fish_speed)
+            return FishSynth(
+                cb,
+                local(cb),
+                fish_key,
+                fish_voice,
+                speed=fish_speed,
+                latency=fish_latency,
+                quality_guard=fish_quality_guard,
+            )
         return local(cb)
 
     return Speaker(make, on_event)

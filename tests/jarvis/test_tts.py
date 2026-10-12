@@ -337,3 +337,36 @@ def test_coreaudio_responde_a_saida_padrao():
     got = default_output_id()
     if sys.platform == "darwin":
         assert isinstance(got, int) and got > 0
+
+
+async def test_fish_pede_qualidade_normal_com_protecao():
+    import json
+
+    import httpx
+
+    from jarvis.tts import FishSynth
+
+    seen = {}
+
+    def handler(req):
+        seen.update(json.loads(req.content))
+        return httpx.Response(200, content=b"\0\0" * 10)
+
+    synth = FishSynth(lambda k, t: None, FakeSynth(lambda k, t: None), "key", "voz", out=FakeOut())
+    synth._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    _ = [c async for c in synth._http_chunks("Olá.")]
+    assert seen["latency"] == "normal" and seen["features"] == ["quality-guard"]
+
+    seen.clear()
+    fast = FishSynth(
+        lambda k, t: None,
+        FakeSynth(lambda k, t: None),
+        "key",
+        "voz",
+        out=FakeOut(),
+        latency="balanced",
+        quality_guard=False,
+    )
+    fast._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    _ = [c async for c in fast._http_chunks("Olá.")]
+    assert seen["latency"] == "balanced" and "features" not in seen
