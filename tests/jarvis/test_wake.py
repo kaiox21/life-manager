@@ -293,7 +293,7 @@ async def test_transcricao_sem_o_nome_e_alarme_falso():
         vad=FakeVad(True),
     )
     result, got = await run_turn(b)
-    assert result == "falso" and [e.type for e in got] == ["no_speech"]
+    assert result == "falso" and got == []  # nada aparece: a interface nem soube
 
 
 async def test_sem_fala_e_vazio():
@@ -301,7 +301,7 @@ async def test_sem_fala_e_vazio():
         StreamingScriptedLLM(), FakeCore(), transcriber=FakeTranscriber(""), vad=FakeVad(False)
     )
     result, got = await run_turn(b)
-    assert result == "vazio" and [e.type for e in got] == ["no_speech"]
+    assert result == "vazio" and got == []
 
 
 async def test_pausas_da_escuta():
@@ -380,7 +380,8 @@ async def test_servico_liga_desliga_e_manda_o_wake():
         def wake_paused(self):
             return False
 
-        async def wake_turn(self, rid, audio, emit):
+        async def wake_turn(self, rid, audio, emit, on_confirmed=None):
+            on_confirmed()
             return "ok"
 
         async def briefing(self, rid, emit):
@@ -410,8 +411,9 @@ async def test_servico_so_o_nome_pede_o_resumo_e_espera_o_pedido():
         def wake_paused(self):
             return False
 
-        async def wake_turn(self, rid, audio, emit):
+        async def wake_turn(self, rid, audio, emit, on_confirmed=None):
             calls.append("turno")
+            on_confirmed()
             return "so_nome"
 
         async def briefing(self, rid, emit):
@@ -514,3 +516,47 @@ def test_modelo_real_acha_jarvis_em_voz_baixa(tmp_path):
     sil = np.zeros(16000, np.int16)
     li.feed(np.concatenate([sil, sil, quiet, sil, sil]).tobytes())
     assert got["wake"] == 1
+
+
+async def test_painel_so_abre_quando_a_transcricao_confirma_o_nome():
+    confirmed = []
+    t = FakeTranscriber("Javier disse que vem")
+    b = brain(StreamingScriptedLLM(reply("ok")), FakeCore(), transcriber=t, vad=FakeVad(True))
+
+    async def emit(ev):
+        pass
+
+    assert (
+        await b.wake_turn("w1", np.zeros(16000, np.float32), emit, lambda: confirmed.append(1))
+        == "falso"
+    )
+    assert confirmed == []  # alarme falso: não abre nada
+    t.text = "Jarvis, que horas são?"
+    assert (
+        await b.wake_turn("w2", np.zeros(16000, np.float32), emit, lambda: confirmed.append(1))
+        == "ok"
+    )
+    assert confirmed == [1]
+
+
+async def test_servico_nao_avisa_as_janelas_no_alarme_falso():
+    sent = []
+
+    async def bc(ev):
+        sent.append(ev.type)
+
+    class B:
+        def wake_paused(self):
+            return False
+
+        async def wake_turn(self, rid, audio, emit, on_confirmed=None):
+            return "falso"
+
+        def wake_idle(self):
+            pass
+
+    svc = WakeService(B(), FakeSpotter, FakeGate, bc, bc)
+    svc.set_listening(True)
+    svc.feed(blocks((NOME, 1), (VOZ, 3), (SIL, 8)))
+    await asyncio.sleep(0.05)
+    assert "wake" not in sent

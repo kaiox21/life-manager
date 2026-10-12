@@ -255,15 +255,26 @@ class JarvisBrain:
             return True
         return time.monotonic() - self._spoke_at < 0.5
 
-    async def wake_turn(self, rid: str, audio: Any, emit: Emit) -> str:
+    async def wake_turn(
+        self,
+        rid: str,
+        audio: Any,
+        emit: Emit,
+        on_confirmed: Callable[[], None] | None = None,
+    ) -> str:
         """Pedido dito depois de "Jarvis": "ok", "so_nome" (esperar o pedido), "vazio" ou
-        "falso" (a transcrição não começa com o nome: alarme falso, descartado)."""
+        "falso" (a transcrição não começa com o nome: alarme falso, descartado).
+
+        `on_confirmed` é chamado quando a transcrição confirma o nome: só então as janelas
+        ficam sabendo (o painel abre). Um alarme falso do detector não aparece em lugar nenhum."""
         from jarvis.wake import strip_name
 
+        waiting = self._waiting_request  # depois do nome ou do resumo, a interface já sabe
         t_release = time.monotonic()
         speech = self._vad.trim(audio) if self._vad else Speech(audio, len(audio) / RATE)
         if speech is None or self._transcriber is None:
-            await emit(events.no_speech(rid))
+            if waiting:
+                await emit(events.no_speech(rid))
             return "vazio"
         text, ms = await self._transcriber.transcribe(speech.audio)
         if self._waiting_request:
@@ -276,8 +287,9 @@ class JarvisBrain:
             request = strip_name(text)
         if request is None:
             log.info("wake: descartado (a transcrição não começa com o nome)")
-            await emit(events.no_speech(rid))
-            return "falso"
+            return "falso"  # nada foi mostrado: a interface nem soube
+        if on_confirmed is not None and not waiting:
+            on_confirmed()
         if not request:
             return "so_nome"  # só o nome: o serviço pede o resumo do dia e espera o pedido
         log.info("wake: %.1fs de fala transcrita em %dms", speech.seconds, ms)

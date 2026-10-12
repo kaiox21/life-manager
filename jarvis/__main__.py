@@ -178,8 +178,8 @@ async def main() -> None:
     server.greeting = lambda: [events.terminals(terminals.snapshot())]
     if present():
         words = tuple(w.strip() for w in env("JARVIS_WAKE_PALAVRAS").split(",") if w.strip())
-        threshold = float(env("JARVIS_WAKE_LIMIAR", "0.2"))
-        score = float(env("JARVIS_WAKE_PESO", "1.5"))
+        threshold = float(env("JARVIS_WAKE_LIMIAR", "0.05"))
+        score = float(env("JARVIS_WAKE_PESO", "3.0"))
         server.wake = WakeService(
             brain,
             lambda: SherpaSpotter(model_dir(), words or WORDS, threshold, score),

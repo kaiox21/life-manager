@@ -60,8 +60,11 @@ class SherpaSpotter:
         self,
         model_dir: Path,
         words: tuple[str, ...] = WORDS,
-        threshold: float = 0.2,
-        score: float = 1.5,
+        # Medido em 12/10/2026 com a fala em posições aleatórias (vozes do say, 160 tentativas):
+        # 0,2/1,5 acertava 66%; 0,05/3,0 acerta 88%, com 2 alarmes falsos em 232 s de fala
+        # comum (barrados pela transcrição, que exige o nome no começo, sem abrir janela)
+        threshold: float = 0.05,
+        score: float = 3.0,
     ) -> None:
         import sentencepiece as spm
         import sherpa_onnx
@@ -245,7 +248,9 @@ class WakeListener:
 
 class WakeBrain(Protocol):
     def wake_paused(self) -> bool: ...
-    async def wake_turn(self, rid: str, audio: np.ndarray, emit: Callable) -> str: ...
+    async def wake_turn(
+        self, rid: str, audio: np.ndarray, emit: Callable, on_confirmed: Callable | None = ...
+    ) -> str: ...
     async def briefing(self, rid: str, emit: Callable) -> None: ...
     def wake_idle(self) -> None: ...
 
@@ -321,11 +326,16 @@ class WakeService:
         task.add_done_callback(self._tasks.discard)
 
     def _woke(self) -> None:
-        from jarvis import events
 
         self._rid = "wake-" + secrets.token_hex(4)
         log.info("wake: palavra detectada")
-        self._hold(True)
+        self._hold(True)  # a música já abaixa para ouvir o pedido
+        # o painel só abre quando a transcrição confirmar o nome (`_confirmed`): com o detector
+        # mais sensível, um alarme falso não pode abrir janela (12/10/2026)
+
+    def _confirmed(self) -> None:
+        from jarvis import events
+
         self._spawn(self._broadcast(events.wake(self._rid)))
 
     def _hold(self, on: bool) -> None:
@@ -339,7 +349,9 @@ class WakeService:
     async def _handle(self, audio: np.ndarray) -> None:
         listener = self._listener
         try:
-            result = await self._brain.wake_turn(self._rid, audio, self._broadcast_ui)
+            result = await self._brain.wake_turn(
+                self._rid, audio, self._broadcast_ui, on_confirmed=self._confirmed
+            )
         except Exception:
             log.exception("wake: falha no pedido")
             result = "erro"
