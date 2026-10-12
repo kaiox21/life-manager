@@ -247,3 +247,93 @@ async def test_fish_sem_ouvinte_de_nivel_nao_faz_nada():
     synth.speak("Frase.")
     await _settle(synth)
     assert ("start", "Frase.") in events  # tocou normalmente, sem on_level
+
+
+# --- saída de áudio segue o dispositivo padrão (fone ligado/tirado, AirPods)
+
+
+class FakeSD:
+    def __init__(self):
+        self.log = []
+        self.fail_next_write = False
+        sd = self
+
+        class Stream:
+            latency = 0.01
+
+            def __init__(self, **kw):
+                sd.log.append("abre")
+
+            def start(self):
+                pass
+
+            def write(self, data):
+                if sd.fail_next_write:
+                    sd.fail_next_write = False
+                    raise RuntimeError("PaErrorCode -9986: dispositivo sumiu")
+                sd.log.append("escreve")
+
+            def abort(self):
+                pass
+
+            def close(self):
+                sd.log.append("fecha")
+
+        self.RawOutputStream = Stream
+
+    def _terminate(self):
+        self.log.append("reinicia-portaudio")
+
+    def _initialize(self):
+        pass
+
+
+def _out(monkeypatch, device):
+    import sys
+
+    from jarvis.tts import PortAudioOut
+
+    sd = FakeSD()
+    monkeypatch.setitem(sys.modules, "sounddevice", sd)
+    current = {"id": device}
+    return PortAudioOut(24_000, current=lambda: current["id"]), sd, current
+
+
+def test_saida_segue_o_dispositivo_padrao(monkeypatch):
+    out, sd, current = _out(monkeypatch, 41)  # alto-falante
+    assert out.follow_default() is False and sd.log == ["abre"]
+    current["id"] = 115  # o Kaio liga o fone
+    assert out.follow_default() is True
+    assert sd.log == ["abre", "fecha", "reinicia-portaudio", "abre"]
+    assert out.follow_default() is False  # já está no fone
+
+
+def test_dispositivo_some_no_meio_da_frase(monkeypatch):
+    out, sd, _ = _out(monkeypatch, 41)
+    sd.fail_next_write = True
+    out.write(b"\0\0" * 10)  # não estoura: reabre e escreve
+    assert sd.log[-3:] == ["reinicia-portaudio", "abre", "escreve"]
+
+
+async def test_fish_confere_a_saida_antes_de_cada_frase():
+    calls = []
+
+    async def chunks(text):
+        yield _audio(text)
+
+    synth, _, events, out = _fish(chunks)
+    out.follow_default = lambda: calls.append("confere") or False
+    synth.speak("Primeira.")
+    synth.speak("Segunda.")
+    await _settle(synth, 60)
+    assert calls == ["confere", "confere"] and ("finish", "Segunda.") in events
+
+
+def test_coreaudio_responde_a_saida_padrao():
+    import sys
+
+    from jarvis.tts import default_output_id
+
+    got = default_output_id()
+    if sys.platform == "darwin":
+        assert isinstance(got, int) and got > 0

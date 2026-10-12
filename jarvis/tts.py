@@ -6,6 +6,7 @@ da thread principal é bombeado por uma tarefa do asyncio a cada 20 ms (testado:
 """
 
 import asyncio
+import contextlib
 import logging
 import re
 import subprocess
@@ -118,13 +119,50 @@ class AudioOut(Protocol):
     def abort(self) -> None: ...  # descarta o que está no buffer e reabre
 
 
-class PortAudioOut:
-    """Saída pelo PortAudio (`sounddevice`), aberta uma vez e reaproveitada."""
+_coreaudio: Any = None
 
-    def __init__(self, rate: int) -> None:
+
+def default_output_id() -> int | None:
+    """Id da saída de áudio padrão do macOS, direto do CoreAudio (microssegundos depois da 1ª
+    chamada). None fora do macOS ou se a consulta falhar."""
+    global _coreaudio
+    import ctypes
+    import ctypes.util
+
+    class _Address(ctypes.Structure):
+        _fields_ = [  # noqa: RUF012 (estrutura do ctypes)
+            ("selector", ctypes.c_uint32),
+            ("scope", ctypes.c_uint32),
+            ("element", ctypes.c_uint32),
+        ]
+
+    try:
+        if _coreaudio is None:
+            _coreaudio = ctypes.CDLL(ctypes.util.find_library("CoreAudio"))
+        addr = _Address(
+            int.from_bytes(b"dOut", "big"), int.from_bytes(b"glob", "big"), 0
+        )  # kAudioHardwarePropertyDefaultOutputDevice, escopo global
+        device, size = ctypes.c_uint32(0), ctypes.c_uint32(4)
+        err = _coreaudio.AudioObjectGetPropertyData(
+            1, ctypes.byref(addr), 0, None, ctypes.byref(size), ctypes.byref(device)
+        )  # 1 = kAudioObjectSystemObject
+        return int(device.value) if err == 0 else None
+    except (OSError, AttributeError, TypeError):
+        return None
+
+
+class PortAudioOut:
+    """Saída pelo PortAudio (`sounddevice`), reaproveitada enquanto a saída padrão do macOS for a
+    mesma. Antes, aberta uma vez na subida, ficava presa ao dispositivo daquele momento: ligar ou
+    tirar o fone (ou conectar AirPods) mandava a voz para o lugar errado ou para lugar nenhum
+    (12/10/2026). O PortAudio guarda a lista de dispositivos de quando foi iniciado, então trocar
+    de saída exige reiniciá-lo antes de reabrir."""
+
+    def __init__(self, rate: int, current: Callable[[], int | None] = default_output_id) -> None:
         import sounddevice as sd
 
-        self._sd, self._rate = sd, rate
+        self._sd, self._rate, self._current = sd, rate, current
+        self._device = current()
         self._stream = self._open()
 
     def _open(self) -> Any:
@@ -134,12 +172,36 @@ class PortAudioOut:
         stream.start()
         return stream
 
+    def follow_default(self) -> bool:
+        """Antes de cada frase: se a saída padrão mudou, reabre nela. True se reabriu."""
+        now = self._current()
+        if now is None or now == self._device:
+            return False
+        log.info("saída de áudio mudou (%s → %s): reabrindo", self._device, now)
+        self.reopen()
+        self._device = now
+        return True
+
+    def reopen(self) -> None:
+        with contextlib.suppress(Exception):
+            self._stream.abort()
+            self._stream.close()
+        self._sd._terminate()  # a lista de dispositivos do PortAudio é a da inicialização
+        self._sd._initialize()
+        self._stream = self._open()
+
     @property
     def latency(self) -> float:
         return float(self._stream.latency)
 
     def write(self, data: bytes) -> None:
-        self._stream.write(data)
+        try:
+            self._stream.write(data)
+        except Exception:  # noqa: BLE001 (o dispositivo sumiu no meio da frase)
+            log.warning("saída de áudio falhou no meio da frase: reabrindo", exc_info=True)
+            self._device = self._current()
+            self.reopen()
+            self._stream.write(data)
 
     def abort(self) -> None:
         self._stream.abort()
@@ -274,6 +336,12 @@ class FishSynth:
     async def _play(self, text: str, audio: asyncio.Queue[bytes | None]) -> bool:
         """Toca uma frase; False se a Fish falhou antes de sair qualquer som."""
         out = self._output()
+        follow = getattr(out, "follow_default", None)
+        if follow is not None:  # fone ligado ou tirado desde a última frase: segue a saída nova
+            try:
+                await asyncio.to_thread(follow)
+            except Exception:  # noqa: BLE001
+                log.warning("não consegui trocar de saída de áudio", exc_info=True)
         pending = b""
         started = False
         while True:
