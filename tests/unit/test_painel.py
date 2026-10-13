@@ -158,3 +158,37 @@ async def test_vagas_recentes_sem_as_dispensadas(ctx):
     data = await painel(ctx)
     assert sorted(v["titulo"] for v in data["vagas"]) == ["Vaga 0", "Vaga 1"]
     assert all(v["codigo"].startswith("V") and v["link"] for v in data["vagas"])
+
+
+async def test_noticias_edicao_mais_recente(ctx):
+    from app.db.models import NewsItem
+
+    hoje = ctx.clock().astimezone(TZ).date()
+    assert (await painel(ctx))["noticias"] is None  # nenhum boletim ainda
+
+    def item(edition, pos, futebol=False):
+        return NewsItem(
+            url=f"https://g1.globo.com/{edition}/{pos}",
+            titulo=f"Notícia {pos}",
+            resumo="r",
+            fonte="G1",
+            tema="futebol" if futebol else "brasil",
+            futebol=futebol,
+            posicao=pos,
+            edition=edition,
+        )
+
+    ontem = hoje - timedelta(days=1)
+    ctx.session.add_all([item(ontem, 2, futebol=True), item(ontem, 1)])
+    await ctx.session.flush()
+    got = (await painel(ctx))["noticias"]  # antes do boletim de hoje: o de ontem
+    assert got["data"] == ontem.isoformat()
+    assert [(n["titulo"], n["futebol"]) for n in got["itens"]] == [
+        ("Notícia 1", False),
+        ("Notícia 2", True),
+    ]
+    assert got["itens"][0]["link"] == f"https://g1.globo.com/{ontem}/1"
+
+    ctx.session.add(item(hoje, 1))
+    await ctx.session.flush()
+    assert (await painel(ctx))["noticias"]["data"] == hoje.isoformat()

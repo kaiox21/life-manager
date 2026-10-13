@@ -197,7 +197,8 @@ class SentReminder(Base):
             "kind", "ref_id", "occurrence_at", "minutes_before", name="sent_reminders_once"
         ),
         CheckConstraint(
-            "kind in ('evento','resumo','fatura','vagas')", name="sent_reminders_kind_check"
+            "kind in ('evento','resumo','fatura','vagas','noticias')",
+            name="sent_reminders_kind_check",
         ),
     )
 
@@ -241,3 +242,24 @@ class JobLead(Base):
     found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class NewsItem(Base):
+    """Notícia de um boletim diário. A URL normalizada é única: a mesma notícia nunca volta."""
+
+    __tablename__ = "news_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    url: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    titulo: Mapped[str] = mapped_column(Text, nullable=False)
+    resumo: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    fonte: Mapped[str] = mapped_column(Text, nullable=False)
+    tema: Mapped[str] = mapped_column(Text, nullable=False)
+    futebol: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    posicao: Mapped[int] = mapped_column(Integer, nullable=False)
+    edition: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agent_runs.id"))
+    found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

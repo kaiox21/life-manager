@@ -1,0 +1,54 @@
+# Perfil do boletim de notícias (copie para config/noticias.yaml e ajuste; config/noticias.yaml
+# fica fora do git como o das vagas). Change boletim-noticias.
+
+# temas das notícias gerais, na ordem de preferência; a descrição orienta a busca
+temas:
+  - chave: tecnologia
+    nome: Tecnologia e IA
+    descricao: inteligência artificial, big techs, lançamentos e regulação de tecnologia
+  - chave: direito
+    nome: Direito e Judiciário
+    descricao: STF, STJ, CNJ, decisões e projetos de lei relevantes, tecnologia no Judiciário
+  - chave: brasil
+    nome: Brasil e política
+    descricao: governo federal, Congresso, economia e Distrito Federal
+  - chave: mundo
+    nome: Mundo
+    descricao: o fato internacional mais importante do dia
+
+gerais: 5     # notícias gerais no boletim
+futebol: 3    # notícias da seção de futebol
+
+# times com prioridade na seção de futebol (resultado, próximo jogo, contratações)
+times: [Flamengo, Barcelona]
+
+# fontes aceitas: domínio (ou domínio/caminho) → nome mostrado. A busca fica restrita a esses
+# domínios (subdomínios entram: globo.com cobre g1.globo.com e ge.globo.com) e o nome da fonte
+# sai daqui pelo link, não do texto do modelo. A entrada mais específica ganha.
+fontes:
+  g1.globo.com: G1
+  ge.globo.com: ge
+  oglobo.globo.com: O Globo
+  valor.globo.com: Valor
+  folha.uol.com.br: Folha
+  uol.com.br: UOL
+  estadao.com.br: Estadão
+  cnnbrasil.com.br: CNN Brasil
+  agenciabrasil.ebc.com.br: Agência Brasil
+  bbc.com: BBC
+  reuters.com: Reuters
+  apnews.com: AP
+  theverge.com: The Verge
+  techcrunch.com: TechCrunch
+  arstechnica.com: Ars Technica
+  tecnoblog.net: Tecnoblog
+  conjur.com.br: ConJur
+  migalhas.com.br: Migalhas
+  jota.info: JOTA
+  stf.jus.br: STF
+  espn.com.br: ESPN
+  lance.com.br: Lance!
+  mundodeportivo.com: Mundo Deportivo
+  sport.es: Sport
+  marca.com: Marca
+  as.com: AS

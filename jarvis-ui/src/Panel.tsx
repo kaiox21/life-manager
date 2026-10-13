@@ -14,7 +14,7 @@ import { AlertBar } from "./components/AlertBar";
 import { CENTRAL, TerminalTabs } from "./components/TerminalTabs";
 import { TerminalView } from "./components/TerminalView";
 import { PANEL_REFRESH_MS, barShare, dayShort, hhmm, isPast, nextEvent, resetsIn, whenShort, type PanelState } from "./lib/panel";
-import type { PanelData, Turn } from "./lib/types";
+import type { Noticia, PanelData, Turn } from "./lib/types";
 import { useJarvis } from "./lib/useJarvis";
 
 function useNow(active: boolean) {
@@ -259,6 +259,7 @@ export function Panel() {
         <Agenda panel={panel} now={now} />
         <ClaudeCard panel={panel} now={now} />
         <VagasCard panel={panel} />
+        <NoticiasCard panel={panel} now={now} />
         <Projects panel={panel} onOpen={(c) => void openProject(c)} />
         <Weather panel={panel} />
       </div>
@@ -705,6 +706,73 @@ export function ClaudeCard({ panel, now = new Date() }: { panel: PanelState; now
         </ul>
       )}
     </HudCard>
+  );
+}
+
+/** "Notícias de hoje" ou "Notícias de ontem, 13/10": a edição mais recente que o núcleo tem. */
+export function boletimTitle(data: string, now: Date): string {
+  const [y, m, d] = data.split("-").map(Number);
+  const edition = new Date(y, m - 1, d);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((today.getTime() - edition.getTime()) / 86_400_000);
+  const ddmm = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+  if (days <= 0) return "Notícias de hoje";
+  if (days === 1) return `Notícias de ontem, ${ddmm}`;
+  return `Notícias de ${ddmm}`;
+}
+
+function NoticiaLink({ n }: { n: Noticia }) {
+  return (
+    <a
+      href={n.link}
+      className="painel__noticia"
+      title={n.resumo || n.link}
+      onClick={(e) => {
+        e.preventDefault();
+        void openUrl(n.link);
+      }}
+    >
+      {n.titulo}
+      <small> · {n.fonte}</small>
+    </a>
+  );
+}
+
+/** Boletim do dia (núcleo, 07:30): gerais e, num subgrupo, o futebol; clicar abre o link. */
+export function NoticiasCard({ panel, now = new Date() }: { panel: PanelState; now?: Date }) {
+  return (
+    <CoreCard title="Notícias" panel={panel} className="painel__noticias">
+      {(d) => {
+        const b = d.noticias;
+        if (!b || b.itens.length === 0) return <p className="painel__empty">O boletim sai às 07:30.</p>;
+        const gerais = b.itens.filter((n) => !n.futebol);
+        const futebol = b.itens.filter((n) => n.futebol);
+        return (
+          <>
+            <p className="painel__muted painel__noticias-data">{boletimTitle(b.data, now)}</p>
+            <ul className="painel__list painel__noticias-list">
+              {gerais.map((n) => (
+                <li key={n.link}>
+                  <NoticiaLink n={n} />
+                </li>
+              ))}
+            </ul>
+            {futebol.length > 0 && (
+              <>
+                <p className="hud-label hud-label--small painel__noticias-futebol">Futebol</p>
+                <ul className="painel__list painel__noticias-list">
+                  {futebol.map((n) => (
+                    <li key={n.link}>
+                      <NoticiaLink n={n} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        );
+      }}
+    </CoreCard>
   );
 }
 

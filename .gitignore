@@ -13,6 +13,7 @@ __pycache__/
 
 # Dados locais
 config/vagas.yaml
+config/noticias.yaml
 data/
 media/
 backups/

@@ -98,6 +98,8 @@ export interface PanelData {
   perguntas: string[];
   // radar de vagas (núcleo): últimos 14 dias, sem as dispensadas
   vagas?: Vaga[];
+  // boletim de notícias (núcleo): a edição mais recente; de madrugada, a de ontem
+  noticias?: Boletim | null;
   // dados locais do cérebro (jarvis/panel_extras.py); null = indisponível
   clima?: { agora: number; max: number; min: number; chuva: number; cidade: string } | null;
   mac?: {
@@ -120,6 +122,19 @@ export interface Vaga {
   prazo: string;
   link: string;
   resumo: string;
+}
+
+export interface Noticia {
+  titulo: string; // sempre em português
+  resumo: string;
+  fonte: string; // pelo domínio do link
+  link: string;
+  futebol: boolean;
+}
+
+export interface Boletim {
+  data: string; // AAAA-MM-DD, dia da edição
+  itens: Noticia[];
 }
 
 export interface ClaudeWindow {

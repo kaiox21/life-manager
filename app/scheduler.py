@@ -28,6 +28,7 @@ def build_scheduler(
     connection_state: Callable[[], Awaitable[str | None]] | None = None,
     healthcheck_url: str = "",
     radar: Callable[[], Awaitable[int]] | None = None,
+    boletim: Callable[[], Awaitable[int]] | None = None,
 ) -> AsyncIOScheduler:
     async def run(job: Job) -> None:
         try:
@@ -66,6 +67,19 @@ def build_scheduler(
 
         scheduler.add_job(
             radar_job, "interval", hours=1, id="vagas", next_run_time=datetime.now(TZ)
+        )
+    if boletim is not None:
+        # boletim de notícias: checagem a cada 30 min (ele decide: 07:30–22:00, uma vez por dia)
+        async def boletim_job() -> None:
+            try:
+                n = await boletim()
+                if n:
+                    log.info("boletim: %d notícia(s) entregue(s)", n)
+            except Exception:
+                log.exception("boletim de notícias falhou")
+
+        scheduler.add_job(
+            boletim_job, "interval", minutes=30, id="noticias", next_run_time=datetime.now(TZ)
         )
 
     if monitor is not None and connection_state is not None:

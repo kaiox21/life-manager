@@ -17,7 +17,6 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -27,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.llm import LLM, Completion, server_tool
 from app.agent.tools.resolve import normalize
 from app.db.models import AgentRun, JobLead
+from app.web.links import normalize_url, search_urls, verified
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +45,6 @@ SEARCH_PAGES = re.compile(
     re.I,
 )
 MAX_AGE_DAYS = 60  # vaga publicada há mais que isso costuma estar encerrada
-TRACKING = re.compile(r"^(utm_.*|gclid|fbclid|ref|trk|trackingid|src|source|origin)$", re.I)
 
 
 # --- perfil (config/vagas.yaml, fora do git)
@@ -111,36 +110,6 @@ REGISTRAR = {
         "parameters": RegistrarVagasArgs.model_json_schema(),
     },
 }
-
-
-# --- normalização e verificação dos links
-
-
-def normalize_url(url: str) -> str:
-    """Domínio em minúsculas sem www, sem fragmento, sem parâmetros de rastreio, sem barra final."""
-    parts = urlsplit(url.strip())
-    host = parts.netloc.lower().removeprefix("www.")
-    query = urlencode([(k, v) for k, v in parse_qsl(parts.query) if not TRACKING.match(k)])
-    path = parts.path.rstrip("/")
-    return urlunsplit((parts.scheme.lower() or "https", host, path, query, ""))
-
-
-def search_urls(completions: list[Completion]) -> set[str]:
-    """URLs que vieram nos resultados da busca da rodada (as únicas aceitas)."""
-    urls: set[str] = set()
-    for c in completions:
-        for block in c.raw or []:
-            if block.get("type") != "web_search_tool_result":
-                continue
-            content = block.get("content")
-            for item in content if isinstance(content, list) else []:
-                if isinstance(item, dict) and item.get("url"):
-                    urls.add(normalize_url(item["url"]))
-    return urls
-
-
-def verified(url: str, allowed: set[str]) -> bool:
-    return normalize_url(url) in allowed
 
 
 # --- pontuação (no código, sem o modelo)

@@ -1,7 +1,8 @@
 """Resumo do dia falado quando o Kaio diz só "Hey Jarvis": texto fixo, sem o modelo.
 
-Clima do Open-Meteo (sem chave; só latitude e longitude saem do Mac), agenda e faturas do
-`painel` do núcleo e pedidos de permissão de terminal esperando resposta.
+Clima do Open-Meteo (sem chave; só latitude e longitude saem do Mac); agenda, faturas e
+manchetes do boletim de notícias, do `painel` do núcleo; pedidos de permissão de terminal
+esperando resposta.
 """
 
 from __future__ import annotations
@@ -20,6 +21,10 @@ WEATHER_TIMEOUT = 2.0
 MAX_EVENTS = 5
 BILL_DAYS = 3  # fatura que fecha ou vence em até 3 dias
 RAIN_MIN = 30  # chance de chuva falada a partir de 30%
+HEADLINES = 3  # manchetes do boletim de notícias, só os títulos
+HEADLINE_CHARS = 70
+DANGLING = {"e", "ou", "de", "da", "do", "das", "dos", "a", "o", "as", "os", "em", "no", "na"}
+DANGLING |= {"para", "com", "por", "que", "um", "uma", "ao", "à", "sobre", "the", "of", "and"}
 
 
 @dataclass(frozen=True)
@@ -136,6 +141,28 @@ def _bills_text(bills: list[dict[str, Any]], today: date) -> str:
     return " ".join(said)
 
 
+def _cut(title: str, limit: int = HEADLINE_CHARS) -> str:
+    """Corta numa fronteira de palavra, sem pontuação pendurada no fim."""
+    title = title.strip().rstrip(".")
+    if len(title) <= limit:
+        return title
+    words = title[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-").split()
+    while len(words) > 1 and words[-1].lower() in DANGLING:  # "…dos alimentos e" soa cortado
+        words.pop()
+    return " ".join(words).rstrip(" ,;:—-")
+
+
+def _news_text(news: dict[str, Any] | None, today: date) -> str:
+    """As primeiras manchetes gerais, só quando o boletim é de hoje (de madrugada, nada)."""
+    if not news or news.get("data") != today.isoformat():
+        return ""
+    titles = [_cut(str(n.get("titulo", ""))) for n in news.get("itens", []) if not n.get("futebol")]
+    titles = [t for t in titles if t][:HEADLINES]
+    if not titles:
+        return ""
+    return "Nas notícias: " + ". ".join(titles) + "."
+
+
 def compose(
     now: datetime,
     weather: Weather | None,
@@ -154,6 +181,9 @@ def compose(
         bills = _bills_text(panel.get("faturas", []), now.date())
         if bills:
             parts.append(bills)
+        news = _news_text(panel.get("noticias"), now.date())
+        if news:
+            parts.append(news)
     if pending_permissions == 1:
         parts.append("Tem um pedido de permissão esperando no terminal.")
     elif pending_permissions > 1:

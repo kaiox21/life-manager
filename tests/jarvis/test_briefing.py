@@ -115,3 +115,55 @@ async def test_clima_do_open_meteo_e_sem_rede():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(down)) as c:
         assert await fetch_weather(-15.79, -47.88, c) is None
+
+
+LONGO = (
+    "Governo anuncia pacote de medidas para conter a alta dos alimentos e reduzir tarifas de "
+    "importação"
+)
+
+
+def boletim(data="2026-10-10"):
+    itens = [
+        {"titulo": LONGO, "futebol": False},
+        {"titulo": "Flamengo vence o Palmeiras por 2 a 1", "futebol": True},
+        {"titulo": "STF julga o marco temporal.", "futebol": False},
+        {"titulo": "Nova IA do Google chega ao Brasil", "futebol": False},
+        {"titulo": "Quarta geral não entra", "futebol": False},
+    ]
+    return {"data": data, "itens": itens}
+
+
+def test_manchetes_do_boletim_de_hoje_depois_da_agenda():
+    p = panel([ev("Aula", "19:30")]) | {"noticias": boletim()}
+    text = compose(at(8), None, p)
+    assert text.endswith(
+        "Hoje o senhor tem Aula às 19h30. Nas notícias: Governo anuncia pacote de medidas para"
+        " conter a alta dos alimentos. STF julga o marco temporal. Nova IA do Google"
+        " chega ao Brasil."
+    )
+    assert "Flamengo" not in text and "Quarta geral" not in text
+
+
+def test_boletim_de_ontem_nao_e_falado():
+    p = panel() | {"noticias": boletim("2026-10-09")}
+    assert "notícias" not in compose(at(1), None, p)
+    assert "notícias" not in compose(at(8), None, panel() | {"noticias": None})
+
+
+def test_resumo_cheio_cabe_em_30_segundos():
+    """Manhã cheia: clima com chuva, 3 compromissos, uma fatura e 3 manchetes longas. A voz fala
+    ~15 caracteres por segundo; o resumo inteiro fica em ~30 s (aceite do boletim-noticias)."""
+    fatura = {
+        "cartao": "Nubank",
+        "situacao": "aberta",
+        "fechamento": "11/10/2026",
+        "vencimento": "18/10/2026",
+        "total": "R$ 1.234,56",
+    }
+    itens = [{"titulo": LONGO, "futebol": False}] * 3
+    p = panel([ev("Reunião", "10:00"), ev("Almoço", "12:30"), ev("Aula", "19:30")], [fatura])
+    text = compose(
+        at(7, 45), Weather(22, 31, 18, 60), p | {"noticias": {"data": "2026-10-10", "itens": itens}}
+    )
+    assert len(text) / 15 <= 32, len(text)

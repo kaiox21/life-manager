@@ -8,7 +8,7 @@ aberta vem de `app/domain/billing.py`.
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.agent.tools.agenda import WEEKDAYS, BuscarEventosArgs, buscar_eventos
 from app.agent.tools.base import ToolContext, ToolError, br_date, brl
@@ -16,7 +16,7 @@ from app.agent.tools.consultas import ResumoGastosArgs, TotalFaturaArgs, resumo_
 from app.agent.tools.vagas import describe
 from app.agent.tools.vagas import recent as recent_vagas
 from app.clock import TZ, today
-from app.db.models import Event, Expense, Message, PaymentMethod
+from app.db.models import Event, Expense, Message, NewsItem, PaymentMethod
 from app.domain.billing import open_statement_month
 
 REGISTRO = 10
@@ -48,6 +48,32 @@ async def painel(ctx: ToolContext) -> dict[str, Any]:
         "registro": await _registro(ctx),
         # radar de vagas: as dos últimos 14 dias não dispensadas (change radar-vagas)
         "vagas": [describe(v) for v in await recent_vagas(ctx, PANEL_VAGAS)],
+        # boletim de notícias: a edição mais recente, de madrugada a de ontem (boletim-noticias)
+        "noticias": await _noticias(ctx),
+    }
+
+
+async def _noticias(ctx: ToolContext) -> dict[str, Any] | None:
+    edition = await ctx.session.scalar(
+        select(func.max(NewsItem.edition)).where(NewsItem.edition <= today(ctx.clock))
+    )
+    if edition is None:
+        return None
+    items = await ctx.session.scalars(
+        select(NewsItem).where(NewsItem.edition == edition).order_by(NewsItem.posicao)
+    )
+    return {
+        "data": edition.isoformat(),
+        "itens": [
+            {
+                "titulo": n.titulo,
+                "resumo": n.resumo,
+                "fonte": n.fonte,
+                "link": n.url,
+                "futebol": n.futebol,
+            }
+            for n in items
+        ],
     }
 
 

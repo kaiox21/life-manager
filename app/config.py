@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     vagas_modelo: str = ""  # vazio = model_primary
     vagas_max_buscas: int = 12
 
+    # Boletim de notícias (change boletim-noticias): perfil fora do git, modelo e teto de buscas
+    noticias_ativo: bool = True
+    noticias_perfil: str = "config/noticias.yaml"
+    noticias_modelo: str = ""  # vazio = model_primary
+    noticias_max_buscas: int = 8
+
     # Google Calendar (espelho da agenda). JSON da service account em base64 (ou caminho).
     google_service_account_json: SecretStr = SecretStr("")
     google_service_account_file: str = ""

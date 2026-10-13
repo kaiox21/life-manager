@@ -22,7 +22,7 @@ SUMMARY_REF = uuid.UUID(int=0)  # ref_id fixo do resumo do dia
 
 @dataclass(frozen=True)
 class Notice:
-    kind: str  # evento | resumo | fatura
+    kind: str  # evento | resumo | fatura | vagas | noticias
     ref_id: uuid.UUID
     occurrence_at: datetime
     minutes_before: int

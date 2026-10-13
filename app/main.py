@@ -21,6 +21,7 @@ from app.handler import BOT_MARK, Deps, Sender, handle_incoming
 from app.integrations.gcal import CalendarClient, calendar_from_settings, sync_pending
 from app.integrations.transcribe import FasterWhisper, Transcriber
 from app.mcp_server import build_mcp, mcp_http_app
+from app.noticias.job import boletim_cycle
 from app.scheduler import build_scheduler
 from app.security import is_owner, secret_matches
 from app.vagas.job import radar_cycle
@@ -99,6 +100,21 @@ def create_app(
                         )
                     )
                     if settings.vagas_ativo and settings.llm_provider == "anthropic"
+                    else None
+                ),
+                boletim=(
+                    (
+                        lambda: boletim_cycle(
+                            sessions=app.state.sessions,
+                            llm=app.state.llm,
+                            settings=settings,
+                            clock=clock,
+                            sender=app.state.sender,
+                            owner_phone=settings.owner_phone,
+                            prefix=BOT_MARK if settings.self_chat_mode else "",
+                        )
+                    )
+                    if settings.noticias_ativo and settings.llm_provider == "anthropic"
                     else None
                 ),
             )

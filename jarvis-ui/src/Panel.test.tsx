@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE } from "./lib/panel.sample";
 import { EMPTY_PANEL, applyPanel, nextEvent, type PanelState } from "./lib/panel";
-import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, Projects, VagasCard, Weather } from "./Panel";
+import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, NoticiasCard, Projects, VagasCard, Weather, boletimTitle } from "./Panel";
 import { resetsIn } from "./lib/panel";
 import type { PanelData } from "./lib/types";
 
@@ -180,5 +180,28 @@ describe("cartões do painel HUD", () => {
   it("sem vagas recentes", () => {
     render(<VagasCard panel={ok({ ...SAMPLE, vagas: [] })} />);
     expect(screen.getByText("Nenhuma vaga nova nos últimos 14 dias.")).toBeTruthy();
+  });
+
+  it("notícias: gerais e futebol à parte, título é o link", () => {
+    const noticias = {
+      data: "2026-10-09",
+      itens: [
+        { titulo: "Nova IA lançada", resumo: "r", fonte: "G1", link: "https://g1.globo.com/a", futebol: false },
+        { titulo: "Flamengo vence", resumo: "r", fonte: "ge", link: "https://ge.globo.com/b", futebol: true },
+      ],
+    };
+    render(<NoticiasCard panel={ok({ ...SAMPLE, noticias })} now={at("09:00")} />);
+    expect(screen.getByText("Notícias de hoje")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Nova IA lançada/ }).getAttribute("href")).toBe("https://g1.globo.com/a");
+    expect(screen.getByText("Futebol")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Flamengo vence.*ge/ })).toBeTruthy();
+  });
+
+  it("notícias: de madrugada mostra a de ontem; sem boletim, avisa a hora", () => {
+    expect(boletimTitle("2026-10-13", new Date(2026, 9, 14, 1, 0))).toBe("Notícias de ontem, 13/10");
+    expect(boletimTitle("2026-10-14", new Date(2026, 9, 14, 8, 0))).toBe("Notícias de hoje");
+    expect(boletimTitle("2026-10-10", new Date(2026, 9, 14, 8, 0))).toBe("Notícias de 10/10");
+    render(<NoticiasCard panel={ok({ ...SAMPLE, noticias: null })} />);
+    expect(screen.getByText("O boletim sai às 07:30.")).toBeTruthy();
   });
 });

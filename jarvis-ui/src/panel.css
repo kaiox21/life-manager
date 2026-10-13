@@ -913,6 +913,7 @@
 .painel__month,
 .painel__agenda,
 .painel__vagas,
+.painel__noticias,
 .painel__projects {
   flex: 1 1 0;
   min-block-size: 96px;
@@ -949,5 +950,34 @@
   outline-offset: 2px;
 }
 .painel__vaga small {
+  color: var(--text-dim);
+}
+
+/* boletim de notícias: título é o link, a fonte em cinza; futebol num subgrupo */
+.painel__noticias {
+  overflow-y: auto;
+}
+.painel__noticias-data {
+  margin: 0 0 4px;
+}
+.painel__noticias-futebol {
+  margin: 8px 0 2px;
+}
+.painel__noticia {
+  display: block;
+  padding-block: 4px;
+  min-block-size: 24px;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.3;
+}
+.painel__noticia:hover {
+  text-decoration: underline;
+}
+.painel__noticia:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.painel__noticia small {
   color: var(--text-dim);
 }
