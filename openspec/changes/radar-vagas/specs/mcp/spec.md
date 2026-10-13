@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Dados do painel
-O MCP SHALL expor a ferramenta somente leitura `painel`, sem argumentos e fora dos grupos do agente do WhatsApp, que devolve em JSON: data e hora atuais; eventos de hoje e dos próximos 7 dias (com recorrências expandidas); gastos do mês corrente por categoria e o total do mês, em centavos; a fatura aberta de cada cartão de crédito (total em centavos, fechamento, vencimento e `mes_vencimento`); os últimos 10 registros (gastos lançados e eventos criados, por ordem de criação; nos gastos, a origem `whatsapp` quando vieram de uma mensagem ou `mac` quando vieram pelo MCP); e as vagas dos últimos 14 dias não dispensadas (título, organização, tipo, local, prazo e link), no máximo 8. Somas e datas de fatura SHALL ser calculadas no núcleo, com a mesma regra da ferramenta `total_fatura`.
+O MCP SHALL expor a ferramenta somente leitura `painel`, sem argumentos e fora dos grupos do agente do WhatsApp, que devolve em JSON: data e hora atuais; eventos de hoje e dos próximos 7 dias (com recorrências expandidas); gastos do mês corrente por categoria e o total do mês, em centavos; a fatura aberta de cada cartão de crédito (total em centavos, fechamento, vencimento e `mes_vencimento`); os últimos 10 registros (gastos lançados e eventos criados, por ordem de criação; nos gastos, a origem `whatsapp` quando vieram de uma mensagem ou `mac` quando vieram pelo MCP); e as vagas dos últimos 14 dias não dispensadas (código, título, organização, tipo, local, prazo e link), no máximo 8. Somas e datas de fatura SHALL ser calculadas no núcleo, com a mesma regra da ferramenta `total_fatura`.
 
 #### Scenario: Fatura aberta igual à da conversa
 - **WHEN** o Jarvis chama `painel` em 09/10/2026
