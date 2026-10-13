@@ -42,10 +42,14 @@ jobs:
       - run: uv run pytest tests/unit -q
 
   jarvis:
-    name: Jarvis (cérebro, macOS)
-    runs-on: macos-latest
+    # O cérebro é Python puro; em Linux rodam os testes com fakes de áudio, voz e núcleo.
+    # O que só existe no Mac (modelo da palavra-chave com `say`, tmux) pula sozinho.
+    # Um runner macOS ficou 15 min na fila sem começar (13/10/2026); Ubuntu é imediato.
+    name: Jarvis (cérebro)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get install -y -qq libportaudio2 zsh
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
