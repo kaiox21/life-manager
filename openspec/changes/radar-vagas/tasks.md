@@ -15,6 +15,6 @@
 
 ## 4. Fechamento
 
-- [ ] 4.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `uv run alembic upgrade head`, `openspec validate --all --strict`; prova (`uv run pytest -m eval`, avisar o custo antes)
-- [ ] 4.2 Primeira rodada real com o Kaio (custo anotado), ajuste do perfil, "não tenho interesse na N" pelo WhatsApp e pelo Jarvis
+- [x] 4.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `uv run alembic upgrade head`, `openspec validate --all --strict`; prova (`uv run pytest -m eval`, avisar o custo antes)
+- [ ] 4.2 Primeira rodada real com o Kaio (feita em 13/10: 9 buscas, 85 resultados, 7 vagas, US$ 0,093; 4 boas no Programathor, 3 páginas de busca do Indeed/Infojobs, nenhuma bolsa; entrega no WhatsApp após reiniciar a Evolution), ajuste do perfil, "não tenho interesse na N" pelo WhatsApp e pelo Jarvis
 - [ ] 4.3 `SPEC.md` (decisão do radar: link verificado, sem repetição, custo) e `/opsx:archive`

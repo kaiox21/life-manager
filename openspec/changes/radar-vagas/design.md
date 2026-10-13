@@ -80,3 +80,14 @@
 ## Open Questions
 
 - Nenhuma. O perfil inicial vai em `config/vagas.yaml`, e o Kaio ajusta depois das primeiras rodadas.
+
+## Registro da implementação (13/10/2026)
+
+- **Prova** depois da intenção `vagas` no classificador: 56/56 no classificador e 55/56 no agente (a mesma falha conhecida, `a10`), US$ 0,023. Os 3 casos de vagas não entraram: `casos.yaml` é somente leitura.
+- **1ª rodada real:** 9 buscas, 85 resultados, 7 vagas novas e nenhuma descartada, US$ 0,093. Qualidade:
+  - 4 páginas de vaga do Programathor, duas de IA/Python remotas (as melhores);
+  - 3 páginas de **resultado de busca** do Indeed e do Infojobs, não vagas;
+  - nenhuma bolsa ou monitoria;
+  - números baixos no Programathor (5087, 9224) sugerem anúncio antigo.
+- **Entrega que falhou esperava 72 h:** o WhatsApp recusou (Evolution 428 "Connection Closed"), e como a rodada deu certo a próxima só sairia em 3 dias. Agora toda checagem manda as vagas registradas e não enviadas (`deliver_pending`).
+- **WhatsApp morto com estado "open":** a Evolution dizia `open`, mas todo envio voltava 428. Provável queda da conexão do WhatsApp Web com o Mac dormindo; o monitor de queda confia no estado e não percebeu. `docker compose restart evolution-api` reconectou sem QR. Isso fica fora deste change e foi anotado para o canal do WhatsApp.
