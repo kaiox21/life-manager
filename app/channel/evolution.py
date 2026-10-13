@@ -1,6 +1,8 @@
 """Único módulo que conhece a Evolution API (v2, integração Baileys)."""
 
+import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -109,10 +111,30 @@ def parse_webhook(payload: dict[str, Any]) -> IncomingMessage | None:
     )
 
 
+RESTART_EVERY = 300.0  # s entre reinícios da instância (sessão perdida de verdade: sem laço)
+OPEN_WAIT = 30.0  # s esperando a instância voltar a "open" depois de reiniciar
+OPEN_POLL = 2.0
+
+
+class ConnectionLost(Exception):
+    """A Evolution recusou o envio com a conexão do WhatsApp fechada (428 / "Connection Closed")."""
+
+
+def _connection_lost(resp: httpx.Response) -> bool:
+    # 13/10/2026: com connectionState = "open", o envio voltava 428 {"message":"Connection Closed"}
+    return resp.status_code == 428 or "connection closed" in resp.text.lower()
+
+
 class EvolutionClient:
+    # observador opcional dos envios (ConnectionMonitor.observe_send), ligado no app
+    on_send: Any = None
+
     def __init__(self, settings: Settings, http: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
         self._http = http or httpx.AsyncClient(timeout=30)
+        self._last_restart = float("-inf")
+        self._sleep = asyncio.sleep
+        self._clock = time.monotonic
 
     def _headers(self) -> dict[str, str]:
         return {"apikey": self._settings.evolution_api_key.get_secret_value()}
@@ -121,16 +143,67 @@ class EvolutionClient:
         return f"{self._settings.evolution_api_url.rstrip('/')}{path}"
 
     async def send_text(self, out: OutgoingMessage) -> str | None:
-        """Envia texto ao dono. Devolve o id da mensagem no WhatsApp."""
+        """Envia texto ao dono. Devolve o id da mensagem no WhatsApp.
+
+        Com a conexão do WhatsApp morta (428 / "Connection Closed", mesmo com o estado "open"),
+        reinicia a instância, espera ela voltar e tenta de novo uma vez (change
+        whatsapp-reconexao)."""
         if not is_owner(out.to, self._settings.owner_phone):
             raise ForbiddenDestinationError("envio permitido só para OWNER_PHONE")
-        resp = await self._http.post(
-            self._url(f"/message/sendText/{self._settings.evolution_instance}"),
-            headers=self._headers(),
-            json={"number": normalize_phone(self._settings.owner_phone), "text": out.text},
-        )
+        resp = await self._post_text(out.text)
+        if _connection_lost(resp) and await self._reconnect():
+            resp = await self._post_text(out.text)
+        lost = _connection_lost(resp)
+        await self._notify_send(ok=resp.is_success, lost=lost)
+        if lost:
+            raise ConnectionLost(f"WhatsApp com a conexão fechada ({resp.status_code})")
         resp.raise_for_status()
         return (resp.json().get("key") or {}).get("id")
+
+    async def _post_text(self, text: str) -> httpx.Response:
+        return await self._http.post(
+            self._url(f"/message/sendText/{self._settings.evolution_instance}"),
+            headers=self._headers(),
+            json={"number": normalize_phone(self._settings.owner_phone), "text": text},
+        )
+
+    async def _notify_send(self, ok: bool, lost: bool) -> None:
+        if self.on_send is None or not (ok or lost):
+            return  # outros erros (número, 500 genérico) não dizem nada da conexão
+        try:
+            await self.on_send(ok)
+        except Exception:
+            log.exception("monitor do WhatsApp falhou ao registrar o envio")
+
+    async def restart(self) -> None:
+        resp = await self._http.post(
+            self._url(f"/instance/restart/{self._settings.evolution_instance}"),
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+
+    async def _reconnect(self) -> bool:
+        """Reinicia a instância (no máximo a cada 5 min) e espera "open". True se voltou."""
+        if self._clock() - self._last_restart < RESTART_EVERY:
+            return False
+        self._last_restart = self._clock()
+        log.warning("WhatsApp com a conexão fechada: reiniciando a instância")
+        try:
+            await self.restart()
+        except httpx.HTTPError:
+            log.exception("não consegui reiniciar a instância")
+            return False
+        waited = 0.0
+        while waited < OPEN_WAIT:
+            await self._sleep(OPEN_POLL)
+            waited += OPEN_POLL
+            try:
+                if await self.connection_state() == "open":
+                    log.info("WhatsApp reconectado depois do reinício")
+                    return True
+            except httpx.HTTPError:
+                continue
+        return False
 
     async def fetch_media(self, media: Media) -> str | None:
         """Baixa de novo o arquivo de uma mensagem (quando o webhook veio sem base64)."""

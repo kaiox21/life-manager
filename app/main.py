@@ -56,6 +56,8 @@ def create_app(
         if app.state.sender is None:
             client = EvolutionClient(settings)
             app.state.sender = client
+        if isinstance(app.state.sender, EvolutionClient):  # o envio também alimenta o monitor
+            app.state.sender.on_send = lambda ok: app.state.monitor.observe_send(ok, clock())
         if app.state.llm is None:
             gateway = make_llm(settings)
             app.state.llm = gateway

@@ -8,7 +8,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 import httpx
@@ -72,6 +72,24 @@ class ConnectionMonitor:
             await self._send(
                 "WhatsApp fora do ar",
                 f"{what} desde {self._down_since:%H:%M}. Pode ser preciso escanear o QR de novo.",
+                urgent=True,
+            )
+            self._alerted = True
+
+    async def observe_send(self, ok: bool, now: datetime | None = None) -> None:
+        """Resultado de um envio: falha com a conexão fechada conta como queda mesmo que o
+        estado diga "open" (13/10/2026); envio bem-sucedido conta como conectado."""
+        now = now or datetime.now(UTC)
+        if ok:
+            await self.observe("open", now)
+            return
+        if self._down_since is None:
+            self._down_since = now
+        if not self._alerted and now - self._down_since >= self._grace:
+            await self._send(
+                "WhatsApp fora do ar",
+                f"Os envios falham com a conexão fechada desde {self._down_since:%H:%M}, mesmo "
+                "depois de reiniciar a instância. Pode ser preciso escanear o QR de novo.",
                 urgent=True,
             )
             self._alerted = True
