@@ -32,6 +32,19 @@ log = logging.getLogger(__name__)
 
 CHANNEL = "vagas"
 MAX_ROUNDS = 3  # conversas com o modelo por rodada (pesquisar → registrar; um lembrete se faltar)
+# Páginas de resultado de busca de agregadores: não são vagas (1ª rodada real, 13/10/2026: 3 de 7
+# eram buscas do Indeed e do Infojobs).
+SEARCH_PAGES = re.compile(
+    r"(indeed\.com/(q-|jobs\?|empregos\?|m/jobs)"
+    r"|infojobs\.com\.br/(vagas-de-emprego|empregos\.aspx)"
+    r"|linkedin\.com/jobs/(search|[a-z-]+-vagas)"
+    r"|catho\.com\.br/vagas/?(\?|$)"
+    r"|glassdoor\.com(\.br)?/(Vaga|Job)/.+\.htm"
+    r"|vagas\.com\.br/vagas-de-"
+    r"|google\.com/search)",
+    re.I,
+)
+MAX_AGE_DAYS = 60  # vaga publicada há mais que isso costuma estar encerrada
 TRACKING = re.compile(r"^(utm_.*|gclid|fbclid|ref|trk|trackingid|src|source|origin)$", re.I)
 
 
@@ -74,6 +87,9 @@ class VagaIn(BaseModel):
     tipo: Literal["estagio", "bolsa", "monitoria", "junior"]
     local: str = Field(max_length=120, description="Ex.: 'Brasília (híbrido)' ou 'Remoto'")
     prazo: date | None = Field(default=None, description="Data limite de inscrição, AAAA-MM-DD")
+    publicada: date | None = Field(
+        default=None, description="Data de publicação, se aparecer no resultado (AAAA-MM-DD)"
+    )
     url: str = Field(description="Link copiado de um resultado da busca")
     resumo: str = Field(default="", max_length=240, description="Uma linha: o que é e requisitos")
 
@@ -174,7 +190,12 @@ Depois, chame registrar_vagas UMA vez com as vagas abertas que servem. Regras:
   nunca monte ou adivinhe um link;
 - não inclua vaga encerrada, com prazo já vencido ou fora do local e dos tipos aceitos;
 - prazo só se estiver escrito no resultado; senão, deixe vazio;
-- prefira a página da vaga; se só houver a página de listagem, use-a e diga no resumo;
+- só a página de UMA vaga ou de UM edital; nunca página de resultado de busca ou lista de
+  agregador (Indeed, Infojobs, LinkedIn, Catho, Glassdoor): procure a vaga dentro dela;
+- prefira vagas publicadas nos últimos 30 dias; se o resultado mostrar a data de publicação,
+  preencha "publicada"; não inclua anúncio marcado como encerrado ou expirado;
+- divida as buscas entre os tipos aceitos: pelo menos 3 para bolsa e monitoria (editais da
+  universidade, CNPq, fundação de amparo à pesquisa do estado), o resto para estágio e júnior;
 - se nada servir, chame registrar_vagas com a lista vazia."""
 
 
@@ -240,6 +261,10 @@ async def run_radar(
         reason = None
         if not verified(v.url, allowed):
             reason = "link_fora_da_busca"
+        elif SEARCH_PAGES.search(v.url):
+            reason = "pagina_de_busca"
+        elif v.publicada is not None and (today - v.publicada).days > MAX_AGE_DAYS:
+            reason = "antiga"
         elif v.tipo not in profile.tipos:
             reason = "tipo_fora_do_perfil"
         elif v.prazo is not None and v.prazo < today:

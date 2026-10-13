@@ -338,3 +338,40 @@ async def test_entrega_que_falhou_sai_na_checagem_seguinte(sessions, tmp_path):
     assert len(sender.sent) == 1 and len(llm.calls) == 1
     assert await radar_cycle(clock=fixed_clock(NOW + timedelta(hours=2)), **kw) == 0
     assert len(sender.sent) == 1  # não repete
+
+
+def test_paginas_de_busca_reais_da_1a_rodada_sao_reconhecidas():
+    from app.vagas.radar import SEARCH_PAGES
+
+    busca = [
+        "https://br.indeed.com/q-est%C3%A1gio-em-programa%C3%A7%C3%A3o-l-bras%C3%ADlia,-df-vagas.html",
+        "https://infojobs.com.br/vagas-de-emprego-estagio+ti-em-brasilia,-df.aspx",
+        "https://www.linkedin.com/jobs/search/?keywords=estagio",
+    ]
+    vagas = [
+        "https://programathor.com.br/jobs/30588-desenvolvedor-a-para-inteligencia-artificial",
+        "https://empresa.gupy.io/jobs/123456",
+        "https://unb.br/editais/pibic-2026",
+    ]
+    assert all(SEARCH_PAGES.search(u) for u in busca)
+    assert not any(SEARCH_PAGES.search(u) for u in vagas)
+
+
+async def test_descarta_pagina_de_busca_e_vaga_antiga(sessions):
+    urls = [
+        "https://br.indeed.com/q-estagio-vagas.html",
+        "https://gupy.io/vagas/9",
+        "https://gupy.io/vagas/10",
+    ]
+    llm = FakeLLM(
+        [
+            vaga(urls[0]),
+            vaga(urls[1], publicada=str(NOW.date() - timedelta(days=200))),
+            vaga(urls[2], publicada=str(NOW.date() - timedelta(days=10))),
+        ],
+        urls=urls,
+    )
+    async with sessions.begin() as s:
+        result = await run_radar(s, llm, "haiku", PROFILE, NOW)
+    assert [v.url for v in result.new] == ["https://gupy.io/vagas/10"]
+    assert result.discarded == {"pagina_de_busca": 1, "antiga": 1}
