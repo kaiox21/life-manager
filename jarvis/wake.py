@@ -367,9 +367,31 @@ class WakeService:
                 listener.done()
                 return
             listener.wait_request()  # continua com a música baixa até o pedido ou desistir
+        elif result == "ok" and self._wants_answer():
+            # "Jarvis, boa noite": a pergunta do fechamento é respondida sem o nome
+            listener.wait_request()
         else:
             self._hold(False)
             listener.done()
+
+    def _wants_answer(self) -> bool:
+        wants = getattr(self._brain, "wants_answer", None)
+        return bool(wants and wants())
+
+    def busy(self) -> bool:
+        """Colhendo ou atendendo um pedido (uma fala proativa espera a vez)."""
+        return self._listener is not None and self._listener.state != IDLE
+
+    def expect_answer(self, rid: str) -> bool:
+        """Lembrete de lançamento: a próxima fala é a resposta, sem o nome. Só com a escuta
+        ligada e parada; devolve se passou a esperar."""
+        listener = self._listener
+        if listener is None or listener.state != IDLE or not self._wants_answer():
+            return False
+        self._rid = rid
+        self._hold(True)
+        listener.wait_request()
+        return True
 
     def _nothing(self) -> None:
         from jarvis import events

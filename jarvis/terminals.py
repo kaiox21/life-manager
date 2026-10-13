@@ -60,6 +60,7 @@ class Terminal:
     ferramenta: str = ""
     resumo: str = ""
     mudou: float = 0.0
+    trabalho_desde: float | None = None  # do pedido (UserPromptSubmit) até o Stop
     visto: float = 0.0
     fim: float | None = None
     chave: str = ""
@@ -82,7 +83,7 @@ class Terminal:
 
     def view(self) -> dict[str, Any]:
         out = asdict(self)
-        for k in ("mudou", "visto", "fim"):
+        for k in ("mudou", "visto", "fim", "trabalho_desde"):
             out.pop(k)
         out["ocupado"] = self.ocupado
         return out
@@ -238,6 +239,8 @@ class Terminals:
         if event == "SessionStart":
             t.fim = None
             return self._set(t, WAITING, now)
+        if event == "UserPromptSubmit":
+            t.trabalho_desde = now  # o "terminou" falado diz quanto o trabalho levou
         if event in ("UserPromptSubmit", "PostToolUse", "PostToolUseFailure"):
             return self._set(t, WORKING, now)
         if event == "PermissionRequest":
@@ -251,7 +254,9 @@ class Terminals:
             return self._alert(t, "espera")
         if event == "Stop":
             self._set(t, DONE, now)
-            return self._alert(t, "terminou")
+            duracao = now - t.trabalho_desde if t.trabalho_desde else 0.0
+            t.trabalho_desde = None
+            return self._alert(t, "terminou") | {"duracao": round(duracao)}
         if event == "SessionEnd":
             if t.tmux:  # o Claude Code saiu; o terminal continua, com o shell
                 t.tipo, t.pid = "shell", None

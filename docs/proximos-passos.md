@@ -1,6 +1,6 @@
 # Próximos passos
 
-O que falta fazer, com o Kaio presente, para fechar os changes abertos. Atualizado em 10/10/2026.
+O que falta fazer, com o Kaio presente, para fechar os changes abertos. Atualizado em 13/10/2026.
 
 Quando terminar uma sessão de testes, conte ao Claude o que deu certo e o que falhou. Ele confere o log (`~/Library/Logs/Jarvis/brain.log`), marca as tarefas, atualiza o `SPEC.md` e arquiva com `/opsx:archive`.
 
@@ -50,6 +50,34 @@ Já testado em 10/10: login e "toca …" por texto (tocou no Mac em 1,7 s).
 - [ ] Com música tocando, o "Jarvis" ainda é detectado.
 - [ ] Conferência da escolha do modelo (tarefa 3.2): "toca Tempo Perdido" vira música, "toca Legião Urbana" vira artista, "toca minha playlist de estudo" vira playlist sua, "pausa" vira controle. Custa frações de centavo.
 - [ ] Sem login: remover o Jarvis em spotify.com/account/apps e pedir uma música. Ele diz que é preciso autorizar, e o comando aparece no painel. "Pausa" continua funcionando. Depois, refazer o login: `uv run python -m jarvis.spotify_login`.
+
+### 4. Aceite do Jarvis proativo (`jarvis-proativo`, tarefa 5.2)
+
+Dá para começar hoje: às 21:30, sem gasto lançado no dia, ele pergunta sozinho.
+
+- [ ] Às 21:30, num dia sem gasto: "Senhor, nenhum gasto lançado hoje. Teve algum?". Responder sem dizer o nome ("30 de uber no pix" ou "não"). Não pergunta de novo no mesmo dia.
+- [ ] "Jarvis, boa noite": gastos de hoje e do mês, a agenda de amanhã e a pergunta. Responder "não" sem o nome: "Perfeito, senhor. Boa noite."
+- [ ] O mesmo pelo botão **Boa noite** do painel.
+- [ ] Criar um evento para daqui a 35 min com aviso de 30: o aviso chega no WhatsApp e ele fala.
+- [ ] Um Claude Code num trabalho de 2 min ou mais: ele avisa quando termina. Uma resposta curta: nada.
+- [ ] Um Claude Code pedindo permissão: ele avisa a ferramenta (nunca o comando) e "Jarvis, permite" não aprova.
+- [ ] "Jarvis, silencia os avisos por uma hora": o botão vira "Avisos HH:MM" e nada é falado; "Jarvis, volta a avisar" (ou o botão) retoma.
+- [ ] Depois das 23:00, nada é falado.
+- [ ] Num dia normal, contar se os avisos incomodaram (o log mostra cada fala: `grep proativo ~/Library/Logs/Jarvis/brain.log`).
+
+## Funcionalidades novas do Jarvis (aprovadas em 10/10/2026)
+
+Ordem de implementação, um change do OpenSpec por vez:
+
+1. **`jarvis-proativo`** (implementado em 13/10; falta o aceite acima): "Jarvis, boa noite" com o fechamento do dia, lembrete de lançamento às 21:30, avisos falados (lembretes do núcleo e terminais) e silêncio.
+2. **Modo estudo/foco**: "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, marca o timer e propõe a pausa.
+3. **Abrir projetos e rascunhos**: "Jarvis, abre o NC Barber" (VS Code e terminal na pasta) e "escreve um e-mail pro professor…" (o texto vai para a área de transferência e o painel; nunca envia).
+4. **Notas rápidas por voz**: "anota que…" e "o que eu anotei sobre…" (tabela nova no núcleo; sem segredos).
+5. **Prazos da UnB no resumo do dia** (API do Aprender3).
+6. **Resumo semanal** no domingo.
+7. Mais para frente: "o que é isso na minha tela?" (visão) e orçamento e metas por categoria.
+
+O `roteador-dificuldade` está proposto (branch `feat/roteador-dificuldade`), mas parado: a recomendação é reduzi-lo à medição (casos difíceis na prova) antes de construir.
 
 ## Decisão pendente
 

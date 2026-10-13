@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE } from "./lib/panel.sample";
 import { EMPTY_PANEL, applyPanel, nextEvent, type PanelState } from "./lib/panel";
-import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, NoticiasCard, Projects, VagasCard, Weather, boletimTitle } from "./Panel";
+import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, NoticiasCard, Projects, VagasCard, Weather, boletimTitle, pausedLabel } from "./Panel";
 import { resetsIn } from "./lib/panel";
 import type { PanelData } from "./lib/types";
 
@@ -203,5 +203,15 @@ describe("cartões do painel HUD", () => {
     expect(boletimTitle("2026-10-10", new Date(2026, 9, 14, 8, 0))).toBe("Notícias de 10/10");
     render(<NoticiasCard panel={ok({ ...SAMPLE, noticias: null })} />);
     expect(screen.getByText("O boletim sai às 07:30.")).toBeTruthy();
+  });
+});
+
+describe("botão Silenciar (jarvis-proativo)", () => {
+  it("mostra até quando os avisos estão pausados, e some quando a pausa passou", () => {
+    const now = new Date("2026-10-13T14:40:00-03:00");
+    expect(pausedLabel({ pausa_ate: "2026-10-13T15:40:00-03:00" }, now)).toBe("15:40");
+    expect(pausedLabel({ pausa_ate: "2026-10-13T14:00:00-03:00" }, now)).toBeNull();
+    expect(pausedLabel({ pausa_ate: null }, now)).toBeNull();
+    expect(pausedLabel(undefined, now)).toBeNull();
   });
 });

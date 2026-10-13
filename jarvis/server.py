@@ -197,6 +197,9 @@ class JarvisServer:
                 elif kind == "briefing" and hasattr(self.brain, "briefing"):
                     # botão Resumo do painel: o mesmo resumo do "Hey Jarvis"
                     launch(self._run(rid, emit, self.brain.briefing(rid, emit)))
+                elif kind == "evening" and hasattr(self.brain, "evening"):
+                    # botão Boa noite do painel: o mesmo fechamento do "Jarvis, boa noite"
+                    launch(self._run(rid, emit, self.brain.evening(rid, emit)))
                 elif kind == "local" and hasattr(self.brain, "local_action"):
                     await self.brain.local_action(str(msg.get("acao", "")))
                 elif kind == "panel":

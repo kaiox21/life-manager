@@ -169,3 +169,65 @@ def test_resumo_cheio_cabe_em_30_segundos():
         at(7, 45), Weather(22, 31, 18, 60), p | {"noticias": {"data": "2026-10-10", "itens": itens}}
     )
     assert len(text) / 15 <= 32, len(text)
+
+
+# --- fechamento do dia e avisos falados (jarvis-proativo)
+
+from jarvis.briefing import evening, spoken_notice  # noqa: E402
+
+
+def noite(lancamentos=2, total="R$ 63,50", proximos=()):
+    return {
+        "hoje": {"total": total, "lancamentos": lancamentos},
+        "mes": {"total": "R$ 1.240,00"},
+        "agenda": {"hoje": [], "proximos": list(proximos)},
+    }
+
+
+def amanha(titulo, hora, data="domingo 11/10/2026"):
+    return {"titulo": titulo, "hora": hora, "data": data}
+
+
+def test_fechamento_com_gastos_e_compromisso_amanha():
+    p = noite(proximos=[amanha("Aula", "19:00"), amanha("Prova", "08:00", "terça 13/10/2026")])
+    assert evening(at(22), p) == (
+        "Boa noite, senhor. Hoje foram 2 gastos, R$ 63,50; no mês, R$ 1.240,00."
+        " Amanhã o senhor tem Aula às 19h."
+        " O senhor teve algum gasto hoje que ainda não lançou?"
+    )
+
+
+def test_fechamento_sem_gastos_e_amanha_livre():
+    text = evening(at(22), noite(lancamentos=0, total="R$ 0,00"))
+    assert "Hoje nenhum gasto foi lançado; no mês, R$ 1.240,00." in text
+    assert "Amanhã o senhor está livre." in text
+    assert evening(at(22), noite(lancamentos=1)).count("1 gasto,") == 1
+
+
+def test_fechamento_sem_nucleo_nao_inventa():
+    text = evening(at(22), None)
+    assert "indisponíveis" in text and "R$" not in text and "?" not in text
+
+
+def test_aviso_falado_limpo():
+    assert (
+        spoken_notice("evento", "⏰ Reunião com o Carlos: hoje às 14:00 — em 30 min.")
+        == "Reunião com o Carlos: hoje às 14h, em 30 min."
+    )
+    assert spoken_notice("evento", "🎂 Hoje é aniversário: Carlos (14/10).") == (
+        "Hoje é aniversário: Carlos."
+    )
+    fatura = "💳 A fatura do Nubank fecha em 2 dias (15/10). Parcial: R$ 1.240,00 (12 lançamentos)."
+    assert (
+        spoken_notice("fatura", fatura)
+        == "A fatura do Nubank fecha em 2 dias. Parcial: R$ 1.240,00."
+    )
+
+
+def test_boletim_e_resumo_nao_sao_falados_e_vagas_vira_frase():
+    assert spoken_notice("noticias", "📰 Notícias de terça") is None
+    assert spoken_notice("resumo", "☀️ Bom dia!") is None
+    assert spoken_notice("outro", "x") is None
+    assert spoken_notice("vagas", "💼 3 vagas novas…") == (
+        "Senhor, o radar encontrou vagas novas; estão no painel."
+    )

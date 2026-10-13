@@ -25,13 +25,16 @@ async def register_incoming(session: AsyncSession, msg: IncomingMessage) -> uuid
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-async def log_outgoing(session: AsyncSession, wa_message_id: str | None, text: str) -> None:
+async def log_outgoing(
+    session: AsyncSession, wa_message_id: str | None, text: str, type: str = "text"
+) -> None:
+    """Mensagem enviada. Avisos do núcleo usam `aviso_<kind>` (o Jarvis os repete em voz)."""
     await session.execute(
         insert(Message).values(
             wa_message_id=wa_message_id,
             channel="whatsapp",
             direction="out",
-            type="text",
+            type=type,
             body=text,
         )
     )

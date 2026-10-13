@@ -5,7 +5,7 @@ construção. Nada é calculado aqui além de escolher períodos: somas são SQL
 aberta vem de `app/domain/billing.py`.
 """
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -41,6 +41,8 @@ async def painel(ctx: ToolContext) -> dict[str, Any]:
                 )
             )["eventos"],
         },
+        # fechamento do dia do Jarvis: gastos com data de hoje (jarvis-proativo)
+        "hoje": await _hoje(ctx, hoje),
         "mes": await resumo_gastos(
             ctx, ResumoGastosArgs(de=hoje.replace(day=1), ate=hoje, agrupar_por="categoria")
         ),
@@ -51,6 +53,42 @@ async def painel(ctx: ToolContext) -> dict[str, Any]:
         # boletim de notícias: a edição mais recente, de madrugada a de ontem (boletim-noticias)
         "noticias": await _noticias(ctx),
     }
+
+
+async def _hoje(ctx: ToolContext, hoje: date) -> dict[str, Any]:
+    r = await resumo_gastos(ctx, ResumoGastosArgs(de=hoje, ate=hoje, agrupar_por="dia"))
+    return {
+        "total": r["total"],
+        "total_centavos": r["total_centavos"],
+        "lancamentos": sum(g["lancamentos"] for g in r["grupos"]),
+    }
+
+
+AVISOS_MAX = 20
+
+
+async def avisos_recentes(
+    ctx: ToolContext, desde: datetime, prefix: str = ""
+) -> list[dict[str, Any]]:
+    """Avisos que o núcleo enviou depois de `desde` (o Jarvis os repete em voz). Só leitura."""
+    rows = await ctx.session.scalars(
+        select(Message)
+        .where(
+            Message.direction == "out",
+            Message.type.like("aviso\\_%"),
+            Message.created_at > desde,
+        )
+        .order_by(Message.created_at)
+        .limit(AVISOS_MAX)
+    )
+    return [
+        {
+            "tipo": (m.type or "").removeprefix("aviso_"),
+            "texto": (m.body or "").removeprefix(prefix) if prefix else m.body or "",
+            "hora": m.created_at.astimezone(TZ).isoformat(),
+        }
+        for m in rows
+    ]
 
 
 async def _noticias(ctx: ToolContext) -> dict[str, Any] | None:

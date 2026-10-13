@@ -116,6 +116,43 @@ CORE_WRITES = {
 HIDDEN_CORE_TOOLS = {"contexto", "painel"}
 PANEL_QUESTIONS = 5
 
+# fechamento do dia e lembrete de lançamento (jarvis-proativo): texto fixo, sem o modelo
+ANSWER_WINDOW = 120.0  # depois da pergunta, a próxima fala é a resposta (sem o nome)
+BRIEFING_USER = "Jarvis"  # no histórico, o resumo do dia responde ao nome
+REMINDER_USER = "[lembrete automático de lançamento]"  # turno sintético: a API pede alternância
+SYNTHETIC_USER = {BRIEFING_USER, REMINDER_USER}  # não aparecem como "perguntas" no painel
+GOOD_NIGHT_REPLY = "Perfeito, senhor. Boa noite."
+REMINDER_REPLY = "Perfeito, senhor."
+NEGATIVES = {
+    "nao", "nada", "nenhum", "nenhum gasto", "nao tive", "nao teve", "nao senhor",
+    "nao obrigado", "tudo lancado", "ja lancei", "ja lancei tudo", "ta tudo lancado",
+    "esta tudo lancado", "nao nada", "nao nenhum",
+}  # fmt: skip
+
+
+def _plain(text: str) -> str:
+    """Minúsculas, sem acento, sem pontuação e sem "Jarvis" no começo ou no fim."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", text.lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    t = re.sub(r"[^\w\s]", " ", t)
+    words = t.split()
+    while words and words[0] in ("jarvis", "hey", "ei", "oi", "ok"):
+        words.pop(0)
+    while words and words[-1] == "jarvis":
+        words.pop()
+    return " ".join(words)
+
+
+def is_good_night(text: str) -> bool:
+    return _plain(text) == "boa noite"
+
+
+def is_negative(text: str) -> bool:
+    return _plain(text) in NEGATIVES
+
+
 STEP_LABELS = {
     "buscar_eventos": "consultando a agenda…",
     "criar_evento": "criando o evento…",
@@ -139,6 +176,7 @@ STEP_LABELS = {
     "abrir_terminal": "abrindo o Claude Code…",
     "mandar_terminal": "preparando a mensagem…",
     "fechar_terminal": "fechando o terminal…",
+    "silenciar_avisos": "ajustando os avisos…",
 }
 
 
@@ -361,12 +399,64 @@ class JarvisBrain:
             self._turn_running = False
         log.info("resumo: %d frases", len(split_sentences(text)))
         await emit(events.heard(rid, "Jarvis"))
+        await self._say_fixed(rid, emit, BRIEFING_USER, text)
+        self._waiting_request = True
+
+    async def _say_fixed(self, rid: str, emit: Emit, said: str, text: str) -> None:
+        """Resposta de texto fixo (resumo, fechamento, "perfeito"): na tela, na voz e no
+        histórico, para o pedido seguinte ter o contexto."""
         await emit(events.token(rid, text))
         await emit(events.done(rid, text))
         if self.speaker is not None:
             for sentence in split_sentences(text):
                 self.speaker.say(sentence)
-        self._waiting_request = True
+        self._history.extend(
+            [{"role": "user", "content": said}, {"role": "assistant", "content": text}]
+        )
+
+    # --- fechamento do dia e lembrete de lançamento (jarvis-proativo)
+
+    _answer_until = 0.0
+    _answer_reply = GOOD_NIGHT_REPLY
+    _wants_answer = False
+
+    def _open_answer(self, reply: str) -> None:
+        self._answer_until = time.monotonic() + ANSWER_WINDOW
+        self._answer_reply = reply
+        self._wants_answer = True
+
+    def wants_answer(self) -> bool:
+        """A escuta pergunta depois de cada turno: esperar a resposta sem o nome? (uma vez)"""
+        wants = self._wants_answer and time.monotonic() < self._answer_until
+        self._wants_answer = False
+        if wants:
+            self._waiting_request = True
+        return wants
+
+    async def evening(self, rid: str, emit: Emit, said: str | None = None) -> None:
+        """ "Boa noite": fechamento do dia com texto fixo (zero token). `said` é o que o Kaio
+        disse; pelo botão do painel é None e a tela mostra "Boa noite"."""
+        self._loop = asyncio.get_running_loop()
+        self._last_emit = emit
+        self._turn = _Turn(rid, "voz", emit)
+        if said is None:
+            said = "Boa noite"
+            await emit(events.heard(rid, said))
+        text = briefing_text.evening(self.clock(), await self._panel_data())
+        log.info("fechamento do dia")
+        await self._say_fixed(rid, emit, said, text)
+        if text.endswith("?"):
+            self._open_answer(GOOD_NIGHT_REPLY)
+
+    async def spending_reminder(self, rid: str, emit: Emit, text: str) -> None:
+        """O lembrete das 21:30 (o serviço proativo fala): vai à tela e ao histórico, e a
+        próxima fala é a resposta."""
+        await emit(events.token(rid, text))
+        await emit(events.done(rid, text))
+        self._history.extend(
+            [{"role": "user", "content": REMINDER_USER}, {"role": "assistant", "content": text}]
+        )
+        self._open_answer(REMINDER_REPLY)
 
     async def _panel_data(self) -> dict[str, Any] | None:
         try:
@@ -409,8 +499,17 @@ class JarvisBrain:
     ) -> None:
         self._turn_running = True
         self._music_hold("turno", True)
+        answering = time.monotonic() < self._answer_until
+        self._answer_until, self._wants_answer = 0.0, False
         try:
-            await self._ask(rid, text, emit, mode, t_release)
+            if is_good_night(text):
+                await self.evening(rid, emit, said=text)
+            elif answering and is_negative(text):
+                self._loop = asyncio.get_running_loop()
+                self._turn = _Turn(rid, mode, emit)
+                await self._say_fixed(rid, emit, text, self._answer_reply)
+            else:
+                await self._ask(rid, text, emit, mode, t_release)
         finally:
             self._turn_running = False
             self._music_hold("turno", False)
@@ -485,18 +584,32 @@ class JarvisBrain:
             down: dict[str, Any] = {"erro": "núcleo indisponível"}
             if self.panel_extras is not None:
                 down |= await self.panel_extras(None)
+            if self._local.notices is not None:
+                down["avisos"] = self._local.notices.status()
             await emit(events.panel(rid, down))
             return
-        questions = [m["content"] for m in self._history if m["role"] == "user"]
+        questions = [
+            m["content"]
+            for m in self._history
+            if m["role"] == "user" and m["content"] not in SYNTHETIC_USER
+        ]
         data = {**result.data, "perguntas": questions[-PANEL_QUESTIONS:]}
         if self.panel_extras is not None:  # clima, Mac, música, projetos e dias até fechar
             data |= await self.panel_extras(result.data.get("faturas") or [])
+        if self._local.notices is not None:  # botão Silenciar: até quando os avisos pausaram
+            data["avisos"] = self._local.notices.status()
         await emit(events.panel(rid, data))
 
     async def local_action(self, acao: str) -> None:
         """Botões do painel que não passam pelo modelo (lista fechada)."""
         if acao == "musica_tocar_pausar":
             await self._local.musica_alternar()
+        elif acao in ("avisos_pausar_1h", "avisos_retomar") and self._local.notices is not None:
+            # botão Silenciar: pausa por 1 h ou retoma (jarvis-proativo)
+            if acao == "avisos_retomar":
+                self._local.notices.resume()
+            else:
+                self._local.notices.pause(60)
 
     def _log_timing(self, turn: _Turn) -> None:
         t0 = turn.t_release or 0.0

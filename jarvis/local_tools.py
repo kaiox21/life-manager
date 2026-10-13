@@ -128,6 +128,20 @@ class TerminalControl(Protocol):
     async def close(self, numero: int, confirm: Confirm | None) -> dict[str, Any]: ...
 
 
+class SilenciarAvisosArgs(Args):
+    acao: Literal["pausar", "pausar_ate_amanha", "retomar"]
+    minutos: int | None = Field(
+        default=None, ge=1, le=720, description="Para pausar: por quantos minutos (1 a 720)"
+    )
+
+
+class Notices(Protocol):
+    def pause(self, minutes: int) -> dict[str, Any]: ...
+    def pause_until_morning(self) -> dict[str, Any]: ...
+    def resume(self) -> dict[str, Any]: ...
+    def status(self) -> dict[str, Any]: ...
+
+
 class ClipboardArgs(Args):
     acao: Literal["ler", "escrever"]
     texto: str | None = Field(default=None, max_length=MAX_CLIPBOARD)
@@ -183,6 +197,7 @@ class LocalTools:
         self._control = control
         self._spotify = spotify
         self._ducker = ducker
+        self.notices: Notices | None = None  # avisos falados (jarvis/proactive.py)
 
     def set_confirm(self, confirm: Confirm) -> None:
         self._confirm = confirm
@@ -312,6 +327,16 @@ class LocalTools:
             return {"erro": "As abas de terminal não estão disponíveis."}
         return await self._control.close(a.numero, self._confirm)
 
+    async def silenciar_avisos(self, a: SilenciarAvisosArgs) -> dict[str, Any]:
+        """Só controla a voz do próprio Jarvis (o WhatsApp segue recebendo): sem confirmação."""
+        if self.notices is None:
+            return {"erro": "Os avisos falados não estão ligados."}
+        if a.acao == "retomar":
+            return self.notices.resume()
+        if a.acao == "pausar_ate_amanha":
+            return self.notices.pause_until_morning()
+        return self.notices.pause(a.minutos or 60)
+
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela."""
@@ -386,6 +411,13 @@ class LocalTools:
                 "estiver aberto no Terminal.app.",
                 FecharTerminalArgs,
                 self.fechar_terminal,
+            ),
+            "silenciar_avisos": (
+                "Pausa os avisos falados do Jarvis (lembretes, terminais, pergunta dos gastos): "
+                "'silencia os avisos por uma hora' -> acao=pausar, minutos=60; 'até amanhã' -> "
+                "pausar_ate_amanha; 'volta a avisar' -> retomar. O WhatsApp continua recebendo.",
+                SilenciarAvisosArgs,
+                self.silenciar_avisos,
             ),
             "area_transferencia": (
                 "Lê (pede permissão) ou escreve na área de transferência.",

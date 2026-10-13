@@ -149,4 +149,5 @@ def test_schemas_para_o_modelo():
         "abrir_terminal",
         "mandar_terminal",
         "fechar_terminal",
+        "silenciar_avisos",
     }

@@ -13,6 +13,9 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
                          0.2; 1.5)
   JARVIS_TERMINAIS_MAX / JARVIS_TERMINAIS_MEM_MIN   Claude Code rodando nos terminais (4) e
                          memória livre mínima em % para abrir um terminal (20)
+  JARVIS_SILENCIO        horário sem avisos falados (padrão: 23:00-07:00; vazio desliga)
+  JARVIS_LEMBRETE_GASTOS hora da pergunta "nenhum gasto lançado hoje" (padrão: 21:30; vazio
+                         desliga)
 Valem as do ambiente e, na falta, as do .env.
 """
 
@@ -21,6 +24,8 @@ import contextlib
 import logging
 import os
 import signal
+from collections.abc import Callable
+from typing import Any
 
 from dotenv import dotenv_values
 
@@ -34,6 +39,7 @@ from jarvis.local_tools import LocalTools, load_config
 from jarvis.mcp_client import ResilientCore
 from jarvis.panel_extras import PanelExtras
 from jarvis.permissions import HookServer, Permissions
+from jarvis.proactive import Proactive
 from jarvis.server import JarvisServer
 from jarvis.sessions import Folders
 from jarvis.spotify import Ducker, Spotify
@@ -52,13 +58,21 @@ def env(name: str, default: str = "") -> str:
     return os.environ.get(name) or _DOTENV.get(name) or default
 
 
+def env_raw(name: str, default: str) -> str:
+    """Como `env`, mas um valor vazio vale (vazio desliga)."""
+    return os.environ.get(name, _DOTENV.get(name, default))
+
+
 def _log_task_error(task: asyncio.Task[None]) -> None:
     if not task.cancelled() and task.exception():
         log.error("tarefa em segundo plano falhou: %r", task.exception())
 
 
 async def watch_terminals(
-    terminals: Terminals, server: JarvisServer, control: TerminalControl
+    terminals: Terminals,
+    server: JarvisServer,
+    control: TerminalControl,
+    notify: Callable[[dict[str, Any]], None] = lambda alert: None,
 ) -> None:
     """Lê os eventos dos hooks do Claude Code (a cada 300 ms) e o tmux (a cada 1 s)."""
     ticks = 0
@@ -73,6 +87,7 @@ async def watch_terminals(
             if changed:
                 await server.broadcast(events.terminals(terminals.snapshot()))
             for alert in alerts:
+                notify(alert)  # aviso falado (jarvis/proactive.py)
                 await server.broadcast(events.terminal_alert(alert))
         except Exception:  # noqa: BLE001
             log.exception("terminais: falha ao ler os eventos")
@@ -129,16 +144,17 @@ async def main() -> None:
     core = ResilientCore(url, s.mcp_token.get_secret_value())
     core_task = asyncio.create_task(core.run())
     core_task.add_done_callback(_log_task_error)
+    local = LocalTools(
+        config=config,
+        terminals=terminals.snapshot,
+        control=control,
+        spotify=spotify,
+        ducker=ducker,
+    )
     brain = JarvisBrain(
         llm,
         core,
-        LocalTools(
-            config=config,
-            terminals=terminals.snapshot,
-            control=control,
-            spotify=spotify,
-            ducker=ducker,
-        ),
+        local,
         primary=env("JARVIS_MODEL_PRIMARY", s.model_primary),
         escalation=env("JARVIS_MODEL_ESCALATION", s.model_escalation),
         transcriber=transcriber,
@@ -178,7 +194,29 @@ async def main() -> None:
 
     brain.speaker.set_on_level(voice_level)
     server.control = control
-    control.broadcast = server.broadcast
+    proactive = Proactive(
+        brain,
+        core,
+        server.broadcast_ui,
+        wake=lambda: server.wake,
+        silence=env_raw("JARVIS_SILENCIO", "23:00-07:00"),
+        reminder=env_raw("JARVIS_LEMBRETE_GASTOS", "21:30"),
+    )
+    local.notices = proactive
+
+    def avisos_mudaram() -> None:  # o botão Silenciar mostra até quando
+        task = asyncio.create_task(brain.panel("avisos", server.broadcast_ui))
+        level_tasks.add(task)
+        task.add_done_callback(level_tasks.discard)
+
+    proactive.on_change = avisos_mudaram
+
+    async def control_broadcast(ev: events.Event) -> None:
+        if ev.type == "terminal_alert" and isinstance(ev.data, dict):
+            proactive.terminal(ev.data)  # pedido de permissão de um terminal compartilhado
+        await server.broadcast(ev)
+
+    control.broadcast = control_broadcast
     server.greeting = lambda: [events.terminals(terminals.snapshot())]
     if present():
         words = tuple(w.strip() for w in env("JARVIS_WAKE_PALAVRAS").split(",") if w.strip())
@@ -194,8 +232,10 @@ async def main() -> None:
     else:
         log.warning("sem o modelo da palavra 'Jarvis' (python3 jarvis/wake_model.py)")
     await control.refresh()
-    watcher = asyncio.create_task(watch_terminals(terminals, server, control))
+    watcher = asyncio.create_task(watch_terminals(terminals, server, control, proactive.terminal))
     watcher.add_done_callback(_log_task_error)
+    proactive_task = asyncio.create_task(proactive.run())
+    proactive_task.add_done_callback(_log_task_error)
     hooks = HookServer(server.check_token, control.on_hook)
     async with (
         hooks.run() as hook_port,

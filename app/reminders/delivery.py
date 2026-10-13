@@ -54,6 +54,6 @@ async def deliver(
                 await session.execute(delete(SentReminder).where(SentReminder.id == reserved))
             continue
         async with sessions.begin() as session:
-            await log_outgoing(session, wa_id, out.text)
+            await log_outgoing(session, wa_id, out.text, type=f"aviso_{notice.kind}")
         sent += 1
     return sent

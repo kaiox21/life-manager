@@ -100,6 +100,8 @@ export interface PanelData {
   vagas?: Vaga[];
   // boletim de notícias (núcleo): a edição mais recente; de madrugada, a de ontem
   noticias?: Boletim | null;
+  // avisos falados (jarvis/proactive.py): até quando estão pausados; null = falando
+  avisos?: { pausa_ate: string | null };
   // dados locais do cérebro (jarvis/panel_extras.py); null = indisponível
   clima?: { agora: number; max: number; min: number; chuva: number; cidade: string } | null;
   mac?: {

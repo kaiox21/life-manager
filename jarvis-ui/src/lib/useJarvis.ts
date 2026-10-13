@@ -313,6 +313,9 @@ export function useJarvis() {
     },
     briefing: () => send({ type: "briefing", id: crypto.randomUUID() }),
     toggleMusic: () => send({ type: "local", acao: "musica_tocar_pausar" }),
+    evening: () => send({ type: "evening", id: crypto.randomUUID() }),
+    setNotices: (paused: boolean) =>
+      send({ type: "local", acao: paused ? "avisos_retomar" : "avisos_pausar_1h" }),
     stop: () => send({ type: "interrupt" }),
     setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,

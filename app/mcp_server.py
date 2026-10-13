@@ -8,6 +8,7 @@ import inspect
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
@@ -19,9 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.service import build_prompt
 from app.agent.tools import ALL_TOOLS, Tool, ToolContext, ToolError
+from app.agent.tools.painel import avisos_recentes as recent_notices
 from app.agent.tools.painel import painel as panel_data
 from app.clock import Clock
 from app.db.models import AgentRun
+from app.handler import BOT_MARK
 
 log = logging.getLogger(__name__)
 
@@ -136,6 +139,22 @@ def build_mcp(
         return json.dumps(data, ensure_ascii=False, default=str)
 
     server.add_tool(painel, name="painel")
+
+    async def avisos_recentes(
+        desde: Annotated[datetime, Field(description="Instante com fuso (ISO 8601)")],
+    ) -> str:
+        """Avisos que o núcleo enviou pelo WhatsApp depois de `desde` (lembretes, faturas,
+        vagas, boletim), com tipo, texto e hora, no máximo 20. Só leitura; não registra em
+        agent_runs (o Jarvis chama a cada minuto para falar os avisos)."""
+        if desde.tzinfo is None:
+            raise McpToolError("desde precisa de fuso (ex.: 2026-10-13T13:29:00-03:00)")
+        async with get_sessions()() as session:
+            data = await recent_notices(
+                ToolContext(session=session, clock=clock), desde, prefix=BOT_MARK
+            )
+        return json.dumps(data, ensure_ascii=False)
+
+    server.add_tool(avisos_recentes, name="avisos_recentes")
     return server
 
 

@@ -171,6 +171,7 @@ export function Panel() {
   }
 
   const firstTab = j.terminals.find((t) => t.tmux && t.aba);
+  const pausedUntil = pausedLabel(j.panel.data?.avisos, now);
   const openProject = async (caminho: string) => {
     const r = await j.openTerminal({ pasta: caminho, claude: false });
     if ("status" in r) setView(r.sessao);
@@ -216,6 +217,19 @@ export function Panel() {
               title={firstTab ? undefined : "Nenhum terminal aberto numa aba"}
             >
               Terminais
+            </button>
+            <button type="button" className="hud-mode hud-mode--d" onClick={j.evening} disabled={link !== "online"}>
+              Boa noite
+            </button>
+            <button
+              type="button"
+              className="hud-mode hud-mode--e"
+              onClick={() => j.setNotices(Boolean(pausedUntil))}
+              disabled={link !== "online"}
+              aria-pressed={Boolean(pausedUntil)}
+              title={pausedUntil ? "Avisos falados pausados; clique para retomar" : "Pausar os avisos falados por 1 hora"}
+            >
+              {pausedUntil ? `Avisos ${pausedUntil}` : "Silenciar"}
             </button>
           </nav>
           <p className="painel__state" aria-live="polite">
@@ -710,6 +724,14 @@ export function ClaudeCard({ panel, now = new Date() }: { panel: PanelState; now
 }
 
 /** "Notícias de hoje" ou "Notícias de ontem, 13/10": a edição mais recente que o núcleo tem. */
+/** Até quando os avisos falados estão pausados ("15:40"), ou null se estão ligados. */
+export function pausedLabel(avisos: { pausa_ate: string | null } | undefined, now: Date): string | null {
+  if (!avisos?.pausa_ate) return null;
+  const until = new Date(avisos.pausa_ate);
+  if (Number.isNaN(until.getTime()) || until <= now) return null;
+  return until.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
 export function boletimTitle(data: string, now: Date): string {
   const [y, m, d] = data.split("-").map(Number);
   const edition = new Date(y, m - 1, d);

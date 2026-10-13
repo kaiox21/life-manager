@@ -174,6 +174,10 @@ async def test_botoes_resumo_e_musica_no_servidor():
             self.calls.append("resumo")
             await emit(events.done(rid, "Bom dia, senhor."))
 
+        async def evening(self, rid, emit):
+            self.calls.append("boa noite")
+            await emit(events.done(rid, "Boa noite, senhor."))
+
         async def local_action(self, acao):
             self.calls.append(acao)
 
@@ -183,9 +187,11 @@ async def test_botoes_resumo_e_musica_no_servidor():
         async with connect(f"ws://127.0.0.1:{port}/?token=tk") as ws:
             await ws.send(json.dumps({"type": "briefing", "id": "r1"}))
             assert json.loads(await asyncio.wait_for(ws.recv(), 2))["type"] == "done"
+            await ws.send(json.dumps({"type": "evening", "id": "r2"}))
+            assert json.loads(await asyncio.wait_for(ws.recv(), 2))["type"] == "done"
             await ws.send(json.dumps({"type": "local", "acao": "musica_tocar_pausar"}))
             await asyncio.sleep(0.1)
-    assert b.calls == ["resumo", "musica_tocar_pausar"]
+    assert b.calls == ["resumo", "boa noite", "musica_tocar_pausar"]
 
 
 async def test_acao_local_fora_da_lista_nao_faz_nada():

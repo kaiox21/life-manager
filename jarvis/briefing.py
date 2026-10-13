@@ -8,6 +8,7 @@ esperando resposta.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -196,3 +197,67 @@ def compose(
     elif pending_permissions > 1:
         parts.append(f"Tem {pending_permissions} pedidos de permissão esperando nos terminais.")
     return " ".join(parts)
+
+
+# --- fechamento do dia ("Jarvis, boa noite") e avisos falados (jarvis-proativo)
+
+EVENING_QUESTION = "O senhor teve algum gasto hoje que ainda não lançou?"
+EVENING_EVENTS = 3
+
+
+def _count(n: int) -> str:
+    return "1 gasto" if n == 1 else f"{n} gastos"
+
+
+def _tomorrow_text(events: list[dict[str, Any]], today: date) -> str:
+    tomorrow = today + timedelta(days=1)
+    items = [e for e in events if _br_date(str(e.get("data", "")).split(" ")[-1]) == tomorrow]
+    if not items:
+        return "Amanhã o senhor está livre."
+    parts = []
+    for e in items[:EVENING_EVENTS]:
+        title = str(e.get("titulo", "compromisso"))
+        hora = e.get("hora")
+        parts.append(title if hora == "dia inteiro" else f"{title} às {_spoken_time(str(hora))}")
+    text = "Amanhã o senhor tem " + _join(parts)
+    extra = len(items) - EVENING_EVENTS
+    return text + (f", e mais {extra}." if extra > 0 else ".")
+
+
+def evening(now: datetime, panel: dict[str, Any] | None) -> str:
+    """O fechamento do dia: gastos de hoje e do mês, a agenda de amanhã e a pergunta."""
+    if panel is None:
+        return "Boa noite, senhor. Os dados de gastos e agenda estão indisponíveis agora."
+    hoje = panel.get("hoje") or {}
+    n = int(hoje.get("lancamentos") or 0)
+    mes = (panel.get("mes") or {}).get("total", "R$ 0,00")
+    spent = (
+        f"Hoje foram {_count(n)}, {hoje.get('total')}; no mês, {mes}."
+        if n
+        else f"Hoje nenhum gasto foi lançado; no mês, {mes}."
+    )
+    tomorrow = _tomorrow_text(panel.get("agenda", {}).get("proximos", []), now.date())
+    return f"Boa noite, senhor. {spent} {tomorrow} {EVENING_QUESTION}"
+
+
+VAGAS_SPOKEN = "Senhor, o radar encontrou vagas novas; estão no painel."
+_EMOJI = re.compile(
+    "[\U0001f000-\U0001faff\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff\ufe0f\u200d]+"
+)  # emojis e variações
+_PARENS = re.compile(r"\s*\([^)]*\)")
+_HHMM = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+
+
+def spoken_notice(tipo: str, texto: str) -> str | None:
+    """O texto falado de um aviso do núcleo; None quando o tipo não é falado (o boletim e o
+    resumo das 07:30 o "Hey Jarvis" já fala)."""
+    if tipo == "vagas":
+        return VAGAS_SPOKEN
+    if tipo not in ("evento", "fatura"):
+        return None
+    text = _EMOJI.sub("", texto)
+    text = _PARENS.sub("", text)
+    text = text.replace(" — ", ", ").replace("—", ",")
+    text = _HHMM.sub(lambda m: _spoken_time(f"{m[1]}:{m[2]}"), text)
+    text = " ".join(text.split())
+    return text or None

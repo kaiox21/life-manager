@@ -57,6 +57,17 @@ async def test_mes_por_categoria_sem_excluidos(ctx):
     assert grupos == {"Alimentação": 4790, "Transporte": 3000}
 
 
+async def test_gastos_de_hoje_sem_excluidos_nem_outros_dias(ctx):
+    await _gasto(ctx, amount_cents=4000)
+    await _gasto(ctx, amount_cents=2350, description="café")
+    await _gasto(ctx, amount_cents=9999, description="engano")
+    await desfazer_ultimo(ctx, SemArgs())
+    await _gasto(ctx, amount_cents=500, description="ontem", spent_on="2026-10-06")
+
+    hoje = (await painel(ctx))["hoje"]
+    assert (hoje["total_centavos"], hoje["lancamentos"]) == (6350, 2)
+
+
 async def test_registro_parcelada_uma_vez_e_origem(ctx):
     msg = Message(channel="whatsapp", direction="in", type="text", body="47 no almoço")
     ctx.session.add(msg)
@@ -118,6 +129,7 @@ async def test_sem_dados(ctx):
     assert out["agora"].startswith("2026-10-07T12:00")
     assert out["agenda"] == {"hoje": [], "proximos": []}
     assert out["mes"]["total_centavos"] == 0
+    assert out["hoje"] == {"total": "R$ 0,00", "total_centavos": 0, "lancamentos": 0}
     assert out["registro"] == []
     assert {f["total_centavos"] for f in out["faturas"]} == {0}
     assert date.fromisoformat(out["agora"][:10]) == date(2026, 10, 7)

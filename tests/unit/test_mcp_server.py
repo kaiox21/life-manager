@@ -29,6 +29,7 @@ EXPECTED = {
     "dispensar_vaga",
     "contexto",
     "painel",
+    "avisos_recentes",
 }
 
 
@@ -168,3 +169,34 @@ async def test_painel_so_le_sem_agent_runs_nem_sync(seeded):
     assert len(await _all(seeded, AgentRun)) == runs_antes
     assert len(writes) == writes_antes
     assert len(await _all(seeded, Expense)) == 1
+
+
+async def test_avisos_recentes_so_le_e_traz_so_avisos(seeded):
+    from datetime import datetime, timedelta
+
+    from app.clock import TZ
+    from app.db.repo import log_outgoing
+    from app.handler import BOT_MARK
+
+    server = build_mcp(get_sessions=lambda: seeded, clock=fixed_clock(NOW))
+    antes = datetime.now(TZ) - timedelta(minutes=1)
+    async with seeded.begin() as s:
+        await log_outgoing(s, "W1", f"{BOT_MARK}⏰ Aula: hoje às 19:00.", type="aviso_evento")
+        await log_outgoing(s, "W2", "Lancei R$ 30,00.")  # resposta comum, não é aviso
+        await log_outgoing(s, "W3", "💼 Vagas novas", type="aviso_vagas")
+    runs = len(await _all(seeded, AgentRun))
+
+    out = _payload(await server.call_tool("avisos_recentes", {"desde": antes.isoformat()}))
+    assert [(a["tipo"], a["texto"]) for a in out] == [
+        ("evento", "⏰ Aula: hoje às 19:00."),
+        ("vagas", "💼 Vagas novas"),
+    ]
+    assert datetime.fromisoformat(out[0]["hora"]) > antes
+    depois = datetime.fromisoformat(out[-1]["hora"])
+    assert _payload(await server.call_tool("avisos_recentes", {"desde": depois.isoformat()})) == []
+    assert len(await _all(seeded, AgentRun)) == runs
+
+
+async def test_avisos_recentes_exige_fuso(server):
+    with pytest.raises(McpToolError, match="fuso"):
+        await server.call_tool("avisos_recentes", {"desde": "2026-10-13T13:29:00"})

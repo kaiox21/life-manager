@@ -54,3 +54,11 @@ async def test_ciclos_simultaneos_mandam_uma_vez(seeded):
     results = await asyncio.gather(*[deliver([NOTICE], **kw) for _ in range(5)])
     assert sum(results) == 1
     assert len(sender.sent) == 1
+
+
+async def test_registro_do_envio_com_o_tipo_do_aviso(seeded):
+    evento = Notice("evento", SUMMARY_REF, datetime(2026, 10, 9, 14, tzinfo=TZ), 30, "⏰ Aula")
+    await deliver([evento], sessions=seeded, sender=FakeSender(), owner_phone=OWNER)
+    async with seeded() as s:
+        msg = await s.scalar(select(Message))
+    assert (msg.direction, msg.type, msg.body) == ("out", "aviso_evento", "⏰ Aula")

@@ -757,6 +757,19 @@
   inset-block-start: 58%;
   inset-inline-start: 0;
 }
+/* jarvis-proativo: Boa noite e Silenciar (a terceira linha fica para o Estudo) */
+.hud-mode--d {
+  inset-block-start: 58%;
+  inset-inline-end: 0;
+}
+.hud-mode--e {
+  inset-block-start: 40%;
+  inset-inline-end: 0;
+}
+.hud-mode[aria-pressed="true"] {
+  border-color: var(--next);
+  color: var(--next);
+}
 
 .painel__talk {
   max-block-size: 22vh;
