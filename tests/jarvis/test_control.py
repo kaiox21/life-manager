@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -17,7 +18,11 @@ from tests.jarvis.test_agent import FakeCore, Runner, _ask
 from tests.jarvis.test_sessions import wait_for
 
 CONF = Path(__file__).resolve().parents[2] / "jarvis/tmux.conf"
-pytestmark = pytest.mark.skipif(find_tmux() is None, reason="sem tmux")
+# Os terminais do Jarvis existem só no Mac (Terminal.app + tmux); em Linux as sessões não sobem.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin" or find_tmux() is None,
+    reason="terminais do Jarvis: só no Mac com tmux",
+)
 BODY = {
     "hook_event_name": "PermissionRequest",
     "tool_name": "Bash",

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import secrets
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,11 @@ import pytest
 from jarvis.tmux import Tmux, find_tmux, parse_panes
 
 CONF = Path(__file__).resolve().parents[2] / "jarvis/tmux.conf"
-pytestmark = pytest.mark.skipif(find_tmux() is None, reason="sem tmux")
+# Os terminais do Jarvis existem só no Mac (Terminal.app + tmux); em Linux as sessões não sobem.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin" or find_tmux() is None,
+    reason="terminais do Jarvis: só no Mac com tmux",
+)
 
 
 @pytest.fixture
