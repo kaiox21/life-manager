@@ -40,6 +40,7 @@ Hoje o Jarvis só fala quando é chamado. O maior risco do projeto, segundo o `S
 ### Modified Capabilities
 - `mcp`: ferramenta somente leitura `avisos_recentes`; `painel` com os gastos de hoje.
 - `lembretes`: o envio de cada aviso é registrado em `messages` com o tipo `aviso_<tipo>`, para o Jarvis poder repeti-lo.
+- `ferramentas-locais`: `silenciar_avisos` entra na lista de ações permitidas (sem confirmação: só controla a voz do próprio Jarvis).
 
 ## Impact
 
@@ -58,5 +59,5 @@ Hoje o Jarvis só fala quando é chamado. O maior risco do projeto, segundo o `S
 - **Interface:** botões **Boa noite** e **Silenciar** entre os modos do painel (o `jarvis-painel-hud` deixou o lugar reservado) e o aviso "avisos pausados até 15:40".
 - **Estado:** a pausa dos avisos e o "já perguntei hoje" ficam em `~/Library/Application Support/Jarvis/proativo.json`, arquivo só do cérebro (o `config.json` é reescrito também pelo app).
 - **Custo:** o fechamento, o lembrete e os avisos não chamam o modelo. A resposta "30 de uber no pix" é um turno normal, que custa uma fração de centavo com o Haiku.
-- **Ordem de arquivamento:** depois de `radar-vagas` e `boletim-noticias`, porque os três mudam o requisito "Dados do painel".
+- **Ordem de arquivamento:** depois de `radar-vagas` e `boletim-noticias` (os três mudam "Dados do painel") e depois de `jarvis-musica` (os dois mudam "Ações permitidas").
 - **`SPEC.md`:** decisão do Jarvis proativo (o que fala, quando se cala, voz nunca aprova).
