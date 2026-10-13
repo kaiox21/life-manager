@@ -70,7 +70,7 @@ Dá para começar hoje: às 21:30, sem gasto lançado no dia, ele pergunta sozin
 Ordem de implementação, um change do OpenSpec por vez:
 
 1. **`jarvis-proativo`** (implementado em 13/10; falta o aceite acima): "Jarvis, boa noite" com o fechamento do dia, lembrete de lançamento às 21:30, avisos falados (lembretes do núcleo e terminais) e silêncio.
-2. **Modo estudo/foco**: "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, marca o timer e propõe a pausa.
+2. **`jarvis-estudo`** (proposto em 13/10, branch `feat/jarvis-estudo`): "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, retém os avisos e propõe a pausa no fim do bloco. **Antes do aceite, crie dois atalhos no app Atalhos** (uns 2 minutos): "Jarvis Foco" com a ação "Definir Foco" → Não Perturbe, ligado "até ser desativado"; e "Jarvis Foco Fim" com a mesma ação desligando. Confira com `shortcuts list` no Terminal.
 3. **Abrir projetos e rascunhos**: "Jarvis, abre o NC Barber" (VS Code e terminal na pasta) e "escreve um e-mail pro professor…" (o texto vai para a área de transferência e o painel; nunca envia).
 4. **Notas rápidas por voz**: "anota que…" e "o que eu anotei sobre…" (tabela nova no núcleo; sem segredos).
 5. **Prazos da UnB no resumo do dia** (API do Aprender3).
