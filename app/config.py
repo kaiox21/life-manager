@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     allowed_providers: str = ""  # separados por vírgula; vazio = sem filtro
     reasoning_effort: str = ""  # vazio = padrão do modelo
 
+    # Radar de vagas (change radar-vagas): perfil fora do git, modelo e teto de buscas por rodada
+    vagas_ativo: bool = True
+    vagas_perfil: str = "config/vagas.yaml"
+    vagas_modelo: str = ""  # vazio = model_primary
+    vagas_max_buscas: int = 12
+
     # Google Calendar (espelho da agenda). JSON da service account em base64 (ou caminho).
     google_service_account_json: SecretStr = SecretStr("")
     google_service_account_file: str = ""

@@ -12,6 +12,7 @@ __pycache__/
 *.egg-info/
 
 # Dados locais
+config/vagas.yaml
 data/
 media/
 backups/

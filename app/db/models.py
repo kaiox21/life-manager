@@ -196,7 +196,9 @@ class SentReminder(Base):
         UniqueConstraint(
             "kind", "ref_id", "occurrence_at", "minutes_before", name="sent_reminders_once"
         ),
-        CheckConstraint("kind in ('evento','resumo','fatura')", name="sent_reminders_kind_check"),
+        CheckConstraint(
+            "kind in ('evento','resumo','fatura','vagas')", name="sent_reminders_kind_check"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -208,3 +210,34 @@ class SentReminder(Base):
     occurrence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     minutes_before: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class JobLead(Base):
+    """Vaga achada pelo radar (estágio, bolsa, monitoria, júnior). A URL normalizada é única: uma
+    vaga nunca é avisada duas vezes; dispensar não apaga (continua valendo para não repetir)."""
+
+    __tablename__ = "job_leads"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo in ('estagio','bolsa','monitoria','junior')", name="job_leads_tipo_check"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    codigo: Mapped[str] = mapped_column(
+        Text, unique=True, server_default=text("'V' || nextval('job_leads_codigo_seq')")
+    )
+    url: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    titulo: Mapped[str] = mapped_column(Text, nullable=False)
+    organizacao: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[str] = mapped_column(Text, nullable=False)
+    local: Mapped[str] = mapped_column(Text, nullable=False)
+    prazo: Mapped[date | None] = mapped_column(Date)
+    resumo: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    pontuacao: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agent_runs.id"))
+    found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,0 +1,38 @@
+# Perfil do radar de vagas (copie para config/vagas.yaml e ajuste; config/vagas.yaml fica fora
+# do git porque o repositório é público). Change radar-vagas.
+pessoa: >-
+  Estudante de graduação em computação, curso NOTURNO (aulas à noite): só servem vagas
+  durante o dia. Conhece Python, JavaScript/TypeScript, React e SQL.
+
+tipos: [estagio, bolsa, monitoria, junior]
+
+local:
+  cidade: Brasília
+  uf: DF
+  aceita: presencial ou híbrido na cidade, ou 100% remoto no Brasil
+
+# áreas em ordem de interesse; as palavras-chave sobem a vaga na lista
+areas:
+  - nome: IA e dados
+    peso: 3
+    palavras: [inteligência artificial, ia, llm, machine learning, ciência de dados, dados, nlp]
+  - nome: Desenvolvimento web
+    peso: 2
+    palavras: [web, front-end, frontend, back-end, backend, full stack, react, python, javascript]
+  - nome: Direito e tecnologia
+    peso: 2
+    palavras: [jurídico, direito, lawtech, legaltech, tribunal, justiça]
+
+restricoes:
+  - descartar vagas que informam horário noturno ou que conflitam com aulas à noite
+  - vaga sem horário informado entra
+
+consultas:
+  - estágio desenvolvimento de software Brasília
+  - estágio programação remoto
+  - estágio ciência de dados inteligência artificial
+  - bolsa iniciação científica computação edital
+  - PIBIC PIBITI edital computação
+  - monitoria computação universidade edital
+  - desenvolvedor júnior remoto Python
+  - vaga júnior React remoto

@@ -1,12 +1,12 @@
 ## 1. Dados e configuração
 
-- [ ] 1.1 Migração Alembic: tabela `job_leads` (URL única, código V+sequência único) e `vagas` no CHECK de `sent_reminders.kind`; modelo SQLAlchemy
-- [ ] 1.2 `config/vagas.yaml` no `.gitignore` e `config/vagas.example.yaml` genérico versionado (perfil: tipos, local, áreas, restrição de horário, consultas sugeridas) e `VAGAS_ATIVO`, `VAGAS_MODELO`, `VAGAS_MAX_BUSCAS` em `app/config.py` e `.env.example`
+- [x] 1.1 Migração Alembic: tabela `job_leads` (URL única, código V+sequência único) e `vagas` no CHECK de `sent_reminders.kind`; modelo SQLAlchemy
+- [x] 1.2 `config/vagas.yaml` no `.gitignore` e `config/vagas.example.yaml` genérico versionado (perfil: tipos, local, áreas, restrição de horário, consultas sugeridas) e `VAGAS_ATIVO`, `VAGAS_MODELO`, `VAGAS_MAX_BUSCAS` em `app/config.py` e `.env.example`
 
 ## 2. Radar
 
-- [ ] 2.1 `app/vagas/radar.py`: conversa com `web_search` + `registrar_vagas` (Pydantic), URLs permitidas dos resultados da busca, normalização, descarte de inventadas/vencidas/repetidas, pontuação, gravação em `job_leads` e linha em `agent_runs` (canal `vagas`); testes com LLM falso (URL inventada, repetida, vencida, ordem)
-- [ ] 2.2 `app/vagas/templates.py` (mensagem fixa, até 8) e entrega pelo `deliver` com reserva `kind='vagas'`; checagem por hora das 08:00 às 22:00 + na subida (≥ 72 h desde a última rodada sem erro; até 2 tentativas por dia); testes com relógio fixo (Mac acordando às 11:00, rodada que falha)
+- [x] 2.1 `app/vagas/radar.py`: conversa com `web_search` + `registrar_vagas` (Pydantic), URLs permitidas dos resultados da busca, normalização, descarte de inventadas/vencidas/repetidas, pontuação, gravação em `job_leads` e linha em `agent_runs` (canal `vagas`); testes com LLM falso (URL inventada, repetida, vencida, ordem)
+- [x] 2.2 `app/vagas/templates.py` (mensagem fixa, até 8) e entrega pelo `deliver` com reserva `kind='vagas'`; checagem por hora das 08:00 às 22:00 + na subida (≥ 72 h desde a última rodada sem erro; até 2 tentativas por dia); testes com relógio fixo (Mac acordando às 11:00, rodada que falha)
 
 ## 3. Conversa e painel
 

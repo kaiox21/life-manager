@@ -23,6 +23,7 @@ from app.integrations.transcribe import FasterWhisper, Transcriber
 from app.mcp_server import build_mcp, mcp_http_app
 from app.scheduler import build_scheduler
 from app.security import is_owner, secret_matches
+from app.vagas.job import radar_cycle
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +84,21 @@ def create_app(
                 monitor=app.state.monitor,
                 connection_state=getattr(app.state.sender, "connection_state", None),
                 healthcheck_url=settings.healthcheck_url,
+                radar=(
+                    (
+                        lambda: radar_cycle(
+                            sessions=app.state.sessions,
+                            llm=app.state.llm,
+                            settings=settings,
+                            clock=clock,
+                            sender=app.state.sender,
+                            owner_phone=settings.owner_phone,
+                            prefix=BOT_MARK if settings.self_chat_mode else "",
+                        )
+                    )
+                    if settings.vagas_ativo and settings.llm_provider == "anthropic"
+                    else None
+                ),
             )
             scheduler.start()
         async with contextlib.AsyncExitStack() as stack:

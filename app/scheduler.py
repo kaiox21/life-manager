@@ -27,6 +27,7 @@ def build_scheduler(
     monitor: ConnectionMonitor | None = None,
     connection_state: Callable[[], Awaitable[str | None]] | None = None,
     healthcheck_url: str = "",
+    radar: Callable[[], Awaitable[int]] | None = None,
 ) -> AsyncIOScheduler:
     async def run(job: Job) -> None:
         try:
@@ -53,6 +54,19 @@ def build_scheduler(
         next_run_time=datetime.now(TZ),  # recupera atrasos logo que o app sobe
     )
     scheduler.add_job(run, "cron", args=[jobs.statement_alerts], hour=9, minute=0, id="fatura")
+    if radar is not None:
+        # radar de vagas: checagem por hora (ele mesmo decide se é a hora: ≥ 72 h, 08–22 h)
+        async def radar_job() -> None:
+            try:
+                novas = await radar()
+                if novas:
+                    log.info("radar de vagas: %d vaga(s) nova(s) entregue(s)", novas)
+            except Exception:
+                log.exception("radar de vagas falhou")
+
+        scheduler.add_job(
+            radar_job, "interval", hours=1, id="vagas", next_run_time=datetime.now(TZ)
+        )
 
     if monitor is not None and connection_state is not None:
 

@@ -82,6 +82,7 @@ services:
       postgres: {condition: service_healthy}
     env_file: .env
     volumes:
+      - ./config:/srv/config:ro  # perfil do radar de vagas (fora do git)
       - whisper_models:/data/whisper  # modelo do faster-whisper (baixa uma vez)
     ports:
       - "127.0.0.1:8000:8000"  # só /health em dev
