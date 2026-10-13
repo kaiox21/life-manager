@@ -25,6 +25,7 @@ from app.vagas.templates import new_leads_message
 log = logging.getLogger(__name__)
 
 EVERY = timedelta(hours=72)
+PENDING_DAYS = timedelta(days=14)  # vaga não enviada há mais que isso não vai mais
 MAX_ATTEMPTS_PER_DAY = 2
 FIRST_HOUR, LAST_HOUR = 8, 22
 
@@ -49,6 +50,45 @@ async def due(session: AsyncSession, now: datetime) -> bool:
     return (attempts or 0) < MAX_ATTEMPTS_PER_DAY
 
 
+async def deliver_pending(
+    *,
+    sessions: async_sessionmaker[AsyncSession],
+    now: datetime,
+    sender: SendsText,
+    owner_phone: str,
+    prefix: str = "",
+) -> int:
+    """Manda as vagas registradas e ainda não enviadas (a entrega pode ter falhado: WhatsApp
+    reconectando). Roda em toda checagem, independente das 72 h. Devolve quantas saíram."""
+    async with sessions() as session:
+        leads = (
+            await session.scalars(
+                select(JobLead).where(
+                    JobLead.sent_at.is_(None),
+                    JobLead.dismissed_at.is_(None),
+                    JobLead.found_at >= now - PENDING_DAYS,
+                )
+            )
+        ).all()
+        if not leads:
+            return 0
+        text = new_leads_message(list(leads))
+        ref = max(leads, key=lambda v: v.found_at).run_id
+        ids = [v.id for v in leads]
+    if ref is None:
+        return 0
+    notice = Notice(kind="vagas", ref_id=ref, occurrence_at=now, minutes_before=0, text=text)
+    sent = await deliver(
+        [notice], sessions=sessions, sender=sender, owner_phone=owner_phone, prefix=prefix
+    )
+    if not sent:
+        return 0
+    async with sessions.begin() as session:
+        for lead in await session.scalars(select(JobLead).where(JobLead.id.in_(ids))):
+            lead.sent_at = now
+    return len(ids)
+
+
 async def radar_cycle(
     *,
     sessions: async_sessionmaker[AsyncSession],
@@ -59,19 +99,22 @@ async def radar_cycle(
     owner_phone: str,
     prefix: str = "",
 ) -> int:
-    """Uma checagem: roda o radar se for a hora e entrega as vagas novas. Devolve quantas."""
+    """Uma checagem: entrega o que ficou pendente, roda o radar se for a hora e entrega as vagas
+    novas. Devolve quantas vagas foram de fato entregues."""
     if not getattr(settings, "vagas_ativo", True):
         return 0
     now = clock()
+    out = dict(sessions=sessions, now=now, sender=sender, owner_phone=owner_phone, prefix=prefix)
+    delivered = await deliver_pending(**out)
     async with sessions() as session:
         if not await due(session, now):
-            return 0
+            return delivered
     profile = load_profile(getattr(settings, "vagas_perfil", "config/vagas.yaml"))
     if profile is None:
-        return 0
+        return delivered
     model = getattr(settings, "vagas_modelo", "") or getattr(settings, "model_primary", "")
     async with sessions.begin() as session:
-        result = await run_radar(
+        await run_radar(
             session,
             llm,
             model,
@@ -79,17 +122,4 @@ async def radar_cycle(
             now,
             max_searches=int(getattr(settings, "vagas_max_buscas", 12)),
         )
-        run_id = result.run.id
-        text = new_leads_message(result.new) if result.new else None
-        ids = [v.id for v in result.new]
-    if text is None:
-        return 0
-    notice = Notice(kind="vagas", ref_id=run_id, occurrence_at=now, minutes_before=0, text=text)
-    sent = await deliver(
-        [notice], sessions=sessions, sender=sender, owner_phone=owner_phone, prefix=prefix
-    )
-    if sent:
-        async with sessions.begin() as session:
-            for lead in await session.scalars(select(JobLead).where(JobLead.id.in_(ids))):
-                lead.sent_at = now
-    return len(ids)
+    return delivered + await deliver_pending(**out)

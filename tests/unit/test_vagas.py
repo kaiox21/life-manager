@@ -320,3 +320,21 @@ async def test_vaga_vencida_nao_aparece_na_lista(ctx):
     )
     got = await listar_vagas(ctx, ListarVagasArgs())
     assert [v["titulo"] for v in got["vagas"]] == ["Aberta"]
+
+
+async def test_entrega_que_falhou_sai_na_checagem_seguinte(sessions, tmp_path):
+    from tests.unit.test_reminder_delivery import FlakySender
+
+    profile = tmp_path / "vagas.yaml"
+    profile.write_text("pessoa: x\ntipos: [estagio]\nlocal: {cidade: Brasília}\n")
+    settings = NS(vagas_ativo=True, vagas_perfil=str(profile), vagas_modelo="h", vagas_max_buscas=5)
+    sender = FlakySender(fails=1)  # WhatsApp reconectando na 1ª tentativa
+    llm = FakeLLM([vaga("https://gupy.io/vagas/123")])
+    kw = dict(sessions=sessions, llm=llm, settings=settings, sender=sender, owner_phone=OWNER)
+    assert await radar_cycle(clock=fixed_clock(NOW), **kw) == 0  # rodou, mas não entregou
+    assert sender.sent == []
+    later = fixed_clock(NOW + timedelta(hours=1))
+    assert await radar_cycle(clock=later, **kw) == 1  # não roda de novo, mas entrega
+    assert len(sender.sent) == 1 and len(llm.calls) == 1
+    assert await radar_cycle(clock=fixed_clock(NOW + timedelta(hours=2)), **kw) == 0
+    assert len(sender.sent) == 1  # não repete
