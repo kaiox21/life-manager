@@ -15,6 +15,6 @@
 
 ## 4. Fechamento
 
-- [ ] 4.1 `uv run pytest`, ruff, `openspec validate --all --strict`; reconstruir o núcleo e instalar o Jarvis
+- [x] 4.1 `uv run pytest`, ruff, `openspec validate --all --strict`; reconstruir o núcleo e instalar o Jarvis
 - [ ] 4.2 Primeiro boletim real com o Kaio (custo anotado), ajuste de temas e fontes
 - [ ] 4.3 `SPEC.md` e `/opsx:archive`, **depois** do arquivamento do `radar-vagas` (mesmo requisito do painel)
