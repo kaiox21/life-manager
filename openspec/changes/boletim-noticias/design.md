@@ -22,7 +22,8 @@
 2. **Uma conversa por boletim:**
    - `web_search` com `allowed_domains` = as fontes do perfil, `max_uses` = `NOTICIAS_MAX_BUSCAS` (8) e local BR;
    - `registrar_noticias(gerais: [...até 8], futebol: [...até 5])`, cada item com titulo, resumo (≤ 200), fonte, url, publicada (opcional) e tema (`tecnologia`, `direito`, `brasil`, `mundo`, `futebol`);
-   - o prompt pede o que saiu nas últimas 24 h, um fato por notícia (agrupando fontes), e Flamengo e Barcelona primeiro no futebol;
+   - o prompt pede o que saiu nas últimas 24 h, um fato por notícia (agrupando fontes), Flamengo e Barcelona primeiro no futebol, e **título e resumo em português** (tradução quando a fonte é estrangeira; sem isso a deduplicação por título não funciona entre idiomas);
+   - **a fonte sai do domínio** do link, por uma tabela `fontes` no perfil (domínio ou domínio/caminho → nome: `g1.globo.com` → G1, `ge.globo.com` → ge, `bbc.com` → BBC…). O campo `fonte` do modelo é ignorado; domínio sem nome na tabela usa o próprio domínio;
    - o código corta para 5 gerais e 3 de futebol depois de verificar, para sobrar margem para os descartes.
 
 3. **Filtros no código, em ordem:**
@@ -55,11 +56,13 @@
    - O WhatsApp tem limite de tamanho, e 8 itens com uma linha cada cabem com folga.
 
 7. **Jarvis:**
-   - o `painel` traz `noticias` (as de hoje, em ordem);
+   - o `painel` traz `noticias` = a edição mais recente (`{"data": "AAAA-MM-DD", "itens": [...]}`); de madrugada, a de ontem. O cartão mostra "Notícias de hoje" ou "Notícias de ontem, 13/10";
    - o cartão "Notícias" fica na coluna da direita, com as de futebol num subgrupo, e os links abrem no navegador;
-   - `briefing.compose` recebe as manchetes e, depois da agenda e das faturas, fala "Nas notícias: …" com os títulos das 3 primeiras gerais, cada título cortado em ~90 caracteres.
+   - `briefing.compose` recebe as manchetes **só se a edição é de hoje** e, depois da agenda e das faturas, fala "Nas notícias: …" com os títulos das 3 primeiras gerais, cada um cortado em ~70 caracteres numa fronteira de palavra. O aceite mede o resumo inteiro (teto de ~30 s).
 
 8. **Perfil (`config/noticias.yaml`, fora do git; `config/noticias.example.yaml` versionado):** temas (com descrição para o modelo), times (Flamengo e Barcelona) e fontes (domínios). O perfil inicial vem das respostas do Kaio.
+
+9. **Ordem de arquivamento:** o `radar-vagas` e este change alteram o mesmo requisito ("Dados do painel"), e este delta parte do texto do radar. O `radar-vagas` tem que ser arquivado antes deste; se fosse depois, o arquivamento do boletim apagaria as vagas da spec.
 
 ## Risks / Trade-offs
 

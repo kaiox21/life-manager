@@ -15,7 +15,7 @@ O núcleo SHALL montar um boletim por dia, conferindo a cada 30 minutos entre 07
 - **THEN** o boletim sai na checagem seguinte, no mesmo dia
 
 ### Requirement: Notícia verificada, recente e sem repetição
-Uma notícia SHALL entrar só se o link dela tiver aparecido nos resultados da busca do próprio boletim, for de um domínio da lista de fontes e não for mais velha que ~36 horas quando a data aparecer no resultado. O mesmo fato vindo de fontes diferentes SHALL aparecer uma vez só. Uma notícia com o mesmo link, ou com título quase igual ao de uma enviada nos 3 dias anteriores, SHALL NOT voltar.
+Uma notícia SHALL entrar só se o link dela tiver aparecido nos resultados da busca do próprio boletim, for de um domínio da lista de fontes e não for mais velha que ~36 horas quando a data aparecer no resultado. Título e resumo SHALL estar sempre em português (traduzidos quando a fonte é estrangeira), com o link original, e o nome da fonte SHALL vir do domínio do link, não do texto do modelo. O mesmo fato vindo de fontes diferentes SHALL aparecer uma vez só. Uma notícia com o mesmo link, ou com título quase igual ao de uma enviada nos 3 dias anteriores, SHALL NOT voltar.
 
 #### Scenario: Link inventado
 - **WHEN** o modelo devolve uma notícia com um link que não veio da busca
@@ -26,7 +26,7 @@ Uma notícia SHALL entrar só se o link dela tiver aparecido nos resultados da b
 - **THEN** ela não entra no boletim de hoje
 
 ### Requirement: Entrega do boletim
-O boletim SHALL ir ao WhatsApp do Kaio numa mensagem de texto fixo (sem LLM na redação), com as notícias gerais e depois a seção de futebol, cada uma com título, uma linha de resumo, fonte e link; boletim sem nenhuma notícia SHALL NOT mandar mensagem. O painel do Jarvis SHALL mostrar o boletim do dia, e o resumo falado do "Hey Jarvis" SHALL ler os títulos das 3 primeiras notícias gerais depois da agenda, quando o boletim do dia existir.
+O boletim SHALL ir ao WhatsApp do Kaio numa mensagem de texto fixo (sem LLM na redação), com as notícias gerais e depois a seção de futebol, cada uma com título, uma linha de resumo, fonte e link; boletim sem nenhuma notícia SHALL NOT mandar mensagem. O painel do Jarvis SHALL mostrar a edição mais recente do boletim com a data dela (antes do boletim de hoje sair, a de ontem), e o resumo falado do "Hey Jarvis" SHALL ler os títulos das 3 primeiras notícias gerais, cortados em cerca de 70 caracteres, depois da agenda, só quando o boletim de hoje existir; o resumo inteiro SHALL caber em cerca de 30 segundos de fala.
 
 #### Scenario: Boletim com futebol
 - **WHEN** o boletim tem 5 notícias gerais e "Flamengo vence o Palmeiras por 2 a 1"
@@ -35,3 +35,11 @@ O boletim SHALL ir ao WhatsApp do Kaio numa mensagem de texto fixo (sem LLM na r
 #### Scenario: Hey Jarvis de manhã
 - **WHEN** às 08:00 o Kaio diz "Hey Jarvis" e o boletim de hoje já saiu
 - **THEN** depois do clima e da agenda o Jarvis fala as 3 primeiras manchetes
+
+#### Scenario: Fonte estrangeira
+- **WHEN** a notícia de mundo vem da BBC em inglês
+- **THEN** o título e o resumo aparecem em português, com a fonte "BBC" e o link original
+
+#### Scenario: Madrugada
+- **WHEN** à 01:00 o Kaio abre o painel
+- **THEN** o cartão mostra "Notícias de ontem" com o boletim do dia anterior

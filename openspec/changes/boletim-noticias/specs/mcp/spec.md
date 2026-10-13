@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Dados do painel
-O MCP SHALL expor a ferramenta somente leitura `painel`, sem argumentos e fora dos grupos do agente do WhatsApp, que devolve em JSON: data e hora atuais; eventos de hoje e dos próximos 7 dias (com recorrências expandidas); gastos do mês corrente por categoria e o total do mês, em centavos; a fatura aberta de cada cartão de crédito (total em centavos, fechamento, vencimento e `mes_vencimento`); os últimos 10 registros (gastos lançados e eventos criados, por ordem de criação; nos gastos, a origem `whatsapp` quando vieram de uma mensagem ou `mac` quando vieram pelo MCP); as vagas dos últimos 14 dias não dispensadas (código, título, organização, tipo, local, prazo e link), no máximo 8; e o boletim de notícias do dia (título, resumo, fonte, link e se é de futebol), quando existir. Somas e datas de fatura SHALL ser calculadas no núcleo, com a mesma regra da ferramenta `total_fatura`.
+O MCP SHALL expor a ferramenta somente leitura `painel`, sem argumentos e fora dos grupos do agente do WhatsApp, que devolve em JSON: data e hora atuais; eventos de hoje e dos próximos 7 dias (com recorrências expandidas); gastos do mês corrente por categoria e o total do mês, em centavos; a fatura aberta de cada cartão de crédito (total em centavos, fechamento, vencimento e `mes_vencimento`); os últimos 10 registros (gastos lançados e eventos criados, por ordem de criação; nos gastos, a origem `whatsapp` quando vieram de uma mensagem ou `mac` quando vieram pelo MCP); as vagas dos últimos 14 dias não dispensadas (código, título, organização, tipo, local, prazo e link), no máximo 8; e a edição mais recente do boletim de notícias (data da edição e, por notícia, título, resumo, fonte, link e se é de futebol), quando existir. Somas e datas de fatura SHALL ser calculadas no núcleo, com a mesma regra da ferramenta `total_fatura`.
 
 #### Scenario: Fatura aberta igual à da conversa
 - **WHEN** o Jarvis chama `painel` em 09/10/2026
@@ -21,4 +21,8 @@ O MCP SHALL expor a ferramenta somente leitura `painel`, sem argumentos e fora d
 
 #### Scenario: Boletim no painel
 - **WHEN** o boletim de hoje saiu com 5 notícias gerais e 2 de futebol
-- **THEN** o `painel` traz as 7, com as de futebol marcadas
+- **THEN** o `painel` traz a edição de hoje com as 7, as de futebol marcadas
+
+#### Scenario: Antes do boletim de hoje
+- **WHEN** são 06:00 e o boletim de hoje ainda não saiu
+- **THEN** o `painel` traz a edição de ontem, com a data dela
