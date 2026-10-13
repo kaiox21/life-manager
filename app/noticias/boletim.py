@@ -94,6 +94,16 @@ def source_name(url: str, fontes: dict[str, str]) -> str | None:
     return best[1] if best else None
 
 
+BLOCKED = re.compile(r"not accessible to our user agent: \[([^\]]*)\]")
+
+
+def blocked_domains(error: Exception) -> set[str]:
+    """Domínios recusados pela busca (sites que bloqueiam o robô da Anthropic); vazio se o erro
+    for outro. A API recusa o pedido inteiro, antes de buscar (sem custo)."""
+    m = BLOCKED.search(str(error))
+    return set(re.findall(r"'([^']+)'", m.group(1))) if m else set()
+
+
 # --- o que o modelo devolve
 
 
@@ -196,23 +206,19 @@ async def run_boletim(
     edition = edition_of(now)
     run = AgentRun(channel=CHANNEL, intent=CHANNEL, model=model, tools_called=[])
     session.add(run)
-    tools = [
-        server_tool(
-            {
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": max_searches,
-                "allowed_domains": profile.domains(),
-                "user_location": {
-                    "type": "approximate",
-                    "city": "Brasília",
-                    "country": "BR",
-                    "timezone": "America/Sao_Paulo",
-                },
-            }
-        ),
-        REGISTRAR,
-    ]
+    search: dict[str, Any] = {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": max_searches,
+        "allowed_domains": profile.domains(),
+        "user_location": {
+            "type": "approximate",
+            "city": "Brasília",
+            "country": "BR",
+            "timezone": "America/Sao_Paulo",
+        },
+    }
+    tools = [server_tool(search), REGISTRAR]
     messages: list[dict[str, Any]] = [
         {"role": "user", "content": _prompt(profile, now, max_searches)}
     ]
@@ -221,7 +227,18 @@ async def run_boletim(
     error: str | None = None
     try:
         for _ in range(MAX_ROUNDS):
-            c = await llm.chat(model, messages, tools=tools, max_tokens=4096)
+            try:
+                c = await llm.chat(model, messages, tools=tools, max_tokens=4096)
+            except Exception as e:
+                blocked = blocked_domains(e)
+                if not blocked or not set(search["allowed_domains"]) - blocked:
+                    raise
+                # um site passou a bloquear o robô da Anthropic: segue sem ele (uma vez)
+                log.warning("boletim: fontes bloqueadas pela busca, tire do perfil: %s", blocked)
+                search["allowed_domains"] = [
+                    d for d in search["allowed_domains"] if d not in blocked
+                ]
+                c = await llm.chat(model, messages, tools=tools, max_tokens=4096)
             completions.append(c)
             call = next((t for t in c.tool_calls if t.name == "registrar_noticias"), None)
             if call is not None:

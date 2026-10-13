@@ -10,7 +10,7 @@ O Kaio gosta de notícias e quer que o Jarvis mande todo dia as mais relevantes 
   - cada notícia vem com título, uma linha de resumo, fonte e link, e o mesmo fato aparece uma vez só, mesmo vindo de vários jornais;
   - **título e resumo sempre em português**: o modelo traduz o que vier de fonte estrangeira, e o link continua o original;
   - **a fonte sai do domínio do link** (tabela no perfil), não do texto do modelo;
-  - **só fontes grandes:** a busca fica restrita a uma lista de domínios (G1, Folha, Estadão, UOL, Valor, CNN Brasil, Agência Brasil, BBC, Reuters, The Verge, ConJur, Migalhas, JOTA, ge, ESPN, Mundo Deportivo, Sport e outros), editável;
+  - **só fontes grandes:** a busca fica restrita a uma lista de domínios (G1, Folha, Valor, CNN Brasil, Agência Brasil, Metrópoles, Poder360, TechCrunch, ConJur, Migalhas, JOTA, CNN, France 24, ge, ESPN, Lance!, os sites oficiais de Flamengo e Barcelona e outros; sites que bloqueiam o robô da Anthropic, como BBC e Reuters, não podem entrar), editável;
   - **só o que é das últimas ~24 h**, e nada que já tenha saído num boletim dos 3 dias anteriores.
 - **Nada inventado:** como nas vagas, só entra notícia cujo link veio dos resultados da própria busca.
 - **Entrega:**

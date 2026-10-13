@@ -23,32 +23,44 @@ futebol: 3    # notícias da seção de futebol
 times: [Flamengo, Barcelona]
 
 # fontes aceitas: domínio (ou domínio/caminho) → nome mostrado. A busca fica restrita a esses
-# domínios (subdomínios entram: globo.com cobre g1.globo.com e ge.globo.com) e o nome da fonte
-# sai daqui pelo link, não do texto do modelo. A entrada mais específica ganha.
+# domínios (subdomínios entram) e o nome da fonte sai daqui pelo link, não do texto do modelo. A
+# entrada mais específica ganha. Sites que bloqueiam o robô da Anthropic não podem entrar (a
+# busca recusa o pedido inteiro); conferido em 13/10/2026: BBC, Reuters, AP, NYT, Guardian,
+# El País, DW, Wired, UOL, Estadão, The Verge, Ars Technica, Marca, AS, Mundo Deportivo e Sport.
 fontes:
+  # Brasil e política
   g1.globo.com: G1
-  ge.globo.com: ge
   oglobo.globo.com: O Globo
   valor.globo.com: Valor
   folha.uol.com.br: Folha
-  uol.com.br: UOL
-  estadao.com.br: Estadão
   cnnbrasil.com.br: CNN Brasil
   agenciabrasil.ebc.com.br: Agência Brasil
-  bbc.com: BBC
-  reuters.com: Reuters
-  apnews.com: AP
-  theverge.com: The Verge
-  techcrunch.com: TechCrunch
-  arstechnica.com: Ars Technica
+  poder360.com.br: Poder360
+  metropoles.com: Metrópoles
+  correiobraziliense.com.br: Correio Braziliense
+  nexojornal.com.br: Nexo
+  # tecnologia e IA
   tecnoblog.net: Tecnoblog
+  olhardigital.com.br: Olhar Digital
+  canaltech.com.br: Canaltech
+  techcrunch.com: TechCrunch
+  technologyreview.com: MIT Technology Review
+  engadget.com: Engadget
+  # direito e Judiciário
   conjur.com.br: ConJur
   migalhas.com.br: Migalhas
   jota.info: JOTA
   stf.jus.br: STF
+  stj.jus.br: STJ
+  cnj.jus.br: CNJ
+  # mundo
+  cnn.com: CNN
+  france24.com: France 24
+  aljazeera.com: Al Jazeera
+  # futebol
+  ge.globo.com: ge
   espn.com.br: ESPN
   lance.com.br: Lance!
-  mundodeportivo.com: Mundo Deportivo
-  sport.es: Sport
-  marca.com: Marca
-  as.com: AS
+  goal.com: Goal
+  flamengo.com.br: Flamengo (oficial)
+  fcbarcelona.com: Barcelona (oficial)

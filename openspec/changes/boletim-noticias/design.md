@@ -8,6 +8,7 @@
   - campo no `painel` e cartão no Jarvis.
 - **O resumo do "Hey Jarvis"** (`jarvis/briefing.py`) é texto fixo montado no cérebro com dados do `painel`.
 - **A busca da Anthropic aceita `allowed_domains`** (documentação conferida em 13/10/2026: lista de domínios sem esquema; não dá para usar `allowed_domains` e `blocked_domains` juntos). Os resultados trazem `url`, `title` e `page_age` (texto, por exemplo "April 30, 2025"; às vezes ausente).
+- **Conferido na 1ª rodada real (13/10/2026):** se um domínio de `allowed_domains` bloqueia o robô da Anthropic, a API recusa o pedido inteiro com 400 ("The following domains are not accessible to our user agent: [...]"), antes de buscar e sem custo. Bloqueados nesse dia: BBC (inclusive /portuguese), Reuters, AP, NYT, Guardian, El País, DW, Wired, UOL, Estadão, The Verge, Ars Technica, Marca, AS, Mundo Deportivo e Sport. A lista inicial do perfil foi trocada por 31 fontes aceitas (conferidas com um pedido de `max_tokens=1`).
 
 ## Goals / Non-Goals
 
@@ -24,7 +25,8 @@
    - `registrar_noticias(gerais: [...até 8], futebol: [...até 5])`, cada item com titulo, resumo (≤ 200), fonte, url, publicada (opcional) e tema (`tecnologia`, `direito`, `brasil`, `mundo`, `futebol`);
    - o prompt pede o que saiu nas últimas 24 h, um fato por notícia (agrupando fontes), Flamengo e Barcelona primeiro no futebol, e **título e resumo em português** (tradução quando a fonte é estrangeira; sem isso a deduplicação por título não funciona entre idiomas);
    - **a fonte sai do domínio** do link, por uma tabela `fontes` no perfil (domínio ou domínio/caminho → nome: `g1.globo.com` → G1, `ge.globo.com` → ge, `bbc.com` → BBC…). O campo `fonte` do modelo é ignorado; domínio sem nome na tabela usa o próprio domínio;
-   - o código corta para 5 gerais e 3 de futebol depois de verificar, para sobrar margem para os descartes.
+   - o código corta para 5 gerais e 3 de futebol depois de verificar, para sobrar margem para os descartes;
+   - **fonte que passa a bloquear o robô:** a rodada lê os domínios do erro 400, tenta de novo uma vez sem eles e avisa no log para tirá-los do perfil. Sem isso, um site sozinho derrubaria o boletim do dia.
 
 3. **Filtros no código, em ordem:**
    1. link fora da busca;

@@ -302,3 +302,25 @@ def test_mensagem_sem_futebol():
     )
     text = bulletin_message([item], date(2026, 10, 12))
     assert text == "📰 Notícias de segunda, 12/10\n\n1. Título\n   G1 · g1.globo.com/a"
+
+
+async def test_fonte_bloqueada_pela_busca_segue_sem_ela(sessions):
+    """1ª rodada real (13/10/2026): a API recusa o pedido inteiro se um domínio bloqueia o robô."""
+
+    class Blocks(FakeLLM):
+        async def chat(self, model, messages, tools=None, **kw):
+            search = tools[0]["tool"]
+            if "bbc.com" in search["allowed_domains"]:
+                self.calls.append({"messages": messages, "tools": tools})
+                raise RuntimeError(
+                    "Error code: 400 - {'message': \"The following domains are not accessible "
+                    "to our user agent: ['bbc.com', 'uol.com.br']. Read more: https://x\"}"
+                )
+            return await super().chat(model, messages, tools=tools, **kw)
+
+    llm = Blocks([nota("https://g1.globo.com/tecnologia/noticia/ia-nova.ghtml", "Nova IA")])
+    async with sessions.begin() as s:
+        result = await run_boletim(s, llm, "haiku", PROFILE, NOW)
+    assert [n.titulo for n in result.new] == ["Nova IA"] and result.run.error is None
+    domains = llm.calls[-1]["tools"][0]["tool"]["allowed_domains"]
+    assert "bbc.com" not in domains and "uol.com.br" not in domains and "g1.globo.com" in domains
