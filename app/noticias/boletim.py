@@ -28,7 +28,7 @@ from app.agent.llm import LLM, Completion, server_tool
 from app.agent.tools.resolve import normalize
 from app.clock import TZ
 from app.db.models import AgentRun, NewsItem
-from app.web.links import normalize_url, page_age, search_results
+from app.web.links import Hit, normalize_url, page_age, search_results
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +148,20 @@ def title_words(title: str) -> set[str]:
     return {w for w in re.findall(r"\w+", normalize(title)) if w not in TITLE_STOPWORDS}
 
 
+def _stems(text: str) -> set[str]:
+    """Começo das palavras de 4+ letras ("votação" e "votar" → "vota"), sem as vazias."""
+    return {w[:5] if len(w) > 5 else w for w in title_words(text) if len(w) >= 4}
+
+
+def matches_page(title: str, hit: Hit, url: str) -> bool:
+    """O título do modelo tem ao menos uma palavra em comum com o título do resultado ou com o
+    endereço da página. Pega o modelo pondo o fato de um resultado no link de outro (1ª rodada
+    real, 13/10/2026). Nomes próprios costumam bater mesmo quando a fonte é estrangeira."""
+    page = _stems(hit.title) | _stems(" ".join(re.split(r"[^a-z0-9]+", urlsplit(url).path)))
+    words = {w[:4] for w in _stems(title)}
+    return not page or bool(words & {w[:4] for w in page})
+
+
 def similar(a: str, b: str) -> bool:
     wa, wb = title_words(a), title_words(b)
     if not wa or not wb:
@@ -183,12 +197,14 @@ Futebol: priorize {times} (resultado, próximo jogo, contratações). Sem notíc
 principal fato do futebol brasileiro.
 
 Faça até {max_searches} buscas na web (a busca já está limitada às fontes aceitas). Depois chame
-registrar_noticias UMA vez, com até 8 gerais (da mais para a menos relevante, cobrindo os
-temas) e até 5 de futebol. Regras:
+registrar_noticias UMA vez, com 6 a 8 gerais (da mais para a menos relevante, pelo menos uma
+de cada tema) e 3 a 5 de futebol. Regras:
 - só o que foi publicado nas últimas 24 horas; preencha "publicada" quando o resultado mostrar;
 - um fato por notícia: se várias fontes trazem o mesmo fato, escolha uma só;
 - título e resumo SEMPRE em português do Brasil, mesmo que a fonte seja estrangeira (traduza);
 - resumo de uma linha, só o fato, sem opinião;
+- título e resumo descrevem a página DAQUELE link (o título do resultado da busca); nunca
+  ponha o fato de um resultado no link de outro;
 - use só links que apareceram nos resultados da busca, copiados exatamente; nunca monte um link;
 - a página de UMA notícia, nunca a capa ou uma lista de notícias;
 - se nada servir, chame registrar_noticias com as listas vazias."""
@@ -278,11 +294,14 @@ async def run_boletim(
             reason = None
             url = normalize_url(n.url)
             fonte = source_name(n.url, profile.fontes)
-            published = page_age(n.publicada, now) or page_age(results.get(url), now)
-            if url not in results:
+            hit = results.get(url)
+            published = page_age(n.publicada, now) or (page_age(hit.page_age, now) if hit else None)
+            if hit is None:
                 reason = "link_fora_da_busca"
             elif fonte is None:
                 reason = "fonte_fora_da_lista"
+            elif not matches_page(n.titulo, hit, url):
+                reason = "titulo_de_outra_pagina"
             elif published is not None and now - published > MAX_AGE:
                 reason = "antiga"
             elif any(a[2] == url for a in accepted) or await session.scalar(

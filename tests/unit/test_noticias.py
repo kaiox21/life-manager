@@ -47,14 +47,19 @@ RESULTS = [
 ]
 
 
-def raw(results=RESULTS):
+def raw(results=RESULTS, titles=None):
     return [
         {"type": "server_tool_use", "id": "s1", "name": "web_search", "input": {"query": "x"}},
         {
             "type": "web_search_tool_result",
             "tool_use_id": "s1",
             "content": [
-                {"type": "web_search_result", "url": u, "title": "t", "page_age": age}
+                {
+                    "type": "web_search_result",
+                    "url": u,
+                    "title": (titles or {}).get(u, "t"),
+                    "page_age": age,
+                }
                 for u, age in results
             ],
         },
@@ -69,6 +74,8 @@ class FakeLLM:
     def __init__(self, gerais, futebol=(), register=True, results=RESULTS):
         self.args = {"gerais": list(gerais), "futebol": list(futebol)}
         self.register, self.results = register, results
+        # a página tem o título da notícia (o filtro confere título × página)
+        self.titles = {n["url"]: n["titulo"] for n in [*gerais, *futebol]}
         self.calls = []
 
     async def chat(self, model, messages, tools=None, max_tokens=None, tool_choice=None):
@@ -85,7 +92,7 @@ class FakeLLM:
             input_tokens=15_000,
             output_tokens=600,
             cost_usd=Decimal("0.02"),
-            raw=raw(self.results),
+            raw=raw(self.results, self.titles),
             searches=4,
         )
 
@@ -124,8 +131,25 @@ def test_idade_do_resultado():
 
 def test_resultados_da_busca_com_idade():
     got = search_results([NS(raw=raw())])
-    assert got["https://g1.globo.com/tecnologia/noticia/ia-nova.ghtml"] == "2 hours ago"
-    assert got["https://jota.info/stf/julgamento"] is None
+    assert got["https://g1.globo.com/tecnologia/noticia/ia-nova.ghtml"].page_age == "2 hours ago"
+    assert got["https://jota.info/stf/julgamento"].page_age is None
+
+
+def test_titulo_tem_que_bater_com_a_pagina():
+    from app.noticias.boletim import matches_page
+    from app.web.links import Hit
+
+    # 1ª rodada real: fato do PL da IA no link de uma coluna sobre sertanejos
+    coluna = "https://metropoles.com/colunas/matheus-leitao/sertanejos-devem-perguntar-se-flavio-bolsonaro-dara-suas-obras-a-big-techs"
+    hit = Hit("Sertanejos devem perguntar se Flávio Bolsonaro dará suas obras a big techs")
+    assert not matches_page(
+        "Marco da IA (PL 2338) segue sem data para votação na Câmara", hit, coluna
+    )
+    papa = "https://metropoles.com/mundo/papa-hospital-roma-retirada-nodulo"
+    assert matches_page("Papa Leão XIV é internado em Roma para cirurgia", Hit(), papa)
+    bbc = "https://france24.com/en/europe/20261013-macron-names-new-prime-minister"
+    assert matches_page("Macron nomeia novo primeiro-ministro", Hit("Macron names new PM"), bbc)
+    assert matches_page("Votação adiada", Hit("Câmara adia votar o projeto"), "https://x.com/a")
 
 
 def test_titulos_parecidos():

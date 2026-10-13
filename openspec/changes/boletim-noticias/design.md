@@ -25,12 +25,14 @@
    - `registrar_noticias(gerais: [...até 8], futebol: [...até 5])`, cada item com titulo, resumo (≤ 200), fonte, url, publicada (opcional) e tema (`tecnologia`, `direito`, `brasil`, `mundo`, `futebol`);
    - o prompt pede o que saiu nas últimas 24 h, um fato por notícia (agrupando fontes), Flamengo e Barcelona primeiro no futebol, e **título e resumo em português** (tradução quando a fonte é estrangeira; sem isso a deduplicação por título não funciona entre idiomas);
    - **a fonte sai do domínio** do link, por uma tabela `fontes` no perfil (domínio ou domínio/caminho → nome: `g1.globo.com` → G1, `ge.globo.com` → ge, `bbc.com` → BBC…). O campo `fonte` do modelo é ignorado; domínio sem nome na tabela usa o próprio domínio;
+   - o prompt pede 6 a 8 gerais (pelo menos uma por tema) e 3 a 5 de futebol: na 1ª rodada real o modelo registrou só 3 com o pedido de "até 8";
    - o código corta para 5 gerais e 3 de futebol depois de verificar, para sobrar margem para os descartes;
    - **fonte que passa a bloquear o robô:** a rodada lê os domínios do erro 400, tenta de novo uma vez sem eles e avisa no log para tirá-los do perfil. Sem isso, um site sozinho derrubaria o boletim do dia.
 
 3. **Filtros no código, em ordem:**
    1. link fora da busca;
    2. domínio fora da lista;
+   - **título de outra página** (desde a 1ª rodada real, 13/10/2026: o modelo pôs "Marco da IA segue sem data" no link de uma coluna sobre sertanejos): o título do modelo precisa ter ao menos uma palavra (pelo começo, 4 letras) em comum com o título do resultado ou com o endereço da página. Nomes próprios batem mesmo em fonte estrangeira;
    3. velha, se a data de publicação (do modelo ou o `page_age` do resultado) passa de 36 h;
    4. repetida por URL (`news_items.url` única);
    5. repetida por título: Jaccard ≥ 0,6 entre os conjuntos de palavras normalizadas (sem acento e sem palavras vazias), comparando com as notícias do boletim e com as enviadas nos 3 dias anteriores.

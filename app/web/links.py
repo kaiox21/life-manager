@@ -5,6 +5,7 @@ e pelo boletim de notícias: só entra o que tem link copiado de um resultado da
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -27,9 +28,17 @@ def host(url: str) -> str:
     return urlsplit(normalize_url(url)).netloc
 
 
-def search_results(completions: list[Any]) -> dict[str, str | None]:
-    """URL normalizada → `page_age` (texto, quando veio) de cada resultado da busca da rodada."""
-    out: dict[str, str | None] = {}
+@dataclass(frozen=True)
+class Hit:
+    """Um resultado da busca: título da página e `page_age` (texto, quando veio)."""
+
+    title: str = ""
+    page_age: str | None = None
+
+
+def search_results(completions: list[Any]) -> dict[str, Hit]:
+    """URL normalizada → resultado, para cada resultado da busca da rodada."""
+    out: dict[str, Hit] = {}
     for c in completions:
         for block in c.raw or []:
             if block.get("type") != "web_search_tool_result":
@@ -38,7 +47,8 @@ def search_results(completions: list[Any]) -> dict[str, str | None]:
             for item in content if isinstance(content, list) else []:
                 if isinstance(item, dict) and item.get("url"):
                     url = normalize_url(item["url"])
-                    out[url] = out.get(url) or item.get("page_age") or None
+                    if url not in out:
+                        out[url] = Hit(str(item.get("title") or ""), item.get("page_age") or None)
     return out
 
 
