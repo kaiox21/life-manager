@@ -110,6 +110,7 @@ CORE_WRITES = {
     "remover_evento",
     "gerenciar_pessoa",
     "confirmar_pendente",
+    "dispensar_vaga",
 }
 # Só para a interface, nunca para o modelo.
 HIDDEN_CORE_TOOLS = {"contexto", "painel"}

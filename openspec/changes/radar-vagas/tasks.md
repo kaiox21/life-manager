@@ -11,7 +11,7 @@
 ## 3. Conversa e painel
 
 - [x] 3.1 Intenção `vagas` no classificador, ferramentas `listar_vagas` e `dispensar_vaga` por código ou título (grupo `vagas`; título ambíguo volta opções); testes das ferramentas. **Os 3 casos na prova ficaram de fora:** `tests/eval/casos.yaml` é somente leitura (spec do agente, "Prova de acerto"); pendente da autorização do Kaio para alterá-lo (v01 "quais vagas novas apareceram?" → `listar_vagas`; v02 "tem algum estágio novo pra mim?" → `listar_vagas`; v03 "não tenho interesse na V12" → `dispensar_vaga(vaga='V12')`)
-- [ ] 3.2 `painel` com `vagas` (até 8, 14 dias, sem dispensadas); cartão "Vagas" no Jarvis (links abrem no navegador); testes
+- [x] 3.2 `painel` com `vagas` (até 8, 14 dias, sem dispensadas); cartão "Vagas" no Jarvis (links abrem no navegador); testes
 
 ## 4. Fechamento
 

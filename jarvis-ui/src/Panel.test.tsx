@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE } from "./lib/panel.sample";
 import { EMPTY_PANEL, applyPanel, nextEvent, type PanelState } from "./lib/panel";
-import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, Projects, Weather } from "./Panel";
+import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, Projects, VagasCard, Weather } from "./Panel";
 import { resetsIn } from "./lib/panel";
 import type { PanelData } from "./lib/types";
 
@@ -164,5 +164,21 @@ describe("cartões do painel HUD", () => {
     const panel = applyPanel(EMPTY_PANEL, { erro: "x", claude: null }, Date.now());
     render(<ClaudeCard panel={panel} />);
     expect(screen.getByText("Sem dados: abra uma sessão do Claude Code.")).toBeTruthy();
+  });
+
+  it("vagas do radar com código, prazo e link", () => {
+    const vagas = [
+      { codigo: "V12", titulo: "Estágio em Dev", organizacao: "Empresa X", tipo: "estágio", local: "Remoto", prazo: "20/10/2026", link: "https://gupy.io/vagas/123", resumo: "" },
+      { codigo: "V13", titulo: "Bolsa PIBIC", organizacao: "UnB", tipo: "bolsa", local: "Brasília", prazo: "sem prazo informado", link: "https://unb.br/x", resumo: "" },
+    ];
+    render(<VagasCard panel={ok({ ...SAMPLE, vagas })} />);
+    expect(screen.getByRole("link", { name: /V12.*Estágio em Dev/ }).getAttribute("href")).toBe("https://gupy.io/vagas/123");
+    expect(screen.getByText(/até 20\/10/)).toBeTruthy();
+    expect(screen.getByText(/sem prazo/)).toBeTruthy();
+  });
+
+  it("sem vagas recentes", () => {
+    render(<VagasCard panel={ok({ ...SAMPLE, vagas: [] })} />);
+    expect(screen.getByText("Nenhuma vaga nova nos últimos 14 dias.")).toBeTruthy();
   });
 });

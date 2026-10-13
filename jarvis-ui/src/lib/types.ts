@@ -96,6 +96,8 @@ export interface PanelData {
   }[];
   registro: { tipo: "gasto" | "evento"; quando: string; texto: string; origem: "whatsapp" | "mac" | null }[];
   perguntas: string[];
+  // radar de vagas (núcleo): últimos 14 dias, sem as dispensadas
+  vagas?: Vaga[];
   // dados locais do cérebro (jarvis/panel_extras.py); null = indisponível
   clima?: { agora: number; max: number; min: number; chuva: number; cidade: string } | null;
   mac?: {
@@ -107,6 +109,17 @@ export interface PanelData {
   projetos?: { nome: string; caminho: string }[];
   // limites do Claude Code, gravados pela barra de status (jarvis/hooks/claude_statusline.py)
   claude?: ClaudeLimits | null;
+}
+
+export interface Vaga {
+  codigo: string; // V12: o mesmo da mensagem do WhatsApp
+  titulo: string;
+  organizacao: string;
+  tipo: string;
+  local: string;
+  prazo: string;
+  link: string;
+  resumo: string;
 }
 
 export interface ClaudeWindow {

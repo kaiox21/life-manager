@@ -25,6 +25,8 @@ EXPECTED = {
     "remover_evento",
     "gerenciar_pessoa",
     "confirmar_pendente",
+    "listar_vagas",
+    "dispensar_vaga",
     "contexto",
     "painel",
 }

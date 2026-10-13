@@ -121,3 +121,40 @@ async def test_sem_dados(ctx):
     assert out["registro"] == []
     assert {f["total_centavos"] for f in out["faturas"]} == {0}
     assert date.fromisoformat(out["agora"][:10]) == date(2026, 10, 7)
+
+
+async def test_vagas_recentes_sem_as_dispensadas(ctx):
+    from datetime import timedelta
+
+    from app.db.models import JobLead
+
+    agora = ctx.clock()
+    for i, dispensada in enumerate([False, False, True]):
+        ctx.session.add(
+            JobLead(
+                url=f"https://x.com/{i}",
+                titulo=f"Vaga {i}",
+                organizacao="O",
+                tipo="estagio",
+                local="Remoto",
+                resumo="",
+                pontuacao=0,
+                dismissed_at=agora if dispensada else None,
+            )
+        )
+    ctx.session.add(
+        JobLead(
+            url="https://x.com/velha",
+            titulo="Velha",
+            organizacao="O",
+            tipo="bolsa",
+            local="Remoto",
+            resumo="",
+            pontuacao=0,
+            found_at=agora - timedelta(days=20),
+        )
+    )
+    await ctx.session.flush()
+    data = await painel(ctx)
+    assert sorted(v["titulo"] for v in data["vagas"]) == ["Vaga 0", "Vaga 1"]
+    assert all(v["codigo"].startswith("V") and v["link"] for v in data["vagas"])

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Gauge, HudCard, Ring } from "./components/Hud";
@@ -257,6 +258,7 @@ export function Panel() {
       <div className="painel__side painel__side--right">
         <Agenda panel={panel} now={now} />
         <ClaudeCard panel={panel} now={now} />
+        <VagasCard panel={panel} />
         <Projects panel={panel} onOpen={(c) => void openProject(c)} />
         <Weather panel={panel} />
       </div>
@@ -703,5 +705,43 @@ export function ClaudeCard({ panel, now = new Date() }: { panel: PanelState; now
         </ul>
       )}
     </HudCard>
+  );
+}
+
+/** Vagas do radar (núcleo, a cada 3 dias): código, título, onde e prazo; clicar abre o link. */
+export function VagasCard({ panel }: { panel: PanelState }) {
+  return (
+    <CoreCard title="Vagas" panel={panel} className="painel__vagas">
+      {(d) =>
+        !d.vagas || d.vagas.length === 0 ? (
+          <p className="painel__empty">Nenhuma vaga nova nos últimos 14 dias.</p>
+        ) : (
+          <ul className="painel__list painel__vagas-list">
+            {d.vagas.map((v) => (
+              <li key={v.codigo}>
+                <a
+                  href={v.link}
+                  className="painel__vaga"
+                  title={v.resumo || v.link}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void openUrl(v.link);
+                  }}
+                >
+                  <span className="painel__when">{v.codigo}</span>
+                  <span>
+                    {v.titulo}
+                    <small>
+                      {" "}
+                      · {v.organizacao} · {v.prazo === "sem prazo informado" ? "sem prazo" : `até ${v.prazo.slice(0, 5)}`}
+                    </small>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </CoreCard>
   );
 }

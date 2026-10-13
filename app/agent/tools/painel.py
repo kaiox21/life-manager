@@ -13,12 +13,17 @@ from sqlalchemy import select
 from app.agent.tools.agenda import WEEKDAYS, BuscarEventosArgs, buscar_eventos
 from app.agent.tools.base import ToolContext, ToolError, br_date, brl
 from app.agent.tools.consultas import ResumoGastosArgs, TotalFaturaArgs, resumo_gastos, total_fatura
+from app.agent.tools.vagas import describe
+from app.agent.tools.vagas import recent as recent_vagas
 from app.clock import TZ, today
 from app.db.models import Event, Expense, Message, PaymentMethod
 from app.domain.billing import open_statement_month
 
 REGISTRO = 10
 DIAS_A_FRENTE = 7
+
+
+PANEL_VAGAS = 8
 
 
 async def painel(ctx: ToolContext) -> dict[str, Any]:
@@ -41,6 +46,8 @@ async def painel(ctx: ToolContext) -> dict[str, Any]:
         ),
         "faturas": await _faturas(ctx),
         "registro": await _registro(ctx),
+        # radar de vagas: as dos últimos 14 dias não dispensadas (change radar-vagas)
+        "vagas": [describe(v) for v in await recent_vagas(ctx, PANEL_VAGAS)],
     }
 
 
