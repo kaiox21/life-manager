@@ -252,3 +252,71 @@ def test_mensagem_ordena_por_area_e_prazo():
     order = [line.split(" · ")[0] for line in text.splitlines() if line.startswith("V")]
     assert order == ["V3", "V2", "V1"]
     assert 'Responda "não tenho interesse na V3"' in text
+
+
+# --- conversa: listar e dispensar (pelo código ou pelo título)
+
+
+async def _leads(ctx, *items):
+    out = []
+    for titulo, org, prazo in items:
+        lead = JobLead(
+            url=f"https://x.com/{titulo}",
+            titulo=titulo,
+            organizacao=org,
+            tipo="estagio",
+            local="Remoto",
+            prazo=prazo,
+            resumo="",
+            pontuacao=0,
+        )
+        ctx.session.add(lead)
+        out.append(lead)
+    await ctx.session.flush()
+    for lead in out:
+        await ctx.session.refresh(lead, ["codigo", "found_at"])
+    return out
+
+
+async def test_listar_e_dispensar_pelo_codigo(ctx):
+    from app.agent.tools.vagas import (
+        DispensarVagaArgs,
+        ListarVagasArgs,
+        dispensar_vaga,
+        listar_vagas,
+    )
+
+    a, b = await _leads(ctx, ("Estágio Dev", "Empresa A", None), ("Bolsa PIBIC", "UnB", None))
+    got = await listar_vagas(ctx, ListarVagasArgs())
+    assert {v["codigo"] for v in got["vagas"]} == {a.codigo, b.codigo}
+    out = await dispensar_vaga(ctx, DispensarVagaArgs(vaga=a.codigo.lower()))
+    assert out["status"] == "dispensada"
+    got = await listar_vagas(ctx, ListarVagasArgs())
+    assert [v["codigo"] for v in got["vagas"]] == [b.codigo]
+
+
+async def test_dispensar_pelo_titulo_e_titulo_ambiguo(ctx):
+    import pytest
+
+    from app.agent.tools.base import ToolError
+    from app.agent.tools.vagas import DispensarVagaArgs, dispensar_vaga
+
+    await _leads(
+        ctx, ("Estágio Dev Web", "Empresa A", None), ("Estágio Dev Dados", "Empresa B", None)
+    )
+    with pytest.raises(ToolError) as e:
+        await dispensar_vaga(ctx, DispensarVagaArgs(vaga="estágio dev"))
+    assert len(e.value.payload["opcoes"]) == 2  # não dispensa nada: pergunta
+    out = await dispensar_vaga(ctx, DispensarVagaArgs(vaga="Empresa B"))
+    assert out["vaga"]["organizacao"] == "Empresa B"
+
+
+async def test_vaga_vencida_nao_aparece_na_lista(ctx):
+    from app.agent.tools.vagas import ListarVagasArgs, listar_vagas
+
+    hoje = ctx.clock().date()
+    await _leads(
+        ctx, ("Vencida", "A", hoje - timedelta(days=1)), ("Aberta", "B", hoje + timedelta(days=3))
+    )
+    got = await listar_vagas(ctx, ListarVagasArgs())
+    assert [v["titulo"] for v in got["vagas"]] == ["Aberta"]

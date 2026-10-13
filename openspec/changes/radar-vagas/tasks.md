@@ -10,7 +10,7 @@
 
 ## 3. Conversa e painel
 
-- [ ] 3.1 Intenção `vagas` no classificador, ferramentas `listar_vagas` e `dispensar_vaga` por código ou título (grupo `vagas`; título ambíguo volta opções), 3 casos na prova; testes das ferramentas
+- [x] 3.1 Intenção `vagas` no classificador, ferramentas `listar_vagas` e `dispensar_vaga` por código ou título (grupo `vagas`; título ambíguo volta opções), 3 casos na prova; testes das ferramentas
 - [ ] 3.2 `painel` com `vagas` (até 8, 14 dias, sem dispensadas); cartão "Vagas" no Jarvis (links abrem no navegador); testes
 
 ## 4. Fechamento

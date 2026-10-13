@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clock import Clock
 
-Group = Literal["gasto", "consulta_gasto", "agenda", "pessoa", "confirmacao"]
+Group = Literal["gasto", "consulta_gasto", "agenda", "pessoa", "confirmacao", "vagas"]
 Source = Literal["texto", "audio", "foto"]
 
 

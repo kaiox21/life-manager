@@ -206,7 +206,7 @@ async def _run_call(
 def _should_have_called_tool(intent: Intent, reply: str) -> bool:
     if intent == "consulta_gasto":
         return "?" not in reply  # responder valores sem consultar = inventar
-    if intent in ("confirmacao", "agenda"):
+    if intent in ("confirmacao", "agenda", "vagas"):
         return "?" not in reply  # agenda: responder sem consultar = dado possivelmente velho
     if intent == "gasto":
         return bool(_CLAIMS_WRITE.search(reply))
