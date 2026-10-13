@@ -6,6 +6,10 @@ on:
     branches: [main]
   pull_request:
 
+# Sistema de uma pessoa em Brasília: a interface e seus testes usam o fuso do computador.
+env:
+  TZ: America/Sao_Paulo
+
 jobs:
   nucleo:
     name: Núcleo (ruff + testes unitários)
