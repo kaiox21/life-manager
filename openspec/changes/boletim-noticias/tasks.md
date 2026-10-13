@@ -11,7 +11,7 @@
 ## 3. Jarvis
 
 - [x] 3.1 `noticias` no `painel` (edição mais recente com a data) e cartão "Notícias" ("de hoje"/"de ontem, DD/MM", futebol em subgrupo, links no navegador); testes
-- [x] 3.2 `briefing.compose` com as 3 primeiras manchetes (só da edição de hoje, ~70 caracteres cada) depois da agenda; testes
+- [x] 3.2 `briefing.compose` com as 3 primeiras manchetes (da edição mais recente, dizendo "de ontem" quando não é a de hoje; ~70 caracteres cada) depois da agenda; testes
 
 ## 4. Fechamento
 

@@ -145,9 +145,11 @@ def test_manchetes_do_boletim_de_hoje_depois_da_agenda():
     assert "Flamengo" not in text and "Quarta geral" not in text
 
 
-def test_boletim_de_ontem_nao_e_falado():
+def test_antes_do_boletim_de_hoje_fala_o_de_ontem():
     p = panel() | {"noticias": boletim("2026-10-09")}
-    assert "notícias" not in compose(at(1), None, p)
+    assert "Nas notícias de ontem: Governo anuncia" in compose(at(1), None, p)
+    p = panel() | {"noticias": boletim("2026-10-07")}
+    assert "Nas notícias do dia 07/10: Governo" in compose(at(8), None, p)
     assert "notícias" not in compose(at(8), None, panel() | {"noticias": None})
 
 

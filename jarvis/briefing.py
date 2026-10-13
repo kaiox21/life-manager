@@ -153,14 +153,21 @@ def _cut(title: str, limit: int = HEADLINE_CHARS) -> str:
 
 
 def _news_text(news: dict[str, Any] | None, today: date) -> str:
-    """As primeiras manchetes gerais, só quando o boletim é de hoje (de madrugada, nada)."""
-    if not news or news.get("data") != today.isoformat():
+    """As primeiras manchetes gerais da edição mais recente; antes do boletim de hoje sair, as de
+    ontem (ou do dia), avisando de quando são."""
+    if not news:
+        return ""
+    try:
+        edition = date.fromisoformat(str(news.get("data")))
+    except ValueError:
         return ""
     titles = [_cut(str(n.get("titulo", ""))) for n in news.get("itens", []) if not n.get("futebol")]
     titles = [t for t in titles if t][:HEADLINES]
     if not titles:
         return ""
-    return "Nas notícias: " + ". ".join(titles) + "."
+    days = (today - edition).days
+    when = "" if days <= 0 else " de ontem" if days == 1 else f" do dia {edition:%d/%m}"
+    return f"Nas notícias{when}: " + ". ".join(titles) + "."
 
 
 def compose(

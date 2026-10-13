@@ -62,7 +62,7 @@
 7. **Jarvis:**
    - o `painel` traz `noticias` = a edição mais recente (`{"data": "AAAA-MM-DD", "itens": [...]}`); de madrugada, a de ontem. O cartão mostra "Notícias de hoje" ou "Notícias de ontem, 13/10";
    - o cartão "Notícias" fica na coluna da direita, com as de futebol num subgrupo, e os links abrem no navegador;
-   - `briefing.compose` recebe as manchetes **só se a edição é de hoje** e, depois da agenda e das faturas, fala "Nas notícias: …" com os títulos das 3 primeiras gerais, cada um cortado em ~70 caracteres numa fronteira de palavra. O aceite mede o resumo inteiro (teto de ~30 s).
+   - `briefing.compose` fala as manchetes **sempre que houver edição** (pedido do Kaio, 13/10/2026): a de hoje como "Nas notícias: …" e, antes de ela sair, a mais recente como "Nas notícias de ontem: …" (ou "do dia DD/MM"). Depois da agenda e das faturas, depois da agenda e das faturas, fala "Nas notícias: …" com os títulos das 3 primeiras gerais, cada um cortado em ~70 caracteres numa fronteira de palavra. O aceite mede o resumo inteiro (teto de ~30 s).
 
 8. **Perfil (`config/noticias.yaml`, fora do git; `config/noticias.example.yaml` versionado):** temas (com descrição para o modelo), times (Flamengo e Barcelona) e fontes (domínios). O perfil inicial vem das respostas do Kaio.
 

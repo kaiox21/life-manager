@@ -16,7 +16,7 @@ O Kaio gosta de notícias e quer que o Jarvis mande todo dia as mais relevantes 
 - **Entrega:**
   - uma mensagem no **WhatsApp**, com texto fixo montado pelo código;
   - o cartão **"Notícias"** no painel do Jarvis, com a edição mais recente e a data dela (de madrugada aparece a de ontem);
-  - as **3 primeiras manchetes faladas** no "Hey Jarvis" (só os títulos, cortados em ~70 caracteres, depois do clima e da agenda), quando o boletim de hoje já saiu. O resumo inteiro fica em ~30 s.
+  - as **3 primeiras manchetes faladas** no "Hey Jarvis" (só os títulos, cortados em ~70 caracteres, depois do clima e da agenda), sempre: antes do boletim de hoje sair, as de ontem, avisando que são de ontem. O resumo inteiro fica em ~30 s.
 - **Agenda tolerante:** checagem a cada 30 min, das 07:30 às 22:00. Roda se o boletim de hoje ainda não saiu, com até 2 tentativas no dia, e se o Mac estava dormindo às 07:30, sai quando ele acordar.
 - **Perfil editável** em `config/noticias.yaml` (temas, times, fontes), fora do git como o das vagas. `NOTICIAS_ATIVO=false` desliga.
 
