@@ -316,6 +316,7 @@ export function useJarvis() {
     evening: () => send({ type: "evening", id: crypto.randomUUID() }),
     setNotices: (paused: boolean) =>
       send({ type: "local", acao: paused ? "avisos_retomar" : "avisos_pausar_1h" }),
+    study: (running: boolean) => send({ type: "local", acao: running ? "estudo_parar" : "estudo_iniciar" }),
     stop: () => send({ type: "interrupt" }),
     setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,

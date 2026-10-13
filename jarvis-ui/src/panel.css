@@ -766,6 +766,10 @@
   inset-block-start: 40%;
   inset-inline-end: 0;
 }
+.hud-mode--f {
+  inset-block-start: 40%;
+  inset-inline-start: 0;
+}
 .hud-mode[aria-pressed="true"] {
   border-color: var(--next);
   color: var(--next);

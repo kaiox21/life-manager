@@ -135,6 +135,25 @@ class SilenciarAvisosArgs(Args):
     )
 
 
+class ModoEstudoArgs(Args):
+    acao: Literal["iniciar", "parar", "status"]
+    minutos: int | None = Field(
+        default=None, ge=1, le=240, description="Para iniciar: duração do bloco (padrão 50)"
+    )
+    pausa: int | None = Field(
+        default=None, ge=0, le=60, description="Para iniciar: minutos de pausa no fim (padrão 10)"
+    )
+
+
+class Study(Protocol):
+    async def start(
+        self, minutes: int | None = None, pause: int | None = None
+    ) -> dict[str, Any]: ...
+    async def stop(self, *, silent: bool = False) -> dict[str, Any]: ...
+    def status(self) -> dict[str, Any] | None: ...
+    def status_text(self) -> str: ...
+
+
 class Notices(Protocol):
     def pause(self, minutes: int) -> dict[str, Any]: ...
     def pause_until_morning(self) -> dict[str, Any]: ...
@@ -198,6 +217,7 @@ class LocalTools:
         self._spotify = spotify
         self._ducker = ducker
         self.notices: Notices | None = None  # avisos falados (jarvis/proactive.py)
+        self.study: Study | None = None  # modo estudo (jarvis/study.py)
 
     def set_confirm(self, confirm: Confirm) -> None:
         self._confirm = confirm
@@ -337,6 +357,16 @@ class LocalTools:
             return self.notices.pause_until_morning()
         return self.notices.pause(a.minutos or 60)
 
+    async def modo_estudo(self, a: ModoEstudoArgs) -> dict[str, Any]:
+        """Foco, playlist e avisos retidos: só mexe no próprio Mac do Kaio, sem confirmação."""
+        if self.study is None:
+            return {"erro": "O modo estudo não está disponível."}
+        if a.acao == "iniciar":
+            return await self.study.start(a.minutos, a.pausa)
+        if a.acao == "parar":
+            return await self.study.stop()
+        return {"status": self.study.status() or "sem_modo", "texto": self.study.status_text()}
+
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela."""
@@ -418,6 +448,14 @@ class LocalTools:
                 "pausar_ate_amanha; 'volta a avisar' -> retomar. O WhatsApp continua recebendo.",
                 SilenciarAvisosArgs,
                 self.silenciar_avisos,
+            ),
+            "modo_estudo": (
+                "Modo estudo: 'modo estudo por 50 minutos' -> acao=iniciar, minutos=50 (pausa "
+                "opcional: 'com pausa de 5' -> pausa=5); liga o Foco do Mac, toca a playlist de "
+                "estudo e silencia os avisos até o fim. 'para o estudo' -> parar; 'quanto falta "
+                "do estudo' -> status. Diga ao Kaio o que ligou e o que não ligou.",
+                ModoEstudoArgs,
+                self.modo_estudo,
             ),
             "area_transferencia": (
                 "Lê (pede permissão) ou escreve na área de transferência.",

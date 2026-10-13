@@ -17,7 +17,7 @@ import re
 import secrets
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -121,8 +121,15 @@ ANSWER_WINDOW = 120.0  # depois da pergunta, a próxima fala é a resposta (sem 
 BRIEFING_USER = "Jarvis"  # no histórico, o resumo do dia responde ao nome
 REMINDER_USER = "[lembrete automático de lançamento]"  # turno sintético: a API pede alternância
 SYNTHETIC_USER = {BRIEFING_USER, REMINDER_USER}  # não aparecem como "perguntas" no painel
+STUDY_USER = "[modo estudo]"
+SYNTHETIC_USER.add(STUDY_USER)
 GOOD_NIGHT_REPLY = "Perfeito, senhor. Boa noite."
 REMINDER_REPLY = "Perfeito, senhor."
+AFFIRMATIVES = {
+    "sim", "sim senhor", "sim por favor", "sim quero", "pode", "pode sim", "pode ser", "claro",
+    "bora", "isso", "quero", "vamos", "ok", "beleza", "uhum", "aham", "com certeza", "manda",
+    "pode fazer", "faz", "sim jarvis",
+}  # fmt: skip
 NEGATIVES = {
     "nao", "nada", "nenhum", "nenhum gasto", "nao tive", "nao teve", "nao senhor",
     "nao obrigado", "tudo lancado", "ja lancei", "ja lancei tudo", "ta tudo lancado",
@@ -138,8 +145,8 @@ def _plain(text: str) -> str:
     t = "".join(c for c in t if not unicodedata.combining(c))
     t = re.sub(r"[^\w\s]", " ", t)
     words = t.split()
-    while words and words[0] in ("jarvis", "hey", "ei", "oi", "ok"):
-        words.pop(0)
+    while len(words) > 1 and words[0] in ("jarvis", "hey", "ei", "oi", "ok"):
+        words.pop(0)  # "ok" sozinho fica: é uma resposta afirmativa
     while words and words[-1] == "jarvis":
         words.pop()
     return " ".join(words)
@@ -151,6 +158,21 @@ def is_good_night(text: str) -> bool:
 
 def is_negative(text: str) -> bool:
     return _plain(text) in NEGATIVES
+
+
+def is_affirmative(text: str) -> bool:
+    return _plain(text) in AFFIRMATIVES
+
+
+@dataclass
+class _Answer:
+    """O que fazer com a próxima fala depois de uma pergunta fixa (sem o modelo): a negativa
+    tem sempre resposta; a afirmativa só quando a pergunta tem uma ação (modo estudo)."""
+
+    no_reply: str
+    yes_reply: str | None = None
+    on_yes: Callable[[], Awaitable[None]] | None = None
+    on_no: Callable[[], Awaitable[None]] | None = None
 
 
 STEP_LABELS = {
@@ -177,6 +199,7 @@ STEP_LABELS = {
     "mandar_terminal": "preparando a mensagem…",
     "fechar_terminal": "fechando o terminal…",
     "silenciar_avisos": "ajustando os avisos…",
+    "modo_estudo": "montando o modo estudo…",
 }
 
 
@@ -417,13 +440,40 @@ class JarvisBrain:
     # --- fechamento do dia e lembrete de lançamento (jarvis-proativo)
 
     _answer_until = 0.0
-    _answer_reply = GOOD_NIGHT_REPLY
+    _answer: _Answer = _Answer(GOOD_NIGHT_REPLY)
     _wants_answer = False
 
-    def _open_answer(self, reply: str) -> None:
+    def _open_answer(self, reply: str, **kw: Any) -> None:
         self._answer_until = time.monotonic() + ANSWER_WINDOW
-        self._answer_reply = reply
+        self._answer = _Answer(reply, **kw)
         self._wants_answer = True
+
+    async def announce(self, rid: str, emit: Emit, said: str, text: str) -> None:
+        """Fala fixa que não vem de um turno (botão Estudo, perguntas do modo estudo)."""
+        self._loop = asyncio.get_running_loop()
+        self._last_emit = emit
+        self._turn = _Turn(rid, "voz", emit)
+        await emit(events.heard(rid, said))
+        await self._say_fixed(rid, emit, said, text)
+
+    async def study_prompt(
+        self,
+        rid: str,
+        emit: Emit,
+        text: str,
+        *,
+        yes_reply: str,
+        on_yes: Callable[[], Awaitable[None]],
+        no_reply: str,
+        on_no: Callable[[], Awaitable[None]],
+    ) -> None:
+        """Pergunta do modo estudo ("Pausa de 10 minutos?"): falada mesmo com os avisos
+        pausados, no histórico, e a próxima fala é a resposta (sim e não sem o modelo)."""
+        self._loop = asyncio.get_running_loop()
+        self._last_emit = emit
+        self._turn = _Turn(rid, "voz", emit)
+        await self._say_fixed(rid, emit, STUDY_USER, text)
+        self._open_answer(no_reply, yes_reply=yes_reply, on_yes=on_yes, on_no=on_no)
 
     def wants_answer(self) -> bool:
         """A escuta pergunta depois de cada turno: esperar a resposta sem o nome? (uma vez)"""
@@ -500,6 +550,7 @@ class JarvisBrain:
         self._turn_running = True
         self._music_hold("turno", True)
         answering = time.monotonic() < self._answer_until
+        answer = self._answer
         self._answer_until, self._wants_answer = 0.0, False
         try:
             if is_good_night(text):
@@ -507,7 +558,14 @@ class JarvisBrain:
             elif answering and is_negative(text):
                 self._loop = asyncio.get_running_loop()
                 self._turn = _Turn(rid, mode, emit)
-                await self._say_fixed(rid, emit, text, self._answer_reply)
+                await self._say_fixed(rid, emit, text, answer.no_reply)
+                if answer.on_no is not None:
+                    await answer.on_no()
+            elif answering and answer.yes_reply and answer.on_yes and is_affirmative(text):
+                self._loop = asyncio.get_running_loop()
+                self._turn = _Turn(rid, mode, emit)
+                await self._say_fixed(rid, emit, text, answer.yes_reply)
+                await answer.on_yes()
             else:
                 await self._ask(rid, text, emit, mode, t_release)
         finally:
@@ -586,6 +644,8 @@ class JarvisBrain:
                 down |= await self.panel_extras(None)
             if self._local.notices is not None:
                 down["avisos"] = self._local.notices.status()
+            if self._local.study is not None:
+                down["estudo"] = self._local.study.status()
             await emit(events.panel(rid, down))
             return
         questions = [
@@ -598,6 +658,8 @@ class JarvisBrain:
             data |= await self.panel_extras(result.data.get("faturas") or [])
         if self._local.notices is not None:  # botão Silenciar: até quando os avisos pausaram
             data["avisos"] = self._local.notices.status()
+        if self._local.study is not None:  # botão Estudo: fase e hora do fim
+            data["estudo"] = self._local.study.status()
         await emit(events.panel(rid, data))
 
     async def local_action(self, acao: str) -> None:
@@ -610,6 +672,10 @@ class JarvisBrain:
                 self._local.notices.resume()
             else:
                 self._local.notices.pause(60)
+        elif acao == "estudo_iniciar" and self._local.study is not None:
+            await self._local.study.start_by_button()  # bloco padrão, resposta fixa (jarvis-estudo)
+        elif acao == "estudo_parar" and self._local.study is not None:
+            await self._local.study.stop_by_button()
 
     def _log_timing(self, turn: _Turn) -> None:
         t0 = turn.t_release or 0.0

@@ -172,6 +172,7 @@ export function Panel() {
 
   const firstTab = j.terminals.find((t) => t.tmux && t.aba);
   const pausedUntil = pausedLabel(j.panel.data?.avisos, now);
+  const study = studyLabel(j.panel.data?.estudo, now);
   const openProject = async (caminho: string) => {
     const r = await j.openTerminal({ pasta: caminho, claude: false });
     if ("status" in r) setView(r.sessao);
@@ -225,15 +226,31 @@ export function Panel() {
               type="button"
               className="hud-mode hud-mode--e"
               onClick={() => j.setNotices(Boolean(pausedUntil))}
-              disabled={link !== "online"}
+              disabled={link !== "online" || Boolean(study)}
               aria-pressed={Boolean(pausedUntil)}
-              title={pausedUntil ? "Avisos falados pausados; clique para retomar" : "Pausar os avisos falados por 1 hora"}
+              title={
+                study
+                  ? "Avisos retidos pelo modo estudo"
+                  : pausedUntil
+                    ? "Avisos falados pausados; clique para retomar"
+                    : "Pausar os avisos falados por 1 hora"
+              }
             >
-              {pausedUntil ? `Avisos ${pausedUntil}` : "Silenciar"}
+              {study ? "Avisos: estudo" : pausedUntil ? `Avisos ${pausedUntil}` : "Silenciar"}
+            </button>
+            <button
+              type="button"
+              className="hud-mode hud-mode--f"
+              onClick={() => j.study(Boolean(study))}
+              disabled={link !== "online"}
+              aria-pressed={Boolean(study)}
+              title={study ? "Encerrar o modo estudo" : "Modo estudo: Foco, playlist e silêncio"}
+            >
+              {study ? study.button : "Estudo"}
             </button>
           </nav>
           <p className="painel__state" aria-live="polite">
-            {label === "online" ? 'em espera · diga "Jarvis"' : label}
+            {label === "online" ? (study ? study.state : 'em espera · diga "Jarvis"') : label}
           </p>
         </div>
         <Conversation panel={panel} turn={last} onConfirm={j.answerConfirm} />
@@ -730,6 +747,22 @@ export function pausedLabel(avisos: { pausa_ate: string | null } | undefined, no
   const until = new Date(avisos.pausa_ate);
   if (Number.isNaN(until.getTime()) || until <= now) return null;
   return until.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Rótulos do modo estudo pelo relógio local: botão ("Estudo 37 min") e estado do painel
+ * ("estudo · faltam 37 min"); null quando não há modo (ou a hora marcada já passou há muito). */
+export function studyLabel(
+  estudo: PanelData["estudo"] | undefined,
+  now: Date,
+): { button: string; state: string } | null {
+  if (!estudo) return null;
+  const ate = new Date(estudo.ate);
+  if (Number.isNaN(ate.getTime())) return null;
+  const left = Math.max(0, Math.round((ate.getTime() - now.getTime()) / 60000));
+  if (estudo.fase === "pergunta") return { button: "Estudo…", state: "estudo · bloco acabou, pausa?" };
+  if (now.getTime() - ate.getTime() > 15 * 60000) return null; // o cérebro já encerrou
+  const name = estudo.fase === "pausa" ? "Pausa" : "Estudo";
+  return { button: `${name} ${left} min`, state: `${name.toLowerCase()} · faltam ${left} min` };
 }
 
 export function boletimTitle(data: string, now: Date): string {

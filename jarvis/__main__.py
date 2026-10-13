@@ -16,6 +16,10 @@ Lê o mesmo .env do núcleo (modelos, provedor, MCP_TOKEN). Variáveis próprias
   JARVIS_SILENCIO        horário sem avisos falados (padrão: 23:00-07:00; vazio desliga)
   JARVIS_LEMBRETE_GASTOS hora da pergunta "nenhum gasto lançado hoje" (padrão: 21:30; vazio
                          desliga)
+  JARVIS_FOCO_LIGAR / JARVIS_FOCO_DESLIGAR   nomes dos atalhos do app Atalhos que ligam e
+                         desligam o Foco no modo estudo (padrão: "Jarvis Foco" e "Jarvis Foco Fim")
+  JARVIS_PLAYLIST_ESTUDO / JARVIS_ESTUDO_MINUTOS / JARVIS_ESTUDO_PAUSA   playlist do Kaio e
+                         padrões do modo estudo (estudo; 50; 10)
 Valem as do ambiente e, na falta, as do .env.
 """
 
@@ -43,6 +47,7 @@ from jarvis.proactive import Proactive
 from jarvis.server import JarvisServer
 from jarvis.sessions import Folders
 from jarvis.spotify import Ducker, Spotify
+from jarvis.study import StudyMode
 from jarvis.terminals import Terminals
 from jarvis.tmux import Tmux
 from jarvis.tts import make_speaker
@@ -210,6 +215,20 @@ async def main() -> None:
         task.add_done_callback(level_tasks.discard)
 
     proactive.on_change = avisos_mudaram
+    study = StudyMode(
+        brain=brain,
+        proactive=proactive,
+        broadcast_ui=server.broadcast_ui,
+        run=run_command,
+        spotify=spotify,
+        focus_on=env("JARVIS_FOCO_LIGAR", "Jarvis Foco"),
+        focus_off=env("JARVIS_FOCO_DESLIGAR", "Jarvis Foco Fim"),
+        playlist=env("JARVIS_PLAYLIST_ESTUDO", "estudo"),
+        minutes=int(env("JARVIS_ESTUDO_MINUTOS", "50")),
+        pause=int(env("JARVIS_ESTUDO_PAUSA", "10")),
+    )
+    local.study = study
+    proactive.study = study
 
     async def control_broadcast(ev: events.Event) -> None:
         if ev.type == "terminal_alert" and isinstance(ev.data, dict):

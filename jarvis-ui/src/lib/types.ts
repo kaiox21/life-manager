@@ -102,6 +102,8 @@ export interface PanelData {
   noticias?: Boletim | null;
   // avisos falados (jarvis/proactive.py): até quando estão pausados; null = falando
   avisos?: { pausa_ate: string | null };
+  // modo estudo (jarvis/study.py): fase e hora do fim; null = parado
+  estudo?: { fase: "bloco" | "pausa" | "pergunta"; ate: string; minutos: number; pausa: number } | null;
   // dados locais do cérebro (jarvis/panel_extras.py); null = indisponível
   clima?: { agora: number; max: number; min: number; chuva: number; cidade: string } | null;
   mac?: {

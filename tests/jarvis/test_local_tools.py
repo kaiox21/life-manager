@@ -150,4 +150,5 @@ def test_schemas_para_o_modelo():
         "mandar_terminal",
         "fechar_terminal",
         "silenciar_avisos",
+        "modo_estudo",
     }

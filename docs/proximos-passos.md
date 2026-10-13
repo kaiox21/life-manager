@@ -65,12 +65,25 @@ Dá para começar hoje: às 21:30, sem gasto lançado no dia, ele pergunta sozin
 - [ ] Depois das 23:00, nada é falado.
 - [ ] Num dia normal, contar se os avisos incomodaram (o log mostra cada fala: `grep proativo ~/Library/Logs/Jarvis/brain.log`).
 
+### 5. Aceite do modo estudo (`jarvis-estudo`, tarefa 4.3)
+
+Antes: crie os dois atalhos no app Atalhos (item 2 da lista abaixo) e confira com `shortcuts list`.
+
+- [ ] "Jarvis, modo estudo por 25 minutos com pausa de 5": o Foco liga (o ícone aparece na barra), a playlist de estudo toca e ele diz até que horas vai. O botão Estudo mostra "Estudo 25 min".
+- [ ] Durante o bloco, um aviso (evento daqui a 35 min com aviso de 30, ou um Claude Code pedindo permissão): nada é falado; o WhatsApp recebe.
+- [ ] No fim: "Senhor, acabaram os 25 minutos de estudo. Pausa de 5 minutos?". Responder "sim" sem o nome. No fim da pausa, "Mais 25 minutos?": responder "não". O Foco desliga.
+- [ ] Pelo botão **Estudo**: começa 50 min sem chamar o modelo; outro clique encerra.
+- [ ] "Jarvis, para o estudo" no meio: Foco desliga, avisos voltam, música continua.
+- [ ] Sem os atalhos (renomeie um deles): o modo começa e ele diz "sem o Foco".
+- [ ] Com o Foco ligado pelo modo, trocar de app algumas vezes: o Foco continua ligado (um relato antigo diz que desligava).
+- [ ] Fechar a tampa do Mac durante o bloco e abrir depois do fim: o modo encerra sem falar e o Foco desliga.
+
 ## Funcionalidades novas do Jarvis (aprovadas em 10/10/2026)
 
 Ordem de implementação, um change do OpenSpec por vez:
 
 1. **`jarvis-proativo`** (implementado em 13/10; falta o aceite acima): "Jarvis, boa noite" com o fechamento do dia, lembrete de lançamento às 21:30, avisos falados (lembretes do núcleo e terminais) e silêncio.
-2. **`jarvis-estudo`** (proposto em 13/10, branch `feat/jarvis-estudo`): "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, retém os avisos e propõe a pausa no fim do bloco. **Antes do aceite, crie dois atalhos no app Atalhos** (uns 2 minutos): "Jarvis Foco" com a ação "Definir Foco" → Não Perturbe, ligado "até ser desativado"; e "Jarvis Foco Fim" com a mesma ação desligando. Confira com `shortcuts list` no Terminal.
+2. **`jarvis-estudo`** (implementado em 13/10 na branch `feat/jarvis-estudo`; falta o aceite acima): "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, retém os avisos e propõe a pausa no fim do bloco. **Antes do aceite, crie dois atalhos no app Atalhos** (uns 2 minutos): "Jarvis Foco" com a ação "Definir Foco" → Não Perturbe, ligado "até ser desativado"; e "Jarvis Foco Fim" com a mesma ação desligando. Confira com `shortcuts list` no Terminal.
 3. **Abrir projetos e rascunhos**: "Jarvis, abre o NC Barber" (VS Code e terminal na pasta) e "escreve um e-mail pro professor…" (o texto vai para a área de transferência e o painel; nunca envia).
 4. **Notas rápidas por voz**: "anota que…" e "o que eu anotei sobre…" (tabela nova no núcleo; sem segredos).
 5. **Prazos da UnB no resumo do dia** (API do Aprender3).

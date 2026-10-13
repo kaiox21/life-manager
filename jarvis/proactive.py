@@ -121,12 +121,20 @@ class Proactive:
         self._by_terminal: dict[Any, float] = {}
         self._since = self._now()  # avisos de antes da subida não são falados
         self._last_poll = -POLL_EVERY
+        self._holds: set[str] = set()  # motivos para reter os avisos (modo estudo)
         self.on_change: Callable[[], None] = lambda: None  # o painel atualiza o botão Silenciar
+        self.study: Any = None  # modo estudo (jarvis/study.py): o relógio dele é este laço
 
     def _now(self) -> datetime:
         return self._brain.clock()
 
-    # --- estado em disco
+    # --- estado em disco (também o do modo estudo, chave "estudo")
+
+    def state(self) -> dict[str, Any]:
+        return self._state()
+
+    def save(self, **changes: Any) -> None:
+        self._save(**changes)
 
     def _state(self) -> dict[str, Any]:
         try:
@@ -182,6 +190,27 @@ class Proactive:
         until = self.paused_until()
         return {"pausa_ate": until.isoformat() if until else None}
 
+    def hold(self, reason: str, on: bool) -> None:
+        """Reter os avisos por um motivo (modo estudo): nada é falado nem guardado."""
+        if on:
+            self._holds.add(reason)
+            self._queue.clear()
+        else:
+            self._holds.discard(reason)
+        self.on_change()
+
+    def speak_ok(self) -> bool:
+        """O Jarvis está calado e sem pedido aberto (uma fala fixa pode sair agora)."""
+        if self._brain.wake_paused():
+            return False
+        wake = self._wake()
+        return not (wake is not None and wake.busy())
+
+    def expect_answer(self, rid: str) -> None:
+        wake = self._wake()
+        if wake is not None:
+            wake.expect_answer(rid)
+
     # --- entradas
 
     def terminal(self, alert: dict[str, Any]) -> None:
@@ -201,6 +230,8 @@ class Proactive:
         self._queue.append(_Item(text, self._mono(), kind))
 
     def _quiet(self) -> bool:
+        if self._holds:
+            return True
         return in_window(self._now().time(), self._silence) or self.paused_until() is not None
 
     async def poll_notices(self) -> None:
@@ -246,10 +277,7 @@ class Proactive:
     # --- fala
 
     def _can_speak(self) -> bool:
-        if self._quiet() or self._brain.wake_paused():
-            return False
-        wake = self._wake()
-        return not (wake is not None and wake.busy())
+        return not self._quiet() and self.speak_ok()
 
     async def tick(self) -> None:
         now = self._mono()
@@ -271,9 +299,7 @@ class Proactive:
             self._save(lembrete_em=self._now().date().isoformat())
             rid = "lembrete-" + secrets.token_hex(4)
             await self._brain.spending_reminder(rid, self._broadcast_ui, item.text)
-            wake = self._wake()
-            if wake is not None:
-                wake.expect_answer(rid)
+            self.expect_answer(rid)
 
     async def step(self) -> None:
         """Um passo do laço (1 s): a cada minuto consulta o núcleo; sempre tenta falar."""
@@ -281,6 +307,8 @@ class Proactive:
             self._last_poll = self._mono()
             await self.poll_notices()
             await self.check_reminder()
+        if self.study is not None:
+            await self.study.tick()
         await self.tick()
 
     async def run(self) -> None:

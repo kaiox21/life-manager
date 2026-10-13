@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE } from "./lib/panel.sample";
 import { EMPTY_PANEL, applyPanel, nextEvent, type PanelState } from "./lib/panel";
-import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, NoticiasCard, Projects, VagasCard, Weather, boletimTitle, pausedLabel } from "./Panel";
+import { Agenda, ClaudeCard, ClockCard, Conversation, Log, MacCard, Month, NoticiasCard, Projects, VagasCard, Weather, boletimTitle, pausedLabel, studyLabel } from "./Panel";
 import { resetsIn } from "./lib/panel";
 import type { PanelData } from "./lib/types";
 
@@ -213,5 +213,21 @@ describe("botão Silenciar (jarvis-proativo)", () => {
     expect(pausedLabel({ pausa_ate: "2026-10-13T14:00:00-03:00" }, now)).toBeNull();
     expect(pausedLabel({ pausa_ate: null }, now)).toBeNull();
     expect(pausedLabel(undefined, now)).toBeNull();
+  });
+});
+
+describe("botão Estudo (jarvis-estudo)", () => {
+  it("mostra a fase e o que falta pelo relógio local", () => {
+    const now = new Date("2026-10-13T20:13:00-03:00");
+    const bloco = { fase: "bloco" as const, ate: "2026-10-13T20:50:00-03:00", minutos: 50, pausa: 10 };
+    expect(studyLabel(bloco, now)).toEqual({ button: "Estudo 37 min", state: "estudo · faltam 37 min" });
+    expect(studyLabel({ ...bloco, fase: "pausa", ate: "2026-10-13T20:21:00-03:00" }, now)).toEqual({
+      button: "Pausa 8 min",
+      state: "pausa · faltam 8 min",
+    });
+    expect(studyLabel({ ...bloco, fase: "pergunta" }, now)?.button).toBe("Estudo…");
+    expect(studyLabel({ ...bloco, ate: "2026-10-13T19:00:00-03:00" }, now)).toBeNull();
+    expect(studyLabel(null, now)).toBeNull();
+    expect(studyLabel(undefined, now)).toBeNull();
   });
 });
