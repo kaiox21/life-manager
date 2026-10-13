@@ -27,7 +27,7 @@ from dotenv import dotenv_values
 from app.agent.llm import make_llm
 from app.config import get_settings
 from jarvis import events
-from jarvis.agent import FILLERS, JarvisBrain
+from jarvis.agent import FILLERS, JarvisBrain, web_tools
 from jarvis.audio import DEFAULT_MODEL, Transcriber, Vad
 from jarvis.control import TerminalControl
 from jarvis.local_tools import LocalTools, load_config
@@ -162,6 +162,10 @@ async def main() -> None:
         env("JARVIS_CLIMA_NOME", "Brasília"),
     )
     brain.pending_permissions = permissions.pending_count
+    # internet (busca e leitura de páginas pela Anthropic): JARVIS_INTERNET=false desliga
+    if s.llm_provider == "anthropic" and env("JARVIS_INTERNET", "true").lower() != "false":
+        brain.web = web_tools(env("JARVIS_CLIMA_NOME", "Brasília"))
+        log.info("internet ligada: busca e leitura de páginas")
     brain.ducker = ducker
     server = JarvisServer(brain)
     brain.panel_extras = PanelExtras(run_command, folders, load_config, lambda: brain.weather_place)

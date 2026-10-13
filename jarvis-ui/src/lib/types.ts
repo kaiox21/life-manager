@@ -24,7 +24,8 @@ export type Card =
     }
   | { kind: "arquivos"; title: string; items: string[]; total: number }
   | { kind: "texto"; title: string; text: string; options?: string[] }
-  | { kind: "terminais"; title: string; items: TerminalInfo[] };
+  | { kind: "terminais"; title: string; items: TerminalInfo[] }
+  | { kind: "fontes"; title: string; items: { title: string; url: string }[] };
 
 export type ServerEvent =
   | { type: "step"; id: string; text: string }

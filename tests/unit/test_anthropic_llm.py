@@ -128,8 +128,10 @@ async def test_chat_traduz_ida_e_volta_e_calcula_custo():
 
 
 class FakeStream:
-    def __init__(self, pieces, final):
-        self.pieces, self.final = pieces, final
+    """Como o stream do SDK: itera eventos (texto e início de blocos)."""
+
+    def __init__(self, pieces, final, events=()):
+        self.pieces, self.final, self.events = pieces, final, list(events)
 
     async def __aenter__(self):
         return self
@@ -137,10 +139,11 @@ class FakeStream:
     async def __aexit__(self, *a):
         return False
 
-    @property
-    async def text_stream(self):
+    async def __aiter__(self):
+        for e in self.events:
+            yield e
         for p in self.pieces:
-            yield p
+            yield NS(type="text", text=p)
 
     async def get_final_message(self):
         return self.final
@@ -170,3 +173,132 @@ def test_fabrica_escolhe_provedor(settings):
     assert isinstance(make_llm(s), AnthropicLLM)
     g = settings.model_copy(update={"ai_gateway_api_key": SecretStr("g")})
     assert type(make_llm(g)).__name__ == "GatewayLLM"
+
+
+# --- ferramentas de servidor: busca e leitura de páginas (Jarvis com internet)
+
+
+def _usage(i=100, o=20, searches=0, fetches=0):
+    return NS(
+        input_tokens=i,
+        output_tokens=o,
+        server_tool_use=NS(web_search_requests=searches, web_fetch_requests=fetches),
+    )
+
+
+class Block(NS):
+    def model_dump(self, exclude_none=True):
+        return {k: v for k, v in vars(self).items() if not (exclude_none and v is None)}
+
+
+def _search_response():
+    return NS(
+        stop_reason="end_turn",
+        usage=_usage(searches=2),
+        content=[
+            Block(type="server_tool_use", id="srv1", name="web_search", input={"query": "dólar"}),
+            Block(
+                type="web_search_tool_result",
+                tool_use_id="srv1",
+                content=[{"encrypted_content": "x"}],
+            ),
+            Block(
+                type="text",
+                text="O dólar fechou a R$ 5,40.",
+                citations=[
+                    {"url": "https://g1.globo.com/x", "title": "G1"},
+                    {"url": "https://g1.globo.com/x", "title": "G1"},
+                ],
+            ),
+        ],
+    )
+
+
+def test_ferramentas_de_servidor_vao_cruas_e_o_cache_fica_nas_do_mac():
+    from app.agent.llm import server_tool, to_anthropic_tools
+
+    tools = [
+        {"type": "function", "function": {"name": "abrir_app", "parameters": {}}},
+        server_tool({"type": "web_search_20250305", "name": "web_search", "max_uses": 3}),
+    ]
+    out = to_anthropic_tools(tools)
+    assert out[0]["name"] == "abrir_app" and out[0]["cache_control"]
+    assert out[1] == {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
+
+
+async def test_busca_custa_por_uso_e_traz_as_fontes_e_os_blocos_crus():
+    async def create(**kw):
+        return _search_response()
+
+    llm = AnthropicLLM(
+        api_key="x", prices={"m": (0.10, 0.50)}, client=NS(messages=NS(create=create))
+    )
+    c = await llm.chat("m", [{"role": "user", "content": "e o dólar?"}])
+    assert c.content == "O dólar fechou a R$ 5,40." and c.searches == 2
+    assert c.cost_usd == Decimal("0.00001") + Decimal("0.00001") + Decimal("0.02")
+    assert c.sources == [{"title": "G1", "url": "https://g1.globo.com/x"}]
+    # os blocos voltam intactos se a conversa continuar (conteúdo cifrado da busca)
+    msg = c.assistant_message()
+    _, converted = to_anthropic([{"role": "user", "content": "oi"}, msg])
+    assert converted[-1]["content"][1]["type"] == "web_search_tool_result"
+
+
+async def test_turno_pausado_continua_e_soma_tudo():
+    sent = []
+    first = NS(
+        stop_reason="pause_turn",
+        usage=_usage(searches=1),
+        content=[Block(type="server_tool_use", id="s", name="web_search", input={})],
+    )
+    second = NS(
+        stop_reason="end_turn",
+        usage=_usage(searches=1),
+        content=[Block(type="text", text="Pronto.")],
+    )
+    replies = iter([first, second])
+
+    async def create(**kw):
+        sent.append(kw["messages"])
+        return next(replies)
+
+    llm = AnthropicLLM(api_key="x", client=NS(messages=NS(create=create)))
+    c = await llm.chat("m", [{"role": "user", "content": "pesquisa"}])
+    assert c.content == "Pronto." and c.searches == 2 and len(sent) == 2
+    assert sent[1][-1]["role"] == "assistant"  # o turno pausado foi devolvido
+
+
+async def test_stream_avisa_quando_comeca_a_buscar():
+    from app.agent.llm import ServerToolUse
+
+    final = _search_response()
+    start = NS(
+        type="content_block_start", content_block=NS(type="server_tool_use", name="web_search")
+    )
+    messages = NS(stream=lambda **kw: FakeStream(["O dólar…"], final, events=[start]))
+    llm = AnthropicLLM(api_key="x", client=NS(messages=messages))
+    got = [p async for p in llm.stream("m", [{"role": "user", "content": "e o dólar?"}])]
+    assert got[0] == ServerToolUse("web_search") and got[1] == "O dólar…"
+    assert got[-1].sources and got[-1].searches == 2
+
+
+async def test_gateway_ignora_ferramentas_de_servidor():
+    from app.agent.llm import GatewayLLM, server_tool
+
+    seen = {}
+
+    async def create(**kw):
+        seen.update(kw)
+        msg = NS(content="ok", tool_calls=None)
+        return NS(
+            choices=[NS(message=msg)], usage=NS(prompt_tokens=1, completion_tokens=1), model="m"
+        )
+
+    llm = GatewayLLM.__new__(GatewayLLM)
+    llm._client = NS(chat=NS(completions=NS(create=create)))
+    llm._reasoning_effort, llm._allowed, llm._prices = "", [], {}
+    await llm.chat(
+        "m",
+        [{"role": "assistant", "content": "x", "_anthropic_content": [{"type": "text"}]}],
+        tools=[server_tool({"type": "web_search_20250305", "name": "web_search"})],
+    )
+    assert "tools" not in seen and "_anthropic_content" not in seen["messages"][0]

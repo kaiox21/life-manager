@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { sinceLabel } from "../lib/terminals";
 import type { Card, CardItem, TerminalInfo } from "../lib/types";
 
@@ -23,7 +24,41 @@ export function CardView({ card }: { card: Card }) {
           <TerminalList items={card.items} />
         </Shell>
       );
+    case "fontes":
+      return <SourcesCard card={card} />;
   }
+}
+
+/** De onde veio a resposta pesquisada na internet: cada fonte abre no navegador. */
+function SourcesCard({ card }: { card: Extract<Card, { kind: "fontes" }> }) {
+  const host = (url: string) => {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  };
+  return (
+    <Shell title={card.title} kind="fontes">
+      <ul className="sources">
+        {card.items.map((s) => (
+          <li key={s.url}>
+            <a
+              href={s.url}
+              className="sources__link"
+              onClick={(e) => {
+                e.preventDefault();
+                void openUrl(s.url);
+              }}
+            >
+              <span className="sources__title">{s.title}</span>
+              <small className="sources__host">{host(s.url)}</small>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </Shell>
+  );
 }
 
 function Shell({ title, kind, children }: { title: string; kind: string; children: React.ReactNode }) {

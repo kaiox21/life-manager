@@ -19,6 +19,24 @@ from openai import AsyncOpenAI
 
 log = logging.getLogger(__name__)
 
+# Ferramentas que a Anthropic executa no servidor (busca e leitura de páginas). Entram na lista
+# como {"type": SERVER_TOOL, "tool": <definição da API>}; o gateway as ignora.
+SERVER_TOOL = "anthropic_server"
+SEARCH_PRICE = Decimal("0.01")  # US$ por busca (US$ 10 a cada 1.000); ler páginas é grátis
+SERVER_BLOCKS = {"server_tool_use", "web_search_tool_result", "web_fetch_tool_result"}
+MAX_PAUSES = 3  # turno pausado pela API numa busca longa: continuar no máximo 3 vezes
+
+
+def server_tool(spec: dict[str, Any]) -> dict[str, Any]:
+    return {"type": SERVER_TOOL, "tool": spec}
+
+
+@dataclass
+class ServerToolUse:
+    """Pedaço do stream: o modelo começou a usar uma ferramenta de servidor (passo na tela)."""
+
+    name: str
+
 
 @dataclass(frozen=True)
 class ToolCall:
@@ -36,9 +54,17 @@ class Completion:
     output_tokens: int = 0
     cost_usd: Decimal = Decimal(0)
     latency_ms: int = 0
+    # Blocos originais da Anthropic quando a resposta usou busca/leitura: precisam voltar intactos
+    # (com o conteúdo cifrado) se a conversa continuar no mesmo turno.
+    raw: list[dict[str, Any]] | None = None
+    sources: list[dict[str, str]] = field(default_factory=list)  # {title, url} citados
+    searches: int = 0
+    fetches: int = 0
 
     def assistant_message(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or ""}
+        if self.raw:
+            msg["_anthropic_content"] = self.raw
         if self.tool_calls:
             msg["tool_calls"] = [
                 {
@@ -107,6 +133,8 @@ class GatewayLLM:
         tool_choice: str | dict[str, Any] | None = None,
     ) -> Completion:
         # Sem temperature: vários modelos de raciocínio recusam valores diferentes do padrão.
+        tools = [t for t in tools or [] if t.get("type") != SERVER_TOOL] or None
+        messages = [{k: v for k, v in m.items() if k != "_anthropic_content"} for m in messages]
         kwargs: dict[str, Any] = {"model": model, "messages": messages}
         if tools:
             kwargs["tools"] = tools
@@ -205,6 +233,8 @@ def to_anthropic(
                     }
                 ],
             )
+        elif role == "assistant" and m.get("_anthropic_content"):
+            push("assistant", [dict(b) for b in m["_anthropic_content"]])
         elif role == "assistant":
             blocks: list[dict[str, Any]] = []
             if content:
@@ -258,11 +288,34 @@ def to_anthropic_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any
             "input_schema": t["function"].get("parameters") or {"type": "object", "properties": {}},
         }
         for t in tools or []
+        if t.get("type") != SERVER_TOOL
     ]
     if out:
         # As ferramentas são o prefixo estável do pedido: cache de prompt no fim delas.
         out[-1]["cache_control"] = {"type": "ephemeral"}
-    return out
+    return out + [dict(t["tool"]) for t in tools or [] if t.get("type") == SERVER_TOOL]
+
+
+def _dump(block: Any) -> dict[str, Any]:
+    if isinstance(block, dict):
+        return block
+    return block.model_dump(exclude_none=True)
+
+
+def _sources(blocks: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Fontes citadas na resposta (busca) e páginas lidas, sem repetir a URL."""
+    found: dict[str, str] = {}
+    for b in blocks:
+        if b.get("type") == "text":
+            for c in b.get("citations") or []:
+                if c.get("url"):
+                    found.setdefault(c["url"], c.get("title") or c["url"])
+        elif b.get("type") == "web_fetch_tool_result":
+            res = b.get("content") or {}
+            if res.get("type") == "web_fetch_result" and res.get("url"):
+                doc = res.get("content") or {}
+                found.setdefault(res["url"], doc.get("title") or res["url"])
+    return [{"title": t, "url": u} for u, t in found.items()]
 
 
 def to_anthropic_tool_choice(choice: str | dict[str, Any] | None) -> dict[str, Any] | None:
@@ -331,8 +384,15 @@ class AnthropicLLM:
     ) -> Completion:
         kwargs = self._request(model, messages, tools, max_tokens, tool_choice)
         started = time.monotonic()
-        resp = await self._client.messages.create(**kwargs)
-        return self._completion(model, resp, started)
+        responses = [await self._client.messages.create(**kwargs)]
+        while (
+            getattr(responses[-1], "stop_reason", None) == "pause_turn"
+            and len(responses) <= MAX_PAUSES
+        ):
+            # busca longa: a API pausou o turno; devolve o que veio e ela continua
+            kwargs = self._continue(kwargs, responses[-1])
+            responses.append(await self._client.messages.create(**kwargs))
+        return self._completion(model, responses, started)
 
     async def stream(
         self,
@@ -341,33 +401,64 @@ class AnthropicLLM:
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int | None = None,
         tool_choice: str | dict[str, Any] | None = None,
-    ) -> AsyncIterator[str | Completion]:
+    ) -> AsyncIterator[str | ServerToolUse | Completion]:
         kwargs = self._request(model, messages, tools, max_tokens, tool_choice)
         started = time.monotonic()
-        async with self._client.messages.stream(**kwargs) as stream:
-            async for piece in stream.text_stream:
-                if piece:
-                    yield piece
-            resp = await stream.get_final_message()
-        yield self._completion(model, resp, started)
+        responses: list[Any] = []
+        while True:
+            async with self._client.messages.stream(**kwargs) as stream:
+                async for event in stream:
+                    kind = getattr(event, "type", "")
+                    if kind == "text" and getattr(event, "text", ""):
+                        yield event.text
+                    elif kind == "content_block_start":
+                        block = getattr(event, "content_block", None)
+                        if getattr(block, "type", "") == "server_tool_use":
+                            yield ServerToolUse(str(getattr(block, "name", "")))
+                responses.append(await stream.get_final_message())
+            if (
+                getattr(responses[-1], "stop_reason", None) != "pause_turn"
+                or len(responses) > MAX_PAUSES
+            ):
+                break
+            kwargs = self._continue(kwargs, responses[-1])
+        yield self._completion(model, responses, started)
+
+    @staticmethod
+    def _continue(kwargs: dict[str, Any], resp: Any) -> dict[str, Any]:
+        paused = {"role": "assistant", "content": [_dump(b) for b in resp.content]}
+        return {**kwargs, "messages": [*kwargs["messages"], paused]}
 
     def _completion(self, model: str, resp: Any, started: float) -> Completion:
+        responses = resp if isinstance(resp, list) else [resp]
         latency = int((time.monotonic() - started) * 1000)
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        blocks = [b for r in responses for b in r.content]
+        text = "".join(b.text for b in blocks if b.type == "text").strip()
         calls = [
             ToolCall(id=b.id, name=b.name, arguments=json.dumps(b.input, ensure_ascii=False))
-            for b in resp.content
+            for b in blocks
             if b.type == "tool_use"
         ]
-        tokens_in, tokens_out = resp.usage.input_tokens, resp.usage.output_tokens
-        cached = getattr(resp.usage, "cache_read_input_tokens", None) or 0
+        tokens_in = sum(r.usage.input_tokens for r in responses)
+        tokens_out = sum(r.usage.output_tokens for r in responses)
+        searches = fetches = 0
+        for r in responses:
+            used = getattr(r.usage, "server_tool_use", None)
+            searches += int(getattr(used, "web_search_requests", 0) or 0)
+            fetches += int(getattr(used, "web_fetch_requests", 0) or 0)
+        cached = sum(getattr(r.usage, "cache_read_input_tokens", None) or 0 for r in responses)
         log.debug("anthropic %s: in=%d cache=%d out=%d", model, tokens_in, cached, tokens_out)
         price = self._prices.get(model)
         cost = (
             price.input_per_token * tokens_in + price.output_per_token * tokens_out
             if price
             else Decimal(0)
-        )
+        ) + SEARCH_PRICE * searches
+        raw = None
+        sources: list[dict[str, str]] = []
+        if any(b.type in SERVER_BLOCKS for b in blocks):
+            raw = [_dump(b) for b in blocks]
+            sources = _sources(raw)
         return Completion(
             model=model,
             content=text or None,
@@ -376,6 +467,10 @@ class AnthropicLLM:
             output_tokens=tokens_out,
             cost_usd=cost,
             latency_ms=latency,
+            raw=raw,
+            sources=sources,
+            searches=searches,
+            fetches=fetches,
         )
 
     async def aclose(self) -> None:

@@ -71,3 +71,24 @@ describe("cartões", () => {
     expect(screen.getByText("A")).toBeTruthy();
   });
 });
+
+describe("cartão de fontes", () => {
+  it("mostra título e site de cada fonte", () => {
+    render(
+      <CardView
+        card={{
+          kind: "fontes",
+          title: "Fontes",
+          items: [
+            { title: "Dólar fecha em alta", url: "https://www.g1.globo.com/economia/x" },
+            { title: "Cotação do dia", url: "https://valor.globo.com/y" },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /Dólar fecha em alta/ }).getAttribute("href")).toBe(
+      "https://www.g1.globo.com/economia/x",
+    );
+    expect(screen.getByText("g1.globo.com")).toBeTruthy();
+  });
+});
