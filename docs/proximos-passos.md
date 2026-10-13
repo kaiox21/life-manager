@@ -55,6 +55,12 @@ Já testado em 10/10: login e "toca …" por texto (tocou no Mac em 1,7 s).
 
 - **Painel em tela cheia a cada "Jarvis, …".** Hoje qualquer pedido pela palavra abre o painel. Para pedidos rápidos ("Jarvis, toca Djavan"), talvez seja melhor o painel abrir só com "Hey Jarvis" sozinho (o resumo do dia). Decida depois de usar por uns dias.
 
+## Vitrine (README)
+
+- **Gravar dois GIFs curtos** (⌘⇧5 grava a tela; o Claude converte para GIF e põe no README, em `docs/midia/`):
+  - `hey-jarvis`: com outro app na frente, dizer "Hey Jarvis"; o painel abre e ele fala o resumo. Uns 15 s.
+  - `painel`: o HUD com a conversa, a agenda, as notícias e as vagas. Uns 10 s.
+
 ## Fora do Jarvis
 
 - **`deploy-vps`** (5 de 12 tarefas): criar a VM, configurar ntfy, healthchecks e backup com `rclone`, migrar o banco do Mac, escanear o QR do WhatsApp no VPS e fazer o aceite do alerta e do backup diário.
