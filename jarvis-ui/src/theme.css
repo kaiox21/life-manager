@@ -803,3 +803,28 @@ body {
   color: var(--text-dim);
   font-size: 11px;
 }
+
+/* rascunho (jarvis-projetos): texto completo, quebras preservadas, botão Copiar */
+.draft__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.draft__text {
+  margin: 0;
+  max-block-size: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.45;
+}
+.draft__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block-start: 10px;
+}

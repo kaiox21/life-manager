@@ -78,13 +78,24 @@ Antes: crie os dois atalhos no app Atalhos (item 2 da lista abaixo) e confira co
 - [ ] Com o Foco ligado pelo modo, trocar de app algumas vezes: o Foco continua ligado (um relato antigo diz que desligava).
 - [ ] Fechar a tampa do Mac durante o bloco e abrir depois do fim: o modo encerra sem falar e o Foco desliga.
 
+### 6. Aceite de projetos e rascunhos (`jarvis-projetos`, tarefa 4.4)
+
+- [ ] Com o painel aberto: "Jarvis, abre o NC Barber". O painel fecha, o VS Code abre na pasta `NC-BARBER`, uma aba "Terminal N · NC-BARBER" existe no painel e ele diz "NC-BARBER aberto no Visual Studio Code, senhor. Terminal N." (frase fixa, sem o modelo).
+- [ ] De novo "abre o NC Barber" com esse terminal ainda livre: nenhum terminal novo; a frase cita o mesmo número.
+- [ ] "Abre o life-manager com um Claude Code": o terminal já abre o Claude Code.
+- [ ] "Abre o sisdec" (há dois): ele pergunta qual, nada abre.
+- [ ] "Escreve um e-mail pro professor de redes pedindo a prova de segunda chamada, que eu estava doente": cartão "Rascunho · e-mail para …" com assunto e texto assinado "Kaio", sem "senhor"; o corpo está na área de transferência (⌘V em qualquer lugar); ele diz só "Rascunho pronto no painel e na área de transferência, senhor.".
+- [ ] Copiar outra coisa, clicar **Copiar** no cartão: o rascunho volta para a área de transferência. O arquivo está em `~/Library/Application Support/Jarvis/rascunhos/`.
+- [ ] "Manda esse e-mail": ele responde que não envia e que o texto está na área de transferência. Nenhum cartão de terminal aparece.
+- [ ] `JARVIS_EDITOR=Nada` no `.env` e reiniciar o cérebro: "abre o NC Barber" abre só o terminal e ele diz que não encontrou o editor. Voltar o valor.
+
 ## Funcionalidades novas do Jarvis (aprovadas em 10/10/2026)
 
 Ordem de implementação, um change do OpenSpec por vez:
 
 1. **`jarvis-proativo`** (implementado em 13/10; falta o aceite acima): "Jarvis, boa noite" com o fechamento do dia, lembrete de lançamento às 21:30, avisos falados (lembretes do núcleo e terminais) e silêncio.
 2. **`jarvis-estudo`** (implementado em 13/10 na branch `feat/jarvis-estudo`; falta o aceite acima): "Jarvis, modo estudo por 50 minutos" liga o Foco do macOS, toca a playlist de estudo, retém os avisos e propõe a pausa no fim do bloco. **Antes do aceite, crie dois atalhos no app Atalhos** (uns 2 minutos): "Jarvis Foco" com a ação "Definir Foco" → Não Perturbe, ligado "até ser desativado"; e "Jarvis Foco Fim" com a mesma ação desligando. Confira com `shortcuts list` no Terminal.
-3. **Abrir projetos e rascunhos**: "Jarvis, abre o NC Barber" (VS Code e terminal na pasta) e "escreve um e-mail pro professor…" (o texto vai para a área de transferência e o painel; nunca envia).
+3. **`jarvis-projetos`** (implementado em 15/10 na branch `feat/jarvis-projetos`; falta o aceite acima): "Jarvis, abre o NC Barber" (VS Code e terminal na pasta; o painel fecha) e "escreve um e-mail pro professor…" (texto em nome do Kaio na área de transferência e no painel, com Copiar; nunca envia; resposta fixa).
 4. **Notas rápidas por voz**: "anota que…" e "o que eu anotei sobre…" (tabela nova no núcleo; sem segredos).
 5. **Prazos da UnB no resumo do dia** (API do Aprender3).
 6. **Resumo semanal** no domingo.

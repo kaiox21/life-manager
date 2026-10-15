@@ -25,7 +25,10 @@ export type Card =
   | { kind: "arquivos"; title: string; items: string[]; total: number }
   | { kind: "texto"; title: string; text: string; options?: string[] }
   | { kind: "terminais"; title: string; items: TerminalInfo[] }
-  | { kind: "fontes"; title: string; items: { title: string; url: string }[] };
+  | { kind: "fontes"; title: string; items: { title: string; url: string }[] }
+  // rascunho (jarvis-projetos): texto completo em nome do Kaio; o botão Copiar manda o texto ao
+  // cérebro, que escreve na área de transferência
+  | { kind: "rascunho"; title: string; to?: string | null; subject?: string | null; text: string; file?: string | null };
 
 export type ServerEvent =
   | { type: "step"; id: string; text: string }
@@ -44,6 +47,7 @@ export type ServerEvent =
   | { type: "terminal_opened"; id: string; data: TerminalOpened }
   | { type: "terminal_resolved"; id: string; data: { pedido: string; resultado: string } }
   | { type: "wake"; id: string }
+  | { type: "panel_close"; id: string } // um projeto abriu: o painel sai da frente do editor
   | { type: "error"; id: string; text: string };
 
 export type Mode = "texto" | "voz";

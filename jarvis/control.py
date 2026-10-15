@@ -13,6 +13,7 @@ Regras (openspec/changes/jarvis-terminais-controle):
 import asyncio
 import contextlib
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -130,16 +131,41 @@ class TerminalControl:
             )
         return None
 
+    def resolve(self, pasta: str) -> dict[str, Any]:
+        """Nome ou caminho → {"pasta": Path} | {"opcoes": [...]} | {"erro": ...}, só na lista
+        permitida."""
+        return self.folders.resolve(pasta)
+
     async def open(self, pasta: str, claude: bool = False) -> dict[str, Any]:
-        if not self.tmux.available:
-            return {"erro": "O tmux não está instalado (brew install tmux)."}
         target = self.folders.resolve(pasta)
         if "pasta" not in target:
             return target
+        return await self.open_in(target["pasta"], claude, reuse=False)
+
+    async def open_in(self, path: Path, claude: bool = False, reuse: bool = True) -> dict[str, Any]:
+        """Terminal numa pasta já resolvida. Com `reuse`, um shell livre que já esteja nessa
+        pasta ganha a aba em vez de nascer outro terminal (jarvis-projetos); com o Claude Code
+        pedido, nasce sempre um novo."""
+        if not self.tmux.available:
+            return {"erro": "O tmux não está instalado (brew install tmux)."}
+        if reuse and not claude:
+            for p in await self.tmux.panes():
+                t = self.terminals.by_key(f"tmux:{p.sessao}")
+                if t is None or t.tipo != "shell" or not p.shell_livre:
+                    continue
+                if Path(os.path.realpath(p.pasta)) != path:  # noqa: ASYNC240 (caminho local)
+                    continue
+                await self.open_tab(p.sessao)
+                return {
+                    "status": "existente",
+                    "numero": t.numero,
+                    "pasta": t.pasta,
+                    "tipo": "shell",
+                    "sessao": p.sessao,
+                }
         refusal = self._refusal(claude)
         if refusal:
             return {"erro": refusal}
-        path: Path = target["pasta"]
         sessao = await self.tmux.new_session(path)
         if sessao is None:
             return {"erro": "Não consegui abrir o terminal."}

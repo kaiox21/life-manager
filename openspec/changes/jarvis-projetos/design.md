@@ -36,6 +36,7 @@ Fatos conferidos no código em 15/10/2026 (análise crítica):
 - **Botão Copiar.** O evento local ganha um campo opcional `texto` (até 6.000): `{"type": "local", "acao": "rascunho_copiar", "texto": …}` → `pbcopy`. Alternativa descartada: `navigator.clipboard` na interface; manter a escrita na área de transferência num único lugar (o cérebro) e sem depender de permissão do webview.
 - **Nunca envia.** Não há ferramenta de envio no Jarvis nem no MCP do núcleo (o envio do núcleo só vai para o próprio dono, pelo WhatsApp, e não é exposto). O caminho residual é `mandar_terminal` com um comando de e-mail: já exige o clique do Kaio no cartão, e a regra do prompt proíbe propor.
 - **Verificação com o modelo real antes do aceite** (como no modo estudo): 4 pedidos de escolha de ferramenta, 1 rascunho para olhar persona e assinatura, e "manda esse e-mail" para ver a recusa. Custo estimado US$ 0,002; avisar antes de rodar.
+  Resultado (15/10/2026, `claude-haiku-5-5`, US$ 0,0009): 5 de 5. "Jarvis, abre o NC Barber" → `abrir_projeto(nome="NC Barber")`; "abre o life-manager com um Claude Code" → `claude=true`; o e-mail para o professor veio com `tipo=email`, assunto "Pedido de prova de segunda chamada", texto em primeira pessoa, formal, assinado "Kaio", sem "senhor"; a mensagem para o Netto veio como `tipo=mensagem`, sem assunto, informal e assinada; "manda esse e-mail" não chamou ferramenta e respondeu "Não envio e-mails, senhor. O texto está na área de transferência; basta colá-lo no seu cliente de e-mail e enviar."
 
 ## Risks / Trade-offs
 

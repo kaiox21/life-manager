@@ -8,7 +8,8 @@ Interface -> cérebro:
   {"type": "voice_end", "id": "<id>"} | {"type": "voice_cancel", "id": "<id>"}
   {"type": "panel", "id": "<id>"}           dados do painel (sem o modelo)
   {"type": "briefing", "id": "<id>"}        botão Resumo: resumo do dia falado (sem o modelo)
-  {"type": "local", "acao": "musica_tocar_pausar"}   botões do painel sem o modelo (lista fechada)
+  {"type": "local", "acao": "musica_tocar_pausar"}   botões do painel sem o modelo (lista fechada);
+                                            "rascunho_copiar" leva "texto" (botão Copiar)
 Cérebro -> interface:
   step    passo em andamento ("consultando a agenda…")
   token   pedaço do texto da resposta (streaming)
@@ -29,6 +30,7 @@ Cérebro -> interface:
   terminal_opened data: resultado de `term_open` (status/numero/sessao/tipo, ou erro/opcoes)
   terminal_resolved  data: {pedido, resultado}: o pedido de permissão foi resolvido
   wake    a palavra "Jarvis" foi detectada (id do turno de voz que vem em seguida)
+  panel_close  o painel deve fechar (um projeto foi aberto: o editor fica na frente)
   quadros binários: 0x01 + id da sessão do tmux (8) + saída do terminal (aba anexada)
 Interface -> cérebro (terminais compartilhados; `sessao` = session_id do tmux, ex.: "$3"):
   {"type": "term_attach", "sessao": "...", "cols": 120, "rows": 32}   cliente da aba visível
@@ -66,6 +68,7 @@ EventType = Literal[
     "terminal_opened",
     "terminal_resolved",
     "wake",
+    "panel_close",
 ]
 
 
@@ -118,6 +121,11 @@ def terminal_opened(result: dict[str, Any]) -> Event:
 
 def terminal_resolved(pedido: str, resultado: str) -> Event:
     return Event("terminal_resolved", "terminais", data={"pedido": pedido, "resultado": resultado})
+
+
+def panel_close(rid: str) -> Event:
+    """O painel fecha sozinho: um projeto acabou de abrir e o editor precisa aparecer."""
+    return Event("panel_close", rid)
 
 
 def wake(rid: str) -> Event:

@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { CardView } from "./Cards";
+import { CardView, CopyContext } from "./Cards";
 
 afterEach(cleanup);
 
@@ -90,5 +90,35 @@ describe("cartão de fontes", () => {
       "https://www.g1.globo.com/economia/x",
     );
     expect(screen.getByText("g1.globo.com")).toBeTruthy();
+  });
+
+  it("rascunho mostra destinatário, assunto, texto inteiro e o Copiar manda o texto", () => {
+    const copied: string[] = [];
+    render(
+      <CopyContext.Provider value={(t) => copied.push(t)}>
+        <CardView
+          card={{
+            kind: "rascunho",
+            title: "Rascunho · e-mail para o professor",
+            to: "professor de redes",
+            subject: "Segunda chamada",
+            text: "Prezado professor,\n\nEstive doente.\n\nKaio",
+            file: "~/Library/Application Support/Jarvis/rascunhos/x.md",
+          }}
+        />
+      </CopyContext.Provider>,
+    );
+    expect(screen.getByRole("region", { name: "Rascunho · e-mail para o professor" })).toBeTruthy();
+    expect(screen.getByText("Para: professor de redes")).toBeTruthy();
+    expect(screen.getByText("Assunto: Segunda chamada")).toBeTruthy();
+    expect(screen.getByText(/Estive doente\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Copiar" }));
+    expect(copied).toEqual(["Prezado professor,\n\nEstive doente.\n\nKaio"]);
+  });
+
+  it("rascunho sem provedor: o Copiar não quebra", () => {
+    render(<CardView card={{ kind: "rascunho", title: "Rascunho · texto", text: "oi" }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copiar" }));
+    expect(screen.getByText("oi")).toBeTruthy();
   });
 });

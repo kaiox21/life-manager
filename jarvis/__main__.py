@@ -155,6 +155,7 @@ async def main() -> None:
         control=control,
         spotify=spotify,
         ducker=ducker,
+        editor=env("JARVIS_EDITOR", "Visual Studio Code"),
     )
     brain = JarvisBrain(
         llm,

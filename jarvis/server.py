@@ -201,7 +201,11 @@ class JarvisServer:
                     # botão Boa noite do painel: o mesmo fechamento do "Jarvis, boa noite"
                     launch(self._run(rid, emit, self.brain.evening(rid, emit)))
                 elif kind == "local" and hasattr(self.brain, "local_action"):
-                    await self.brain.local_action(str(msg.get("acao", "")))
+                    texto = msg.get("texto")
+                    if isinstance(texto, str):  # botão Copiar do rascunho (jarvis-projetos)
+                        await self.brain.local_action(str(msg.get("acao", "")), texto)
+                    else:
+                        await self.brain.local_action(str(msg.get("acao", "")))
                 elif kind == "panel":
                     # fora do `active`: atualizar o painel não pode ser cancelado por "interrupt"
                     task = asyncio.create_task(self._run(rid, emit, self.brain.panel(rid, emit)))

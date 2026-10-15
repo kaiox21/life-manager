@@ -115,6 +115,10 @@ export function useJarvis() {
           opening.current?.(ev.data);
           opening.current = null;
           return;
+        case "panel_close":
+          // um projeto abriu: o editor precisa aparecer na frente do painel (jarvis-projetos)
+          invoke("hide_panel").catch(() => undefined);
+          return;
         case "wake":
           // "Jarvis, …" (escuta da palavra): o app abre o painel, que mostra a conversa
           // (o pedido chega em `heard`, o resumo do dia em `token`)
@@ -317,6 +321,7 @@ export function useJarvis() {
     setNotices: (paused: boolean) =>
       send({ type: "local", acao: paused ? "avisos_retomar" : "avisos_pausar_1h" }),
     study: (running: boolean) => send({ type: "local", acao: running ? "estudo_parar" : "estudo_iniciar" }),
+    copyDraft: (texto: string) => send({ type: "local", acao: "rascunho_copiar", texto }),
     stop: () => send({ type: "interrupt" }),
     setOnAlert: (fn: (a: ShownAlert) => void) => { onAlert.current = fn; },
     ask, startVoice, endVoice, answerConfirm, reconnect: connect,

@@ -113,6 +113,26 @@ def card_for(tool: str, args: dict[str, Any], data: Any) -> dict[str, Any] | Non
         return {"kind": "texto", "title": "Terminais", "text": text} if text else None
     if tool == "listar_terminais":
         return {"kind": "terminais", "title": "Terminais", "items": data.get("terminais", [])}
+    if tool == "abrir_projeto" and data.get("status") == "aberto":
+        term = data.get("terminal") or {}
+        n = term.get("numero")
+        parts = [str(data.get("pasta", ""))]
+        parts.append("editor aberto" if data.get("editor") == "aberto" else str(data.get("editor")))
+        parts.append(f"Terminal {n}" + (" (já aberto)" if term.get("existente") else ""))
+        return {"kind": "texto", "title": "Projeto", "text": " · ".join(parts)}
+    if tool == "rascunho" and data.get("status") == "pronto":
+        label = {"email": "e-mail", "mensagem": "mensagem", "texto": "texto"}.get(
+            str(data.get("tipo")), "texto"
+        )
+        para = data.get("para")
+        return {
+            "kind": "rascunho",
+            "title": f"Rascunho · {label}" + (f" para {para}" if para else ""),
+            "to": para,
+            "subject": data.get("assunto"),
+            "text": str(data.get("texto", "")),
+            "file": data.get("arquivo"),
+        }
     if tool == "buscar_arquivo":
         return {
             "kind": "arquivos",

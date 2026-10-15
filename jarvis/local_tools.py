@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -25,6 +26,12 @@ log = logging.getLogger(__name__)
 CONFIG_FILE = Path.home() / "Library/Application Support/Jarvis/config.json"
 SAFE_NAME = re.compile(r"^[\w .&'()+-]{1,60}$")
 MAX_CLIPBOARD = 2000
+# rascunhos (jarvis-projetos): área de transferência + cartão + arquivo local; nunca enviados
+MAX_DRAFT = 6000
+DRAFTS_DIR = Path.home() / "Library/Application Support/Jarvis/rascunhos"
+DRAFTS_KEEP = 50
+DRAFT_REPLY = "Rascunho pronto no painel e na área de transferência, senhor."
+DEFAULT_EDITOR = "Visual Studio Code"
 
 
 @dataclass(frozen=True)
@@ -122,8 +129,36 @@ class FecharTerminalArgs(Args):
     numero: int = Field(ge=1, le=99)
 
 
+class AbrirProjetoArgs(Args):
+    nome: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Nome do projeto como o Kaio disse (ex.: 'NC Barber', 'life-manager')",
+    )
+    claude: bool = Field(
+        default=False, description="true = o terminal já abre o Claude Code ('com um Claude Code')"
+    )
+
+
+class RascunhoArgs(Args):
+    tipo: Literal["email", "mensagem", "texto"]
+    para: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Destinatário como o Kaio disse (ex.: 'professor de redes', 'Netto')",
+    )
+    assunto: str | None = Field(default=None, max_length=200, description="Assunto (e-mail)")
+    texto: str = Field(
+        min_length=1,
+        max_length=MAX_DRAFT,
+        description="O texto completo, em nome do Kaio (primeira pessoa, pt-BR, assinado 'Kaio')",
+    )
+
+
 class TerminalControl(Protocol):
+    def resolve(self, pasta: str) -> dict[str, Any]: ...
     async def open(self, pasta: str, claude: bool = False) -> dict[str, Any]: ...
+    async def open_in(self, path: Path, claude: bool = False) -> dict[str, Any]: ...
     async def send(self, numero: int, texto: str, confirm: Confirm | None) -> dict[str, Any]: ...
     async def close(self, numero: int, confirm: Confirm | None) -> dict[str, Any]: ...
 
@@ -174,6 +209,18 @@ SPOTIFY = {
 }
 
 
+def _ascii(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in text if not unicodedata.combining(c))
+
+
+def _short(path: Path, home: Path) -> str:
+    try:
+        return "~/" + str(path.relative_to(home))
+    except ValueError:
+        return str(path)
+
+
 def _spotify_error(e: SpotifyError) -> dict[str, Any]:
     out: dict[str, Any] = {"erro": str(e)}
     if e.login:  # o comando vai só para o cartão da tela (for_model tira as opções)
@@ -205,6 +252,8 @@ class LocalTools:
         control: TerminalControl | None = None,
         spotify: Spotify | None = None,
         ducker: Ducker | None = None,
+        editor: str = DEFAULT_EDITOR,
+        drafts_dir: Path = DRAFTS_DIR,
     ) -> None:
         self._run = runner
         self._confirm = confirm
@@ -216,6 +265,8 @@ class LocalTools:
         self._control = control
         self._spotify = spotify
         self._ducker = ducker
+        self._editor = editor.strip()
+        self._drafts_dir = drafts_dir
         self.notices: Notices | None = None  # avisos falados (jarvis/proactive.py)
         self.study: Study | None = None  # modo estudo (jarvis/study.py)
 
@@ -367,14 +418,99 @@ class LocalTools:
             return await self.study.stop()
         return {"status": self.study.status() or "sem_modo", "texto": self.study.status_text()}
 
+    # --- projetos e rascunhos (jarvis-projetos)
+
+    async def abrir_projeto(self, a: AbrirProjetoArgs) -> dict[str, Any]:
+        """Editor na pasta + terminal do Jarvis nela (shell livre reaproveitado). Só pastas da
+        lista permitida; nenhum comando além do editor, do terminal e do `claude` pedido."""
+        if self._control is None:
+            return {"erro": "As abas de terminal não estão disponíveis."}
+        target = self._control.resolve(a.nome)
+        if "pasta" not in target:
+            return target
+        path: Path = target["pasta"]
+        editor_error: str | None = None
+        if not self._editor:
+            editor_error = "nenhum editor configurado"
+        else:
+            r = await self._run(["open", "-a", self._editor, str(path)], None)
+            if r.returncode != 0:
+                editor_error = f"não encontrei o app {self._editor!r}"
+        term = await self._control.open_in(path, a.claude)
+        if "erro" in term:
+            out = dict(term)
+            out["editor"] = "aberto" if editor_error is None else editor_error
+            return out
+        n = term.get("numero")
+        existing = term.get("status") == "existente"
+        if editor_error is None:
+            fala = f"{path.name} aberto no {self._editor}, senhor. Terminal {n}."
+        else:
+            fala = f"{path.name} aberto no Terminal {n}, senhor. Não encontrei o {self._editor}."
+        log.info("projeto: %s (terminal %s%s)", path.name, n, ", já aberto" if existing else "")
+        return {
+            "status": "aberto",
+            "pasta": path.name,
+            "editor": "aberto" if editor_error is None else editor_error,
+            "terminal": {"numero": n, "tipo": term.get("tipo"), "existente": existing},
+            "_fala": fala,
+            "_painel_fechar": True,
+        }
+
+    async def rascunho(self, a: RascunhoArgs) -> dict[str, Any]:
+        """O texto vai para a área de transferência, para o cartão e para um arquivo local.
+        Nunca é enviado nem logado (só tipo, destinatário e tamanho)."""
+        await self._run(["pbcopy"], a.texto.encode())
+        path = self._save_draft(a)
+        log.info("rascunho: %s para %s (%d caracteres)", a.tipo, a.para or "-", len(a.texto))
+        return {
+            "status": "pronto",
+            "tipo": a.tipo,
+            "para": a.para,
+            "assunto": a.assunto,
+            "caracteres": len(a.texto),
+            "arquivo": _short(path, self._home) if path else None,
+            "texto": a.texto,  # só para o cartão: for_model tira
+            "_fala": DRAFT_REPLY,
+        }
+
+    def _save_draft(self, a: RascunhoArgs) -> Path | None:
+        label = a.assunto or a.para or a.tipo
+        slug = re.sub(r"[^a-z0-9]+", "-", _ascii(label).lower()).strip("-")[:40] or a.tipo
+        name = f"{self._now():%Y-%m-%d-%H%M%S}-{slug}.md"
+        head = [f"# {a.tipo}"]
+        if a.para:
+            head.append(f"para: {a.para}")
+        if a.assunto:
+            head.append(f"assunto: {a.assunto}")
+        try:
+            self._drafts_dir.mkdir(parents=True, exist_ok=True)
+            path = self._drafts_dir / name
+            path.write_text("\n".join(head) + "\n\n" + a.texto + "\n")
+            for old in sorted(self._drafts_dir.glob("*.md"))[:-DRAFTS_KEEP]:
+                old.unlink()
+        except OSError:
+            log.warning("rascunho: não consegui gravar o arquivo")
+            return None
+        return path
+
+    async def rascunho_copiar(self, texto: str) -> None:
+        """Botão Copiar do cartão (não é ferramenta do modelo)."""
+        if 0 < len(texto) <= MAX_DRAFT:
+            await self._run(["pbcopy"], texto.encode())
+
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
-        segredos) ficam só no cartão da tela."""
+        segredos) ficam só no cartão da tela; o texto do rascunho e as marcas internas
+        (`_fala`, `_painel_fechar`) também não voltam ao modelo."""
         if name in ("tocar_musica", "controlar_musica") and "opcoes" in data:
             return {k: v for k, v in data.items() if k != "opcoes"}
         if name == "listar_terminais":
             keep = ("numero", "pasta", "tipo", "estado", "ferramenta")
             return {"terminais": [{k: t.get(k) for k in keep} for t in data["terminais"]]}
+        hidden = {"_fala", "_painel_fechar"} | ({"texto"} if name == "rascunho" else set())
+        if hidden & data.keys():
+            return {k: v for k, v in data.items() if k not in hidden}
         return data
 
     # --- catálogo para o modelo
@@ -461,6 +597,23 @@ class LocalTools:
                 "Lê (pede permissão) ou escreve na área de transferência.",
                 ClipboardArgs,
                 self.area_transferencia,
+            ),
+            "abrir_projeto": (
+                "Abre um projeto: a pasta no editor (VS Code) e um terminal do Jarvis nela "
+                "('abre o NC Barber' -> nome='NC Barber'); claude=true quando o Kaio pedir 'com "
+                "um Claude Code'. Só pastas permitidas; se vier 'opcoes', pergunte qual. A "
+                "resposta ao Kaio é fixa: não escreva nada depois.",
+                AbrirProjetoArgs,
+                self.abrir_projeto,
+            ),
+            "rascunho": (
+                "Escreve um rascunho em nome do Kaio e o deixa na área de transferência e no "
+                "painel, sem enviar: 'escreve um e-mail pro professor pedindo X' -> tipo=email, "
+                "para='professor', assunto=..., texto=o e-mail completo (primeira pessoa, pt-BR, "
+                "assinado 'Kaio', sem 'senhor'). Mensagem de WhatsApp: tipo=mensagem, sem assunto. "
+                "A resposta ao Kaio é fixa: não repita o texto.",
+                RascunhoArgs,
+                self.rascunho,
             ),
         }
 

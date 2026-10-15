@@ -58,3 +58,47 @@ def test_sem_cartao_para_abrir_app():
 def test_arquivos():
     c = card_for("buscar_arquivo", {"texto": "contrato"}, {"arquivos": ["~/a.pdf"], "total": 1})
     assert c["kind"] == "arquivos" and c["items"] == ["~/a.pdf"]
+
+
+# --- projeto e rascunho (jarvis-projetos)
+
+
+def test_projeto_aberto_vira_texto():
+    data = {
+        "status": "aberto",
+        "pasta": "NC-BARBER",
+        "editor": "aberto",
+        "terminal": {"numero": 3, "tipo": "shell", "existente": True},
+    }
+    c = card_for("abrir_projeto", {"nome": "NC Barber"}, data)
+    assert c == {
+        "kind": "texto",
+        "title": "Projeto",
+        "text": "NC-BARBER · editor aberto · Terminal 3 (já aberto)",
+    }
+    data["editor"], data["terminal"]["existente"] = "não encontrei o app 'X'", False
+    assert card_for("abrir_projeto", {}, data)["text"] == (
+        "NC-BARBER · não encontrei o app 'X' · Terminal 3"
+    )
+
+
+def test_rascunho_leva_o_texto_inteiro():
+    data = {
+        "status": "pronto",
+        "tipo": "email",
+        "para": "professor",
+        "assunto": "Segunda chamada",
+        "texto": "Prezado professor,\n\nKaio",
+        "arquivo": "~/x.md",
+        "_fala": "fixa",
+    }
+    assert card_for("rascunho", {}, data) == {
+        "kind": "rascunho",
+        "title": "Rascunho · e-mail para professor",
+        "to": "professor",
+        "subject": "Segunda chamada",
+        "text": "Prezado professor,\n\nKaio",
+        "file": "~/x.md",
+    }
+    sem = card_for("rascunho", {}, {"status": "pronto", "tipo": "mensagem", "texto": "oi"})
+    assert sem["title"] == "Rascunho · mensagem" and sem["to"] is None

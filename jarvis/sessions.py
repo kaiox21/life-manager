@@ -16,6 +16,7 @@ import signal
 import struct
 import subprocess
 import termios
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,20 @@ def set_size(fd: int, cols: int, rows: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
+_STOPWORDS = {"de", "do", "da", "dos", "das", "o", "a", "os", "as", "e"}
+
+
+def folder_key(name: str) -> str:
+    """Nome de pasta normalizado para comparação: minúsculas, sem acentos, sem artigos e
+    preposições soltos, sem espaços, hífens e sublinhados. "NC Barber" e "NC-BARBER" dão a mesma
+    chave; "plataforma de estudos" acha `plataforma-estudos`."""
+    text = unicodedata.normalize("NFKD", name.casefold())
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    words = re.split(r"[\s\-_]+", text.strip())
+    kept = [w for w in words if w not in _STOPWORDS]
+    return "".join(kept or words)
+
+
 class Folders:
     """Pastas onde o Jarvis pode abrir uma sessão: as raízes e até 2 níveis abaixo."""
 
@@ -93,7 +108,10 @@ class Folders:
         return False
 
     def resolve(self, name: str) -> dict[str, Any]:
-        """{"pasta": Path} | {"opcoes": [...]} | {"erro": "..."}"""
+        """{"pasta": Path} | {"opcoes": [...]} | {"erro": "..."}
+
+        O nome é casado sem ligar para maiúsculas, acentos, espaços, hífens e sublinhados
+        ("NC Barber" acha `NC-BARBER`; jarvis-projetos)."""
         name = name.strip()
         if not name:
             return {"erro": "Diga a pasta onde abrir a sessão."}
@@ -102,7 +120,8 @@ class Folders:
             if self.allowed(path):
                 return {"pasta": path}
             return {"erro": f"{name} está fora das pastas permitidas.", "permitidas": self.shown()}
-        found = [p for p in self._walk() if p.name.casefold() == name.casefold()]
+        wanted = folder_key(name)
+        found = [p for p in self._walk() if folder_key(p.name) == wanted]
         found = [p for p in found if self.allowed(p)]
         if len(found) == 1:
             return {"pasta": found[0]}

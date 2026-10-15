@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { AlertBar } from "./components/AlertBar";
+import { CopyContext } from "./components/Cards";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Orb, type OrbState } from "./components/Orb";
@@ -185,11 +186,13 @@ export default function App() {
           </button>
         </p>
       )}
-      <div className="feed" ref={feed}>
-        {turns.map((t) => (
-          <TurnView key={t.id} turn={t} onConfirm={j.answerConfirm} />
-        ))}
-      </div>
+      <CopyContext.Provider value={j.copyDraft}>
+        <div className="feed" ref={feed}>
+          {turns.map((t) => (
+            <TurnView key={t.id} turn={t} onConfirm={j.answerConfirm} />
+          ))}
+        </div>
+      </CopyContext.Provider>
     </main>
   );
 }

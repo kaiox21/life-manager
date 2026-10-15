@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.sessions import Folders, PtyClient, clean_text, memory_level
+from jarvis.sessions import Folders, PtyClient, clean_text, folder_key, memory_level
 
 # Programa falso no lugar do `tmux attach`: anuncia que está pronto, ecoa o que recebe
 # (modo raw) e responde ao SIGWINCH com o tamanho da janela.
@@ -122,3 +122,25 @@ def test_pasta_por_caminho(roots, tmp_path_factory):
     (roots / "proj/atalho").symlink_to(fora)
     assert "erro" in f.resolve(str(roots / "proj/atalho"))
     assert not f.allowed(roots / "proj/atalho")
+
+
+# --- nome normalizado (jarvis-projetos)
+
+
+def test_pasta_por_nome_normalizado(roots):
+    for p in ("proj/NC-BARBER", "proj/plataforma-estudos", "proj/Observatório"):
+        (roots / p).mkdir()
+    f = Folders([roots / "proj"])
+    assert f.resolve("NC Barber") == {"pasta": roots / "proj/NC-BARBER"}
+    assert f.resolve("nc_barber") == {"pasta": roots / "proj/NC-BARBER"}
+    assert f.resolve("plataforma de estudos") == {"pasta": roots / "proj/plataforma-estudos"}
+    assert f.resolve("Plataforma Estudos") == {"pasta": roots / "proj/plataforma-estudos"}
+    assert f.resolve("observatorio") == {"pasta": roots / "proj/Observatório"}
+    assert f.resolve("life manager") == {"pasta": roots / "proj/life-manager"}
+    assert "erro" in f.resolve("barber")  # parte do nome não basta
+
+
+def test_chave_de_pasta():
+    assert folder_key("NC Barber") == folder_key("NC-BARBER") == "ncbarber"
+    assert folder_key("Plataforma de Estudos") == "plataformaestudos"
+    assert folder_key("a") == "a"  # palavra solta não some

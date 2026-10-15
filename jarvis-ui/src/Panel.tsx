@@ -9,7 +9,7 @@ import { TurnView } from "./components/TurnView";
 import { Waveform } from "./components/Waveform";
 import { chime } from "./lib/audio";
 import { alertActive, isLoud } from "./lib/terminals";
-import { TerminalList } from "./components/Cards";
+import { CopyContext, TerminalList } from "./components/Cards";
 import { AlertBar } from "./components/AlertBar";
 import { CENTRAL, TerminalTabs } from "./components/TerminalTabs";
 import { TerminalView } from "./components/TerminalView";
@@ -179,6 +179,7 @@ export function Panel() {
   };
 
   return (
+    <CopyContext.Provider value={j.copyDraft}>
     <main className="painel painel--hud">
       <Header now={now} link={link} label={label} musica={panel.local?.musica} />
       {tabsBar}
@@ -295,6 +296,7 @@ export function Panel() {
         <Weather panel={panel} />
       </div>
     </main>
+    </CopyContext.Provider>
   );
 }
 

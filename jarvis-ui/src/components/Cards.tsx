@@ -1,8 +1,13 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { createContext, useContext } from "react";
 import { sinceLabel } from "../lib/terminals";
 import type { Card, CardItem, TerminalInfo } from "../lib/types";
 
 const text = (v: CardItem[string]) => (v === undefined || v === null ? "" : String(v));
+
+/** Botão Copiar do rascunho: quem desenha a conversa fornece a função (o cérebro escreve na área
+ * de transferência). Sem provedor, o botão não faz nada. */
+export const CopyContext = createContext<(text: string) => void>(() => {});
 
 export function CardView({ card }: { card: Card }) {
   switch (card.kind) {
@@ -26,7 +31,31 @@ export function CardView({ card }: { card: Card }) {
       );
     case "fontes":
       return <SourcesCard card={card} />;
+    case "rascunho":
+      return <DraftCard card={card} />;
   }
+}
+
+/** Rascunho em nome do Kaio (e-mail, mensagem ou texto): texto completo e o botão Copiar. */
+function DraftCard({ card }: { card: Extract<Card, { kind: "rascunho" }> }) {
+  const copy = useContext(CopyContext);
+  return (
+    <Shell title={card.title} kind="rascunho">
+      {(card.to || card.subject) && (
+        <p className="draft__meta">
+          {card.to && <span>Para: {card.to}</span>}
+          {card.subject && <span>Assunto: {card.subject}</span>}
+        </p>
+      )}
+      <pre className="draft__text">{card.text}</pre>
+      <div className="draft__actions">
+        <button type="button" className="btn btn--ghost" onClick={() => copy(card.text)}>
+          Copiar
+        </button>
+        {card.file && <small className="card__meta">{card.file}</small>}
+      </div>
+    </Shell>
+  );
 }
 
 /** De onde veio a resposta pesquisada na internet: cada fonte abre no navegador. */
