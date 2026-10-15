@@ -5,15 +5,15 @@ Abrir um projeto pelo nome (editor de código e terminal na pasta) e produzir ra
 ## ADDED Requirements
 
 ### Requirement: Abrir projeto
-O Kaio SHALL poder pedir, por texto ou voz, para abrir um projeto pelo nome ("abre o NC Barber"). O Jarvis SHALL abrir a pasta no editor de código configurado e um terminal do Jarvis nessa pasta, reaproveitando um terminal de shell livre que já esteja nela em vez de abrir outro; com "com um Claude Code", o terminal SHALL abrir já rodando o Claude Code, nas mesmas condições do requisito "Abrir e fechar terminais". Só pastas da lista permitida dos terminais SHALL ser abertas. O nome SHALL ser casado ignorando maiúsculas, acentos, espaços, hífens e sublinhados; com mais de uma pasta candidata, o Jarvis SHALL perguntar qual; sem nenhuma, SHALL dizer que não achou. Sem o editor instalado, SHALL abrir só o terminal e dizer o motivo. Abrir um projeto SHALL NOT rodar nenhum comando além do próprio editor e do terminal.
+O Kaio SHALL poder pedir, por texto ou voz, para abrir um projeto pelo nome ("abre o NC Barber"). O Jarvis SHALL abrir a pasta no editor de código configurado e um terminal do Jarvis nessa pasta, reaproveitando um terminal de shell livre que já esteja nela em vez de abrir outro; com "com um Claude Code", o terminal SHALL abrir já rodando o Claude Code, nas mesmas condições do requisito "Abrir e fechar terminais". Só pastas da lista permitida dos terminais SHALL ser abertas. O nome SHALL ser casado ignorando maiúsculas, acentos, espaços, hífens e sublinhados; com mais de uma pasta candidata, o Jarvis SHALL perguntar qual; sem nenhuma, SHALL dizer que não achou. Sem o editor instalado, SHALL abrir só o terminal e dizer o motivo. Com o painel aberto, abrir um projeto SHALL fechar o painel, para o editor ficar visível. A resposta SHALL ser uma frase fixa montada do resultado (projeto, número do terminal e, se for o caso, o editor ausente), sem nova chamada ao modelo depois da ação. Abrir um projeto SHALL NOT rodar nenhum comando além do editor, do terminal e, se pedido, do Claude Code.
 
 #### Scenario: Abrir pelo nome falado
 - **WHEN** o Kaio diz "Jarvis, abre o NC Barber" e existe `~/Projetos pessoais/NC-BARBER` na lista permitida
-- **THEN** o VS Code abre nessa pasta, uma aba "Terminal N · NC-BARBER" abre no painel e o Jarvis responde em uma frase que o projeto está aberto
+- **THEN** o VS Code abre nessa pasta, a aba "Terminal N · NC-BARBER" fica aberta no painel, o painel fecha e o Jarvis diz algo como "NC-BARBER aberto no VS Code, senhor. Terminal 3."
 
 #### Scenario: Terminal já aberto na pasta
 - **WHEN** já existe o Terminal 2, um shell livre em `life-manager`, e o Kaio pede "abre o life-manager"
-- **THEN** o editor abre e a aba do Terminal 2 é mostrada, sem abrir um terminal novo
+- **THEN** o editor abre, nenhum terminal novo é criado, a aba do Terminal 2 fica aberta no painel e a frase cita o Terminal 2
 
 #### Scenario: Nome com grafia diferente da pasta
 - **WHEN** a pasta se chama `plataforma-estudos` e o Kaio diz "abre a plataforma de estudos" ou "abre o Plataforma Estudos"
@@ -29,14 +29,18 @@ O Kaio SHALL poder pedir, por texto ou voz, para abrir um projeto pelo nome ("ab
 
 #### Scenario: Editor ausente
 - **WHEN** o app do editor configurado não está instalado
-- **THEN** o terminal abre na pasta e o Jarvis diz que o editor não foi encontrado
+- **THEN** o terminal abre na pasta e a frase diz que o editor não foi encontrado
+
+#### Scenario: Pedido com o painel aberto
+- **WHEN** o painel está aberto e o Kaio digita "abre o life-manager"
+- **THEN** o painel fecha, o editor fica visível na frente e a frase é falada
 
 ### Requirement: Rascunhos
-O Kaio SHALL poder pedir um rascunho de e-mail, mensagem ou texto ("escreve um e-mail pro professor pedindo…", "faz uma mensagem pro Netto avisando…"). O texto SHALL ser escrito em nome do Kaio, em português do Brasil, no tom pedido, sem a persona do Jarvis (nada de "senhor" nem assinatura do Jarvis). O Jarvis SHALL copiar o corpo do texto para a área de transferência, mostrar um cartão no painel com tipo, destinatário, assunto (se houver) e o texto completo, com um botão Copiar que copia o corpo de novo, e guardar o rascunho num arquivo local (os 50 mais recentes). Por voz, o Jarvis SHALL responder em uma frase que o rascunho está pronto e onde está, e SHALL NOT ler o texto. Rascunhos com mais de 6.000 caracteres SHALL ser recusados.
+O Kaio SHALL poder pedir um rascunho de e-mail, mensagem ou texto ("escreve um e-mail pro professor pedindo…", "faz uma mensagem pro Netto avisando…"). O texto SHALL ser escrito em nome do Kaio, em português do Brasil, no tom pedido, sem a persona do Jarvis (nada de "senhor" nem assinatura do Jarvis). O Jarvis SHALL copiar o corpo do texto para a área de transferência, mostrar um cartão no painel com tipo, destinatário, assunto (se houver) e o texto completo, com um botão Copiar que copia o corpo de novo, e guardar o rascunho num arquivo local (os 50 mais recentes). Depois de guardar, o turno SHALL terminar com a frase fixa "Rascunho pronto no painel e na área de transferência, senhor.", sem nova chamada ao modelo; o Jarvis SHALL NOT ler o texto. O texto do rascunho SHALL NOT ir para o log do cérebro (só tipo, destinatário e tamanho). Rascunhos com mais de 6.000 caracteres SHALL ser recusados.
 
 #### Scenario: E-mail para o professor
 - **WHEN** o Kaio diz "escreve um e-mail pro professor de redes pedindo a prova de segunda chamada, que eu estava doente"
-- **THEN** o painel mostra o cartão "Rascunho · e-mail para o professor de redes" com assunto e texto assinado pelo Kaio, o corpo está na área de transferência e o Jarvis diz algo como "Rascunho pronto no painel e na área de transferência, senhor."
+- **THEN** o painel mostra o cartão "Rascunho · e-mail para o professor de redes" com assunto e texto assinado pelo Kaio, o corpo está na área de transferência e o Jarvis diz "Rascunho pronto no painel e na área de transferência, senhor."
 
 #### Scenario: Mensagem curta
 - **WHEN** o Kaio diz "faz uma mensagem pro Netto avisando que o site volta amanhã de manhã"
@@ -50,9 +54,17 @@ O Kaio SHALL poder pedir um rascunho de e-mail, mensagem ou texto ("escreve um e
 - **WHEN** o modelo chama `rascunho` com mais de 6.000 caracteres
 - **THEN** a ação é recusada e o motivo volta ao modelo
 
+#### Scenario: Texto fora do log
+- **WHEN** um rascunho é guardado
+- **THEN** o log do cérebro registra tipo, destinatário e tamanho, e nenhuma linha contém o texto
+
 ### Requirement: Nunca envia
-O Jarvis SHALL NOT enviar e-mail, mensagem ou qualquer texto a terceiros: não existe ação de envio, e nenhum pedido ("manda esse e-mail", "envia pro Netto") SHALL resultar em envio. O envio é sempre um ato do Kaio no app dele.
+O Jarvis SHALL NOT enviar e-mail, mensagem ou qualquer texto a terceiros: não existe ação de envio, e nenhum pedido ("manda esse e-mail", "envia pro Netto") SHALL resultar em envio, nem por comando num terminal nem por outro app. O envio é sempre um ato do Kaio no app dele.
 
 #### Scenario: Pedido de envio
 - **WHEN** depois do rascunho o Kaio diz "manda esse e-mail"
 - **THEN** o Jarvis responde que não envia nada e que o texto está na área de transferência para colar no app de e-mail
+
+#### Scenario: Envio pelo terminal
+- **WHEN** o Kaio diz "manda esse e-mail pelo terminal"
+- **THEN** o Jarvis responde que não envia e SHALL NOT propor comando nem mensagem a nenhum terminal
