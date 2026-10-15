@@ -48,8 +48,12 @@ class FakeSynth:
             self.on_event("start", text)
 
 
-async def _wait(cond, limit=2.0):
+async def _wait(cond, limit=2.0, pump=None):
+    """Espera a condição (até `limit` s) em vez de contar voltas do laço: a reprodução passa
+    por threads e o tempo varia entre o Mac e o runner da CI."""
     for _ in range(int(limit / 0.01)):
+        if pump is not None:
+            pump()
         if cond():
             return True
         await asyncio.sleep(0.01)
@@ -147,19 +151,19 @@ async def test_fish_toca_enquanto_chega_e_na_ordem():
     synth, _, events, out = _fish(chunks)
     synth.speak("Primeira.")
     synth.speak("Segunda.")
-    await _settle()
-    assert events == [("start", "Primeira.")]  # tocou sem a frase ter chegado inteira
+    # tocou sem a frase ter chegado inteira
+    assert await _wait(lambda: events == [("start", "Primeira.")])
     gates["Segunda."].set()
     await _settle()
     assert ("start", "Segunda.") not in events  # espera a primeira acabar
     gates["Primeira."].set()
-    await _settle()
-    assert [e for e in events if e[0] in ("start", "finish")] == [
+    expected = [
         ("start", "Primeira."),
         ("finish", "Primeira."),
         ("start", "Segunda."),
         ("finish", "Segunda."),
     ]
+    assert await _wait(lambda: [e for e in events if e[0] in ("start", "finish")] == expected)
     assert b"".join(out.written) == _audio("Primeira.") + _audio("Segunda.")
 
 
@@ -173,9 +177,8 @@ async def test_fish_fora_do_ar_cai_para_a_voz_local_e_fica_de_lado():
     synth, fallback, events, out = _fish(chunks, clock=lambda: now[0])
     synth.speak("Um instante, senhor.")
     synth.speak("Amanhã está livre.")
-    await _settle(synth)
+    assert await _wait(lambda: ("local:start", "Um instante, senhor.") in events, pump=synth.pump)
     assert out.written == []
-    assert ("local:start", "Um instante, senhor.") in events
     assert "Amanhã está livre." in fallback.queue or ("local:start", "Amanhã está livre.") in events
     synth.speak("Mais uma.")  # dentro dos 5 min: nem tenta a Fish
     assert fallback.queue[-1] == "Mais uma."
@@ -192,11 +195,11 @@ async def test_fish_interromper_corta_o_audio():
     synth, fallback, events, out = _fish(chunks)
     synth.speak("Frase longa.")
     synth.speak("Outra.")
-    await _settle()
+    assert await _wait(lambda: ("start", "Frase longa.") in events)
     synth.stop()
     gate.set()
+    assert await _wait(lambda: ("cancel", "Frase longa.") in events)
     await _settle()
-    assert ("cancel", "Frase longa.") in events
     assert ("start", "Outra.") not in events
     assert out.aborted == 1
     assert ("stop", "") in fallback.log
@@ -211,10 +214,9 @@ async def test_fish_frase_fixa_guardada_sai_sem_rede():
 
     synth, _, events, out = _fish(chunks)
     synth.prefetch(["Um instante, senhor."])
-    await _settle()
+    assert await _wait(lambda: calls == ["Um instante, senhor."])
     synth.speak("Um instante, senhor.")
-    await _settle()
-    assert ("start", "Um instante, senhor.") in events
+    assert await _wait(lambda: ("start", "Um instante, senhor.") in events)
     assert calls == ["Um instante, senhor."]  # baixou uma vez só, no prefetch
 
 
@@ -245,8 +247,8 @@ async def test_fish_sem_ouvinte_de_nivel_nao_faz_nada():
 
     synth, _, events, _ = _fish(chunks)
     synth.speak("Frase.")
-    await _settle(synth)
-    assert ("start", "Frase.") in events  # tocou normalmente, sem on_level
+    # tocou normalmente, sem on_level
+    assert await _wait(lambda: ("start", "Frase.") in events, pump=synth.pump)
 
 
 # --- saída de áudio segue o dispositivo padrão (fone ligado/tirado, AirPods)
@@ -363,8 +365,8 @@ async def test_fish_confere_a_saida_antes_de_cada_frase():
     out.follow_default = lambda: calls.append("confere") or False
     synth.speak("Primeira.")
     synth.speak("Segunda.")
-    await _settle(synth, 60)
-    assert calls == ["confere", "confere"] and ("finish", "Segunda.") in events
+    assert await _wait(lambda: ("finish", "Segunda.") in events, pump=synth.pump)
+    assert calls == ["confere", "confere"]
 
 
 def test_coreaudio_responde_a_saida_padrao():
