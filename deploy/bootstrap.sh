@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preparação do VPS (Ubuntu 24.04, ARM). Rodar UMA vez, no VPS, como usuário com sudo:
+# Preparação do VPS (Ubuntu 24.04, x86 ou ARM). Rodar UMA vez, no VPS, como root ou usuário com sudo:
 #   curl -fsSL https://raw.githubusercontent.com/kaiox21/life-manager/main/deploy/bootstrap.sh | bash
 set -euo pipefail
 
@@ -25,8 +25,8 @@ fi
 sudo sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
 sudo systemctl reload ssh
 
-# Firewall: a imagem Ubuntu da Oracle já vem com iptables liberando só a 22.
-# Fora da Oracle (ex.: Hetzner), usa ufw.
+# Firewall: a imagem Ubuntu da Oracle já vinha com iptables liberando só a 22.
+# Nas outras (Hostinger, Hetzner), usa ufw.
 if ! sudo iptables -S INPUT | grep -q -- '--dport 22'; then
   sudo apt-get install -y ufw
   sudo ufw default deny incoming && sudo ufw allow OpenSSH && sudo ufw --force enable

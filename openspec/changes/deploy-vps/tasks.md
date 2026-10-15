@@ -7,8 +7,8 @@
 
 ## 2. Contas e servidor
 
-- [x] 2.1 Conta Oracle criada e upgrade Pay As You Go
-- [ ] 2.2 VM ARM (≤ 2 OCPU / 12 GB) com IP público, ou Hetzner
+- [x] 2.1 Conta Oracle criada e upgrade Pay As You Go (sem uso: descartada em 15/10/2026 por falta de capacidade)
+- [ ] 2.2 VPS Hostinger KVM (Ubuntu 24.04, São Paulo) com a chave SSH do Mac e IP público
 - [ ] 2.3 ntfy, healthchecks.io e `rclone` com o Google Drive
 - [ ] 2.4 `bootstrap.sh` no VPS
 

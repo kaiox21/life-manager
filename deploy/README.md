@@ -1,6 +1,6 @@
 # Deploy no VPS (fase 6)
 
-Passo a passo para tirar o bot do Mac e colocar num VPS ARM (Oracle; Hetzner como plano B).
+Passo a passo para tirar o bot do Mac e colocar num VPS (Hostinger KVM, Ubuntu 24.04; decisão de 15/10/2026).
 **Ordem importa**: nunca deixe dois bots conectados ao mesmo WhatsApp ao mesmo tempo.
 
 ## 0. Uma vez, no Mac
@@ -16,21 +16,19 @@ Guarde uma cópia num lugar seguro (ex.: gerenciador de senhas): sem ela, os bac
 
 ## 1. Criar o VPS
 
-**Oracle Cloud** (cloud.oracle.com):
-1. Crie a conta (região **Brazil East (São Paulo)**). O cartão é só verificação.
-2. Faça o **upgrade para Pay As You Go** (continua grátis dentro da cota; evita a VM ser recolhida por ociosidade).
-3. *Compute → Instances → Create instance*:
-   - imagem **Canonical Ubuntu 24.04**;
-   - shape **VM.Standard.A1.Flex** (Ampere), **no máximo 2 OCPU e 12 GB** (cota Always Free desde 15/06/2026; acima disso, conta Pay As You Go é cobrada);
-   - em *Add SSH keys*, cole a sua `id_ed25519.pub`.
-4. Se aparecer "Out of capacity", tente outro *availability domain* ou mais tarde.
-   Persistindo: **Hetzner** CAX11 (ARM, Ubuntu 24.04), com os mesmos passos daqui para frente.
-5. Anote o IP público. O usuário é `ubuntu`.
+**Hostinger** (hostinger.com/br/vps):
+1. Plano **KVM 1** (1 vCPU, 4 GB, 50 GB NVMe) basta. O KVM 2 (2 vCPU, 8 GB) só deixa a transcrição de áudio mais rápida.
+   Confira o prazo no checkout: o preço mensal anunciado é o do contrato longo, pago adiantado, e a renovação custa cerca do dobro.
+2. Localização **Brasil (São Paulo)**; sistema **Ubuntu 24.04 LTS** limpo (sem painel nem template de app).
+3. No hPanel do VPS, em *Configurações → Chaves SSH*, adicione a sua `id_ed25519.pub`. A senha de root é só para emergência: o bootstrap desliga o login por senha.
+4. Anote o IP público. O usuário é `root`.
+
+Plano B, com os mesmos passos daqui para frente: **Hetzner** CAX11 (ARM, Ubuntu 24.04).
 
 ## 2. Preparar o VPS
 
 ```bash
-ssh ubuntu@IP
+ssh root@IP
 curl -fsSL https://raw.githubusercontent.com/kaiox21/life-manager/main/deploy/bootstrap.sh | bash
 exit   # sair e entrar de novo para valer o grupo docker
 ```
@@ -61,8 +59,8 @@ docker compose down                              # DESLIGA o bot do Mac (Docker 
 for f in ~/life-manager-migracao/*-assistente.dump.age; do
   age -d -i ~/.config/life-manager/backup.key "$f" > /tmp/assistente.dump
 done
-scp .env ubuntu@IP:~/life-manager/.env
-scp /tmp/assistente.dump ubuntu@IP:/tmp/ && rm /tmp/assistente.dump
+scp .env root@IP:~/life-manager/.env
+scp /tmp/assistente.dump root@IP:/tmp/ && rm /tmp/assistente.dump
 ```
 
 No VPS:
@@ -86,7 +84,7 @@ docker compose $P exec -T postgres psql -U app -d assistente -tAc \
 
 ```bash
 # no Mac, deixe o túnel aberto:
-ssh -L 8080:localhost:8080 ubuntu@IP
+ssh -L 8080:localhost:8080 root@IP
 # em outro terminal do Mac:
 cd ~/"Projetos pessoais"/life-manager
 EVOLUTION_API_URL=http://localhost:8080 uv run python -m app.channel.setup && open data/qrcode.png
@@ -106,6 +104,6 @@ No celular: Aparelhos conectados → **desconecte o aparelho antigo "Assistente"
 
 ## Dia a dia
 
-- Atualizar: no Mac, `deploy/deploy.sh ubuntu@IP`.
-- Logs: `ssh ubuntu@IP 'cd life-manager && docker compose logs -f app'`.
+- Atualizar: no Mac, `deploy/deploy.sh root@IP`.
+- Logs: `ssh root@IP 'cd life-manager && docker compose logs -f app'`.
 - Backup roda sozinho às 03:00 (cron); log em `~/backup.log` no VPS.

@@ -1,10 +1,10 @@
 ## Why
 
-O núcleo roda no Mac: com a tampa fechada ou o Mac desligado, o bot não responde e os lembretes não saem. O `SPEC.md` prevê um VPS ARM sempre ligado, com backup e aviso de queda.
+O núcleo roda no Mac: com a tampa fechada ou o Mac desligado, o bot não responde e os lembretes não saem. O `SPEC.md` prevê um VPS sempre ligado, com backup e aviso de queda.
 
 ## What Changes
 
-- Núcleo num VPS ARM: Oracle Always Free (até 2 OCPU / 12 GB desde 15/06/2026) ou Hetzner (plano B), com as mesmas imagens Docker.
+- Núcleo num VPS **Hostinger KVM** (x86, Ubuntu 24.04, data center em São Paulo), com as mesmas imagens Docker. Decisão do Kaio em 15/10/2026, depois de uma semana sem capacidade ARM na Oracle. O KVM 1 (1 vCPU / 4 GB, R$ 29,99/mês no contrato longo; renovação R$ 59,99) basta; o KVM 2 (2 vCPU / 8 GB, R$ 43,99) só acelera a transcrição de áudio.
 - Só a porta SSH aberta (chave, sem senha); manager da Evolution por túnel SSH.
 - Backup diário às 03:00 para o Google Drive (`rclone`), cifrado com `age`; migração dos dados do Mac pelo próprio backup (teste de restauração real).
 - Alertas de queda do WhatsApp por ntfy e dead man's switch (healthchecks.io) configurados.
@@ -26,4 +26,4 @@ O núcleo roda no Mac: com a tampa fechada ou o Mac desligado, o bot não respon
 ## Impact
 
 - `docker-compose.prod.yml` e `deploy/` (já prontos), `.env` no VPS e conta no ntfy, no healthchecks.io e no Google Drive (rclone).
-- Status: **pausado** em 08/10/2026. A Oracle está sem capacidade ARM em São Paulo; o Kaio decidiu manter o bot no Mac por enquanto. Houve uma pré-autorização de US$ 100 no cartão no upgrade Pay As You Go, que deve ser estornada.
+- Histórico: pausado em 08/10/2026 (Oracle sem capacidade ARM em São Paulo; pré-autorização de US$ 100 no cartão no upgrade Pay As You Go, a estornar). **Retomado em 15/10/2026 com a Hostinger.** A conta Oracle fica sem recursos criados (nada a pagar).
