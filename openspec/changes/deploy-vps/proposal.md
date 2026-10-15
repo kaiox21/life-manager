@@ -26,4 +26,4 @@ O núcleo roda no Mac: com a tampa fechada ou o Mac desligado, o bot não respon
 ## Impact
 
 - `docker-compose.prod.yml` e `deploy/` (já prontos), `.env` no VPS e conta no ntfy, no healthchecks.io e no Google Drive (rclone).
-- Histórico: pausado em 08/10/2026 (Oracle sem capacidade ARM em São Paulo; pré-autorização de US$ 100 no cartão no upgrade Pay As You Go, a estornar). **Retomado em 15/10/2026 com a Hostinger.** A conta Oracle fica sem recursos criados (nada a pagar).
+- Histórico: pausado em 08/10/2026 (Oracle sem capacidade ARM em São Paulo; pré-autorização de US$ 100 no cartão no upgrade Pay As You Go, a estornar). Em 15/10/2026 o Kaio escolheu a Hostinger KVM 1 e, no mesmo dia, **pausou de novo por custo**: R$ 30/mês sem retorno claro. O bot segue no Mac. Quando compensar, retomar na tarefa 2.2 com o `deploy/README.md`. Caminho sem custo que continua aberto: tentativas automáticas de criar a VM gratuita da Oracle (precisa de uma chave de API da conta). A conta Oracle fica sem recursos criados (nada a pagar).

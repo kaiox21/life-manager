@@ -104,4 +104,4 @@ O `roteador-dificuldade` está proposto (branch `feat/roteador-dificuldade`), ma
 
 ## Fora do Jarvis
 
-- **`deploy-vps`** (5 de 12 tarefas; Hostinger KVM desde 15/10/2026): contratar o VPS (KVM 1, Ubuntu 24.04, São Paulo, chave SSH do Mac no hPanel), rodar o bootstrap, configurar ntfy, healthchecks e backup com `rclone`, migrar o banco do Mac, escanear o QR do WhatsApp no VPS e fazer o aceite do alerta e do backup diário. Passo a passo em `deploy/README.md`.
+- **`deploy-vps`** (5 de 12 tarefas; **pausado por custo em 15/10/2026**, o bot fica no Mac; quando compensar, Hostinger KVM 1): contratar o VPS (KVM 1, Ubuntu 24.04, São Paulo, chave SSH do Mac no hPanel), rodar o bootstrap, configurar ntfy, healthchecks e backup com `rclone`, migrar o banco do Mac, escanear o QR do WhatsApp no VPS e fazer o aceite do alerta e do backup diário. Passo a passo em `deploy/README.md`.
