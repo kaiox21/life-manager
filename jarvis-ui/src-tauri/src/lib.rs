@@ -200,6 +200,12 @@ fn toggle_text_mode(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Pânico em qualquer thread vira uma linha no ui.log antes de o processo abortar (perfil
+    // release: panic=abort e binário sem símbolos). Os dois travamentos de 15/10/2026 (10:12 e
+    // 13:55) não deixaram mensagem nenhuma, só "abort() called" no relatório do macOS.
+    std::panic::set_hook(Box::new(|info| {
+        ui_log(format!("PÂNICO (o app vai fechar): {info}"));
+    }));
     let text_key = Shortcut::new(Some(Modifiers::ALT), Code::Space);
     let voice_key = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Space);
     let panel_key = Shortcut::new(Some(Modifiers::ALT | Modifiers::SHIFT), Code::Space);

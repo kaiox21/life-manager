@@ -4,7 +4,9 @@
 #   jarvis/install_mac.sh --remove   # desinstala (inclui os hooks do Claude Code)
 #   jarvis/install_mac.sh --sem-terminais   # só tira os hooks do Claude Code (gerenciador de terminais)
 #   jarvis/install_mac.sh --sem-tmux        # janelas novas do Terminal.app voltam a abrir fora do tmux
-# Cérebro: LaunchAgent com KeepAlive (reinicia se cair). App: LaunchAgent que abre o Jarvis.app no login.
+# Cérebro: LaunchAgent com KeepAlive (reinicia se cair). App: LaunchAgent que roda o binário do
+# Jarvis.app no login e o reabre se ele cair (KeepAlive só em saída com erro: "Sair" não reabre;
+# em 15/10/2026 o app travou duas vezes e ficou fora até alguém abrir de novo).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AGENTS="$HOME/Library/LaunchAgents"
@@ -75,8 +77,10 @@ cat > "$AGENTS/$UI.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>$UI</string>
-  <key>ProgramArguments</key><array><string>/usr/bin/open</string><string>-a</string><string>$APP_DST</string></array>
+  <key>ProgramArguments</key><array><string>$APP_DST/Contents/MacOS/jarvis-ui</string></array>
   <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>5</integer>
 </dict></plist>
 PLIST
 

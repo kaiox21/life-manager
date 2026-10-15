@@ -65,14 +65,28 @@ pub fn save_choice(on: bool) {
 }
 
 pub fn start(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        if LISTEN.load(Ordering::SeqCst) {
-            if let Err(e) = session(&app) {
-                super::ui_log(format!("escuta: {e}"));
+    std::thread::spawn(move || {
+        let mut failures: u32 = 0;
+        loop {
+            if LISTEN.load(Ordering::SeqCst) {
+                match session(&app) {
+                    Ok(()) => failures = 0,
+                    Err(e) => {
+                        failures += 1;
+                        super::ui_log(format!("escuta: {e} (tentativa {failures})"));
+                    }
+                }
             }
+            // reabre logo: microfone que parou ou mudou volta em ~2 s (o cérebro fora, idem).
+            // Falhando em sequência, espera mais a cada vez (até 30 s): em 15/10/2026 o laço
+            // reabrindo o microfone a cada ~5 s antecedeu os dois travamentos do app.
+            let wait = if !LISTEN.load(Ordering::SeqCst) {
+                300
+            } else {
+                (2_000u64 << failures.min(4)).min(30_000)
+            };
+            std::thread::sleep(Duration::from_millis(wait));
         }
-        // reabre logo: microfone que parou ou mudou volta em ~2 s (o cérebro fora, idem)
-        std::thread::sleep(Duration::from_millis(if LISTEN.load(Ordering::SeqCst) { 2_000 } else { 300 }));
     });
 }
 
