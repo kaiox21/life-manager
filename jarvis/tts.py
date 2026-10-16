@@ -159,6 +159,11 @@ AHEAD_S = 0.4  # áudio na fila à frente do dispositivo: folga para o laço do 
 # e esticada ("craquelada e estranha"). Medido no cérebro em 12/10/2026: 0,05 s (o CoreAudio
 # entrega ~220 ms) zerou os buracos; custa ~0,2 s a mais até o 1º som. Calar continua imediato.
 OUTPUT_LATENCY = 0.05
+# Uma chamada à saída de áudio (escrever, esvaziar, trocar de dispositivo) que passa disso travou:
+# a saída é descartada e a próxima frase abre outra. Em 16/10/2026 a troca para um fone Bluetooth
+# no meio de um aviso deixou a frase pendurada das 09:47 às 15:00, e a escuta do "Jarvis" ficou
+# pausada o tempo todo (ela espera o Jarvis terminar de falar).
+OUTPUT_STUCK_S = 5.0
 
 
 class PortAudioOut:
@@ -188,6 +193,7 @@ class PortAudioOut:
         self._chunks: deque[bytes] = deque()
         self._queued = 0  # bytes na fila
         self._writing = False  # a thread está escrevendo um pedaço agora
+        self._closed = False  # descartada por travar: quem espera nela volta na hora
         self._max_ahead = int(AHEAD_S * rate) * 2
         self._thread = threading.Thread(target=self._run, name="jarvis-audio", daemon=True)
         self._thread.start()
@@ -224,8 +230,10 @@ class PortAudioOut:
     def write(self, data: bytes) -> None:
         """Enfileira; espera só se já houver `AHEAD_S` de áudio à frente."""
         with self._cond:
-            while self._queued >= self._max_ahead:
+            while self._queued >= self._max_ahead and not self._closed:
                 self._cond.wait(timeout=1.0)
+            if self._closed:
+                return
             self._chunks.append(data)
             self._queued += len(data)
             self._cond.notify_all()
@@ -233,7 +241,7 @@ class PortAudioOut:
     def drain(self) -> None:
         """Espera a fila acabar (o fim da frase saiu para o dispositivo)."""
         with self._cond:
-            while self._chunks or self._writing:
+            while (self._chunks or self._writing) and not self._closed:
                 self._cond.wait(timeout=1.0)
 
     def follow_default(self) -> bool:
@@ -270,6 +278,21 @@ class PortAudioOut:
             self._stream.abort()
             self._stream.close()
         self._stream = self._open()
+
+    def discard(self) -> None:
+        """Travou: solta quem espera nela e larga o dispositivo (numa thread à parte, porque o
+        próprio PortAudio pode estar preso)."""
+        with self._cond:
+            self._closed = True
+            self._chunks.clear()
+            self._cond.notify_all()
+
+        def close() -> None:
+            with contextlib.suppress(Exception):
+                self._stream.abort()
+                self._stream.close()
+
+        threading.Thread(target=close, name="jarvis-audio-close", daemon=True).start()
 
 
 LEVEL_HZ = 15  # nível da voz para o orbe: ~15 por segundo (change jarvis-painel-hud)
@@ -405,11 +428,38 @@ class FishSynth:
     async def _play(self, text: str, audio: asyncio.Queue[bytes | None]) -> bool:
         """Toca uma frase; False se a Fish falhou antes de sair qualquer som."""
         out = self._output()
+        try:
+            return await self._play_on(out, text, audio)
+        except TimeoutError:
+            log.warning("saída de áudio travou na frase %r: descartada", text[:40])
+            self._drop_output(out)
+            self._levels_stop()
+            if self._current:
+                self._current = ""
+                self._on_event("finish", text)  # a escuta e o painel não ficam esperando
+            return True
+
+    async def _out_call(self, fn: Callable[..., Any], *args: Any) -> Any:
+        """Chamada à saída de áudio numa thread, com limite (OUTPUT_STUCK_S)."""
+        return await asyncio.wait_for(asyncio.to_thread(fn, *args), self.stuck_s)
+
+    stuck_s = OUTPUT_STUCK_S
+
+    def _drop_output(self, out: Any) -> None:
+        if out is self._out:
+            self._out = None  # a próxima frase abre uma saída nova
+        discard = getattr(out, "discard", None)
+        if discard is not None:
+            discard()
+
+    async def _play_on(self, out: Any, text: str, audio: asyncio.Queue[bytes | None]) -> bool:
         under_before = getattr(out, "underflows", 0)
         follow = getattr(out, "follow_default", None)
         if follow is not None:  # fone ligado ou tirado desde a última frase: segue a saída nova
             try:
-                await asyncio.to_thread(follow)
+                await self._out_call(follow)
+            except TimeoutError:
+                raise
             except Exception:  # noqa: BLE001
                 log.warning("não consegui trocar de saída de áudio", exc_info=True)
         pending = b""
@@ -436,14 +486,14 @@ class FishSynth:
                 self._current = text
                 self._on_event("start", text)
             self._levels(data, out)
-            await asyncio.to_thread(out.write, data)
+            await self._out_call(out.write, data)
         if pending[: len(pending) - len(pending) % 2]:
             if not started:
                 self._current = text
                 self._on_event("start", text)
                 started = True
             self._levels(pending[: len(pending) - len(pending) % 2], out)
-            await asyncio.to_thread(out.write, pending[: len(pending) - len(pending) % 2])
+            await self._out_call(out.write, pending[: len(pending) - len(pending) % 2])
         if started:
             holes = getattr(out, "underflows", 0) - under_before
             if holes > 1:  # o 1º é o começo do stream (sem som ainda), não estala
@@ -451,7 +501,7 @@ class FishSynth:
             self._level_at_end()
             drain = getattr(out, "drain", None)
             if drain is not None:
-                await asyncio.to_thread(drain)  # a fila da thread de áudio acabou
+                await self._out_call(drain)  # a fila da thread de áudio acabou
             await asyncio.sleep(getattr(out, "latency", 0.0))  # o fim ainda está no buffer
             self._current = ""
             self._on_event("finish", text)

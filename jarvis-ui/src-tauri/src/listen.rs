@@ -24,6 +24,8 @@ const MIC_SILENT: Duration = Duration::from_secs(3);
 const DEVICE_CHECK: Duration = Duration::from_secs(2);
 
 const RATE: f64 = 16_000.0;
+/// Sessão que durou isso antes de cair estava saudável: a próxima tentativa é logo (2 s).
+const HEALTHY_SESSION: Duration = Duration::from_secs(20);
 const BLOCK: usize = 1_600; // 100 ms
 const FRAME_PCM: u8 = 0x10;
 
@@ -69,9 +71,16 @@ pub fn start(app: AppHandle) {
         let mut failures: u32 = 0;
         loop {
             if LISTEN.load(Ordering::SeqCst) {
+                let began = std::time::Instant::now();
                 match session(&app) {
                     Ok(()) => failures = 0,
                     Err(e) => {
+                        // uma sessão que funcionou por um tempo não conta como falha em
+                        // sequência: sem isso o contador nunca zerava e cada soluço do
+                        // microfone deixava a escuta 30 s surda (16/10/2026)
+                        if began.elapsed() >= HEALTHY_SESSION {
+                            failures = 0;
+                        }
                         failures += 1;
                         super::ui_log(format!("escuta: {e} (tentativa {failures})"));
                     }

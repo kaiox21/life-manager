@@ -321,6 +321,26 @@ async def test_pausas_da_escuta():
     assert not b.wake_paused()
 
 
+async def test_fala_travada_nao_deixa_a_escuta_surda(monkeypatch, caplog):
+    # 16/10/2026: a frase ficou pendurada 5 h e a escuta esperou o Jarvis terminar o tempo todo
+    import time
+
+    from jarvis import agent
+
+    b = brain(StreamingScriptedLLM(reply("ok")), FakeCore())
+    b._loop = asyncio.get_running_loop()
+    b.on_speech_event("start", "Senhor, o aviso.")
+    assert b.wake_paused()  # falando de verdade
+    now = time.monotonic()
+    monkeypatch.setattr(agent.time, "monotonic", lambda: now + agent.SPEAKING_STUCK_S - 1)
+    assert b.wake_paused()  # uma frase longa ainda é fala
+    monkeypatch.setattr(agent.time, "monotonic", lambda: now + agent.SPEAKING_STUCK_S + 1)
+    with caplog.at_level("WARNING"):
+        assert not b.wake_paused()
+    assert "fala parada" in caplog.text
+    assert not b._speaking_state
+
+
 # --- servidor
 
 

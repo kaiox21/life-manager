@@ -119,6 +119,7 @@ PANEL_QUESTIONS = 5
 
 # fechamento do dia e lembrete de lançamento (jarvis-proativo): texto fixo, sem o modelo
 ANSWER_WINDOW = 120.0  # depois da pergunta, a próxima fala é a resposta (sem o nome)
+SPEAKING_STUCK_S = 60  # "falando" sem frase nova nem fim por 1 min: a fala travou
 BRIEFING_USER = "Jarvis"  # no histórico, o resumo do dia responde ao nome
 REMINDER_USER = "[lembrete automático de lançamento]"  # turno sintético: a API pede alternância
 SYNTHETIC_USER = {BRIEFING_USER, REMINDER_USER}  # não aparecem como "perguntas" no painel
@@ -308,6 +309,7 @@ class JarvisBrain:
                 self._log_timing(turn)
         on = kind == "start"
         self._music_hold("falando", on)
+        self._speech_event_at = time.monotonic()
         if not on:
             self._spoke_at = time.monotonic()
         if on == self._speaking_state:
@@ -320,6 +322,7 @@ class JarvisBrain:
         loop.create_task(emit(events.speaking(rid, on)))  # chamado na thread do asyncio
 
     _speaking_state = False
+    _speech_event_at = 0.0
 
     _last_emit: Emit | None = None
 
@@ -359,6 +362,13 @@ class JarvisBrain:
 
     def wake_paused(self) -> bool:
         """Escuta pausada: falando (e meio segundo depois), atalho de voz ou turno em andamento."""
+        stuck = time.monotonic() - self._speech_event_at > SPEAKING_STUCK_S
+        if self._speaking_state and self._speech_event_at and stuck:
+            # nenhuma frase começou nem terminou nesse tempo: a fala travou (16/10/2026, 5 h
+            # surdo); a escuta não pode esperar por ela
+            log.warning("fala parada há %d s: a escuta do 'Jarvis' volta", SPEAKING_STUCK_S)
+            self._speaking_state = False
+            self._music_hold("falando", False)
         if self._speaking_state or self._ptt_active or self._turn_running:
             return True
         return time.monotonic() - self._spoke_at < 0.5

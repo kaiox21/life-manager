@@ -355,6 +355,43 @@ def test_calar_descarta_a_fila(monkeypatch):
     assert time.monotonic() - t0 < 0.2  # não toca o resto
 
 
+async def test_fish_saida_travada_e_descartada_e_a_fala_termina():
+    # 16/10/2026: a troca de saída no meio de um aviso deixou a frase pendurada por 5 h
+    import threading
+
+    release = threading.Event()
+
+    async def chunks(text):
+        yield _audio(text)
+
+    synth, _, events, out = _fish(chunks)
+    synth.stuck_s = 0.2
+    discarded = []
+    out.write = lambda data: release.wait(5)  # o PortAudio preso
+    out.discard = lambda: discarded.append(True)
+    synth.speak("Senhor, o aviso.")
+    try:
+        assert await _wait(lambda: ("finish", "Senhor, o aviso.") in events, limit=3.0)
+        assert discarded == [True]
+        assert synth._out is None  # a próxima frase abre uma saída nova
+    finally:
+        release.set()
+
+
+def test_saida_descartada_solta_quem_espera(monkeypatch):
+    import threading
+
+    out, _, _ = _out(monkeypatch, 1)
+    out._queued = out._max_ahead  # fila cheia: `write` esperaria
+    done = threading.Event()
+    t = threading.Thread(target=lambda: (out.write(b"\0\0"), done.set()), daemon=True)
+    t.start()
+    out.discard()
+    assert done.wait(2)
+    out._chunks.append(b"x")
+    out.drain()  # volta na hora, sem esperar a fila
+
+
 async def test_fish_confere_a_saida_antes_de_cada_frase():
     calls = []
 
