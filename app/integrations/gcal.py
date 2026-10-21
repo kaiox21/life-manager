@@ -9,9 +9,10 @@ import base64
 import contextlib
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -26,6 +27,7 @@ log = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 DEFAULT_DURATION = timedelta(hours=1)
+_UNTIL = re.compile(r"UNTIL=(\d{8})(T\d{6})?(Z?)")
 
 
 class NotFoundError(Exception):
@@ -57,8 +59,30 @@ def event_body(ev: Event) -> dict[str, Any]:
         body["start"] = {"dateTime": start.isoformat(), "timeZone": "America/Sao_Paulo"}
         body["end"] = {"dateTime": end.isoformat(), "timeZone": "America/Sao_Paulo"}
     if ev.rrule:
-        body["recurrence"] = [f"RRULE:{ev.rrule}"]
+        body["recurrence"] = [f"RRULE:{google_rrule(ev.rrule, ev.all_day)}"]
     return body
+
+
+def google_rrule(rrule: str, all_day: bool) -> str:
+    """O Google recusa UNTIL em hora local (400 "Invalid recurrence rule"): evento com hora quer
+    UTC com Z, dia inteiro quer só a data. Sem hora, o UNTIL vale até o fim do dia local."""
+
+    def fix(m: re.Match[str]) -> str:
+        day, hhmmss, z = m.groups()
+        if all_day:
+            if z:  # instante em UTC: a data que conta é a local
+                at = datetime.strptime(day + hhmmss, "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
+                return f"UNTIL={at.astimezone(TZ):%Y%m%d}"
+            return f"UNTIL={day}"
+        if z:
+            return m.group(0)
+        if hhmmss:
+            local = datetime.strptime(day + hhmmss, "%Y%m%dT%H%M%S")
+        else:
+            local = datetime.combine(datetime.strptime(day, "%Y%m%d"), time(23, 59, 59))
+        return f"UNTIL={local.replace(tzinfo=TZ).astimezone(UTC):%Y%m%dT%H%M%SZ}"
+
+    return _UNTIL.sub(fix, rrule)
 
 
 @dataclass
@@ -96,12 +120,22 @@ async def sync_pending(
             try:
                 await _sync_one(ev, client, report)
             except Exception as exc:  # noqa: BLE001 - falha do Calendar não derruba nada
-                log.warning("sync do evento %s falhou: %s", ev.id, exc.__class__.__name__)
+                log.warning("sync do evento %s falhou: %s", ev.id, _reason(exc))
                 report.failed.append(str(ev.id))
                 skip.append(ev.id)
                 continue
             ev.gcal_synced_at = ev.updated_at
     return report
+
+
+def _reason(exc: Exception) -> str:
+    """Nome do erro e, para HttpError do Google, o status e a mensagem (sem o corpo todo)."""
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    reason = getattr(exc, "reason", None)
+    name = exc.__class__.__name__
+    if status is None:
+        return name
+    return f"{name} {status}: {reason}" if reason else f"{name} {status}"
 
 
 async def _sync_one(ev: Event, client: CalendarClient, report: SyncReport) -> None:

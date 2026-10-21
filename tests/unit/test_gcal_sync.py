@@ -136,3 +136,26 @@ async def test_removido_que_nunca_foi_ao_calendar_e_ignorado(seeded):
         s.add(_ev(deleted_at=T0))
     await sync_pending(seeded, cal)
     assert cal.calls == []
+
+
+def test_rrule_until_local_vira_utc_com_z():
+    # O Google recusa UNTIL em hora local num evento com hora (400 "Invalid recurrence rule").
+    body = event_body(_ev(rrule="FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20261231T235959"))
+    assert body["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270101T025959Z"]
+
+
+def test_rrule_until_so_data_vale_ate_o_fim_do_dia():
+    body = event_body(_ev(rrule="FREQ=WEEKLY;BYDAY=FR;UNTIL=20261204"))
+    assert body["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=FR;UNTIL=20261205T025959Z"]
+
+
+def test_rrule_until_em_utc_fica_como_esta():
+    body = event_body(_ev(rrule="FREQ=DAILY;UNTIL=20261231T120000Z"))
+    assert body["recurrence"] == ["RRULE:FREQ=DAILY;UNTIL=20261231T120000Z"]
+
+
+def test_rrule_until_de_dia_inteiro_e_so_a_data():
+    local = event_body(_ev(all_day=True, rrule="FREQ=WEEKLY;UNTIL=20261231T235959"))
+    utc = event_body(_ev(all_day=True, rrule="FREQ=WEEKLY;UNTIL=20270101T025959Z"))
+    assert local["recurrence"] == ["RRULE:FREQ=WEEKLY;UNTIL=20261231"]
+    assert utc["recurrence"] == ["RRULE:FREQ=WEEKLY;UNTIL=20261231"]
