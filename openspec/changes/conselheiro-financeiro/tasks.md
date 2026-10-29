@@ -72,7 +72,7 @@
 ## 6. Verificação
 
 - [x] 6.1 `uv run pytest`, `uv run ruff check . && uv run ruff format .`, `uv run alembic upgrade head` e `openspec validate --all --strict`.
-- [ ] 6.2 (29/10: rascunho escrito, 10 casos; falta a autorização e a prova) Escrever os casos novos da prova em `tests/eval/casos_conselho.rascunho.yaml` e **pedir a autorização do Kaio** para levá-los ao `casos.yaml`. Depois, rodar a prova (`uv run pytest -m eval`; avisar o custo antes, que deve ficar em poucos centavos de dólar). O mínimo é 90%.
+- [x] 6.2 (29/10: autorizado pelo Kaio; 10 casos no `casos.yaml`; prova 65/66, só a falha conhecida `a10`) Escrever os casos novos da prova em `tests/eval/casos_conselho.rascunho.yaml` e **pedir a autorização do Kaio** para levá-los ao `casos.yaml`. Depois, rodar a prova (`uv run pytest -m eval`; avisar o custo antes, que deve ficar em poucos centavos de dólar). O mínimo é 90%.
 
 ## 7. Aceite e arquivo
 

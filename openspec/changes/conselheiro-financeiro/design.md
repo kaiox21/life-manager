@@ -114,6 +114,7 @@
 
 14. **Prova:**
     - o `tests/eval/casos.yaml` é somente leitura. Os casos novos (cerca de 6 de `conselho`, 2 de "comprei" contra "posso comprar" e 2 de renda e conta fixa) ficam escritos num rascunho em `tests/eval/casos_conselho.rascunho.yaml` e só vão ao `casos.yaml` com a autorização do Kaio (tarefa 6.2);
+    - **resultado (29/10/2026):** com os 10 casos autorizados pelo Kaio, 65 de 66; só falhou a `a10` (agenda, `kind` não preenchido), a mesma falha conhecida de antes desta change;
     - a importação de fatura não passa pela prova, porque não tem classificador nem escolha de ferramenta. Ela é testada com textos fictícios e com a transcrição simulada nos testes unitários, e com as faturas reais no aceite.
 
 15. **Ordem de arquivamento:**
