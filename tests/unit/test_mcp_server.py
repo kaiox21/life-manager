@@ -27,6 +27,9 @@ EXPECTED = {
     "confirmar_pendente",
     "listar_vagas",
     "dispensar_vaga",
+    "avaliar_compra",
+    "gerenciar_renda",
+    "gerenciar_conta_fixa",
     "contexto",
     "painel",
     "avisos_recentes",
@@ -200,3 +203,38 @@ async def test_avisos_recentes_so_le_e_traz_so_avisos(seeded):
 async def test_avisos_recentes_exige_fuso(server):
     with pytest.raises(McpToolError, match="fuso"):
         await server.call_tool("avisos_recentes", {"desde": "2026-10-13T13:29:00"})
+
+
+async def test_importar_fatura_pdf_cria_pendencia_e_registra_desktop(seeded):
+    import base64
+
+    from app.statements.service import import_statement
+    from tests.fakes import ScriptedLLM, call
+    from tests.pdfs import FATURA_FICTICIA, text_pdf
+    from tests.unit.test_statement_import import TRANSCRICAO
+
+    llm = ScriptedLLM(call("registrar_fatura", TRANSCRICAO))
+
+    async def importer(session, pdf, cartao):
+        return await import_statement(
+            llm=llm, primary="p", escalation="e", session=session,
+            clock=fixed_clock(NOW), pdf=pdf, cartao=cartao, channel="desktop",
+        )  # fmt: skip
+
+    server = build_mcp(get_sessions=lambda: seeded, clock=fixed_clock(NOW), importer=importer)
+    pdf_b64 = base64.b64encode(text_pdf(FATURA_FICTICIA)).decode()
+    data = _payload(await server.call_tool("importar_fatura_pdf", {"pdf_base64": pdf_b64}))
+    assert data["status"] == "qual_cartao"  # emissor fictício: pergunta o cartão
+    llm.script.append(call("registrar_fatura", TRANSCRICAO))
+    data = _payload(
+        await server.call_tool("importar_fatura_pdf", {"pdf_base64": pdf_b64, "cartao": "nubank"})
+    )
+    assert data["status"] == "aguardando_confirmacao" and data["novos"] == 4
+    (pending,) = await _all(seeded, PendingAction)
+    assert pending.tool_name == "gravar_fatura"
+    runs = await _all(seeded, AgentRun)
+    assert {r.channel for r in runs} == {"desktop"} and {r.intent for r in runs} == {"fatura"}
+
+
+async def test_importar_fatura_pdf_so_com_importador(server):
+    assert "importar_fatura_pdf" not in {t.name for t in await server.list_tools()}

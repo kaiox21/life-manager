@@ -13,6 +13,8 @@ Não é um produto. É um sistema de usuário único, e o repositório existe pa
 | "gastei 47 no almoço no Nubank" | Lança a despesa (valor em centavos, categoria, cartão, data) e ecoa o que gravou |
 | (foto de um cupom ou print de Pix) | Extrai estabelecimento, valor e data; pede confirmação antes de gravar |
 | "total da fatura do Nubank de novembro" | Soma em SQL os lançamentos daquele ciclo de fatura (a regra de fechamento vive no código) |
+| (PDF da fatura do cartão) | O modelo só transcreve; o código confere a soma, casa com o que já foi lançado e lança o que falta depois do "sim" |
+| "posso comprar um fone de 400 em 4x?" | Projeta cada mês da compra (renda, contas fixas, parcelas, média) e o código dá o veredito: segura, atenção ou arriscada |
 | "coloque na agenda a prova de direito, 14 de março às 19h" | Cria o evento no banco e no Google Calendar; avisa antes, pelo WhatsApp |
 | "Hey Jarvis" | O painel abre e ele fala o resumo do dia: clima, compromissos, faturas e as 3 manchetes |
 | "Jarvis, toca Legião Urbana" | Toca no Spotify e abaixa a música enquanto ouve e responde |

@@ -9,7 +9,14 @@ from app.agent.llm import LLM
 from app.agent.tools.resolve import normalize
 
 Intent = Literal[
-    "gasto", "consulta_gasto", "agenda", "pessoa", "confirmacao", "vagas", "fora_do_escopo"
+    "gasto",
+    "consulta_gasto",
+    "conselho",
+    "agenda",
+    "pessoa",
+    "confirmacao",
+    "vagas",
+    "fora_do_escopo",
 ]
 INTENTS: tuple[str, ...] = get_args(Intent)
 
@@ -17,6 +24,7 @@ PROMPT = """Classifique a última mensagem do usuário para um assistente pessoa
 Chame a função classificar com uma destas intenções:
 - gasto: lançar, corrigir ou desfazer um gasto; cadastrar cartão/meio de pagamento. Ex.: "uber 23 pix", "desfaz", "lança 30".
 - consulta_gasto: perguntar sobre gastos, totais, faturas. Toda pergunta "quanto gastei...?" é consulta. Ex.: "quanto tá a fatura do nubank?", "quanto gastei com mercado esse mês?", "e no itaú?" (depois de falar de fatura).
+- conselho: perguntar se uma compra que AINDA NÃO foi feita cabe no orçamento ou é segura; cadastrar, mudar ou tirar renda e contas fixas mensais. Ex.: "posso comprar um fone de 400 em 4x?", "cabe no orçamento um tênis de 300?", "é seguro gastar 200 hoje?", "vale a pena parcelar a TV em 10x?", "minha renda é 3.500 todo dia 5", "aluguel 900 dia 10", "tira a academia das contas fixas". Compra já feita ("comprei", "gastei", "paguei") é gasto, não conselho.
 - agenda: compromissos, provas, aniversários, prazos, lembretes; criar, buscar, mudar ou cancelar. Qualquer mensagem com data de evento ou aniversário é agenda, mesmo citando uma pessoa. Ex.: "dentista sexta 14h", "o que tenho amanhã?", "aniversário da minha irmã é 14 de março", "quando é o aniversário dela?", "reunião com o Carlos amanhã".
 - pessoa: só cadastrar ou corrigir dados de uma pessoa, SEM data nem evento. Ex.: "minha mãe se chama Ana", "o Carlos é meu chefe".
 - confirmacao: resposta sim/não a algo que o assistente pediu para confirmar.

@@ -7,6 +7,7 @@ com confirmação do Kaio. Nenhuma responde a pedidos de permissão (isso só po
 """
 
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -32,6 +33,10 @@ DRAFTS_DIR = Path.home() / "Library/Application Support/Jarvis/rascunhos"
 DRAFTS_KEEP = 50
 DRAFT_REPLY = "Rascunho pronto no painel e na área de transferência, senhor."
 DEFAULT_EDITOR = "Visual Studio Code"
+# fatura em PDF (conselheiro-financeiro): o Jarvis lê o arquivo e o núcleo faz o resto
+MAX_PDF_BYTES = 10 * 1024 * 1024
+RECENT_PDF_DAYS = 7
+CORE_IMPORT = "importar_fatura_pdf"
 
 
 @dataclass(frozen=True)
@@ -153,6 +158,16 @@ class RascunhoArgs(Args):
         max_length=MAX_DRAFT,
         description="O texto completo, em nome do Kaio (primeira pessoa, pt-BR, assinado 'Kaio')",
     )
+
+
+class ImportarFaturaArgs(Args):
+    arquivo: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Caminho do PDF (de buscar_arquivo, ex.: '~/Downloads/fatura.pdf'); omita "
+        "para usar o PDF mais recente de Downloads",
+    )
+    cartao: str | None = Field(default=None, max_length=60, description="Cartão, se o Kaio disse")
 
 
 class TerminalControl(Protocol):
@@ -499,6 +514,44 @@ class LocalTools:
         if 0 < len(texto) <= MAX_DRAFT:
             await self._run(["pbcopy"], texto.encode())
 
+    async def importar_fatura(self, a: ImportarFaturaArgs) -> dict[str, Any]:
+        """Só lê: o PDF (dentro da pasta pessoal, até 10 MB) vai ao núcleo, que mostra o resumo e
+        pede a confirmação. Nunca move nem apaga o arquivo."""
+        home = self._home.resolve()
+        if a.arquivo:
+            raw = a.arquivo.strip()
+            path = Path(raw[2:] if raw.startswith("~/") else raw)
+            path = (path if path.is_absolute() else home / path).resolve()
+            if not path.is_relative_to(home):
+                return {"erro": "Só leio faturas dentro da sua pasta pessoal."}
+        else:
+            found = self._recent_pdf(home)
+            if found is None:
+                return {
+                    "erro": f"Não achei PDF em Downloads dos últimos {RECENT_PDF_DAYS} dias. "
+                    "Qual é o arquivo da fatura?"
+                }
+            path = found
+        if path.suffix.lower() != ".pdf" or not path.is_file():
+            return {"erro": f"{_short(path, home)} não é um PDF."}
+        if path.stat().st_size > MAX_PDF_BYTES:
+            return {"erro": "PDF grande demais (máx. 10 MB)."}
+        data = await asyncio.to_thread(path.read_bytes)
+        args: dict[str, Any] = {"pdf_base64": base64.b64encode(data).decode()}
+        if a.cartao:
+            args["cartao"] = a.cartao
+        return {"arquivo": _short(path, home), "_core": CORE_IMPORT, "_core_args": args}
+
+    def _recent_pdf(self, home: Path) -> Path | None:
+        downloads = home / "Downloads"
+        cutoff = (self._now() - timedelta(days=RECENT_PDF_DAYS)).timestamp()
+        try:
+            pdfs = [p for p in downloads.iterdir() if p.suffix.lower() == ".pdf" and p.is_file()]
+        except OSError:
+            return None
+        recent = [p for p in pdfs if p.stat().st_mtime >= cutoff]
+        return max(recent, key=lambda p: p.stat().st_mtime, default=None)
+
     def for_model(self, name: str, data: dict[str, Any]) -> dict[str, Any]:
         """O que o modelo recebe. Os resumos dos pedidos de permissão (comandos podem ter
         segredos) ficam só no cartão da tela; o texto do rascunho e as marcas internas
@@ -508,7 +561,9 @@ class LocalTools:
         if name == "listar_terminais":
             keep = ("numero", "pasta", "tipo", "estado", "ferramenta")
             return {"terminais": [{k: t.get(k) for k in keep} for t in data["terminais"]]}
-        hidden = {"_fala", "_painel_fechar"} | ({"texto"} if name == "rascunho" else set())
+        hidden = {"_fala", "_painel_fechar", "_core", "_core_args"} | (
+            {"texto"} if name == "rascunho" else set()
+        )
         if hidden & data.keys():
             return {k: v for k, v in data.items() if k not in hidden}
         return data
@@ -592,6 +647,14 @@ class LocalTools:
                 "do estudo' -> status. Diga ao Kaio o que ligou e o que não ligou.",
                 ModoEstudoArgs,
                 self.modo_estudo,
+            ),
+            "importar_fatura": (
+                "Lê a fatura do cartão em PDF baixada no Mac e mostra o resumo para o Kaio "
+                "confirmar o lançamento do que falta: 'lê a fatura do nubank que baixei' -> "
+                "cartao='nubank' (sem arquivo: o PDF mais recente de Downloads). Se vier "
+                "'opcoes', pergunte qual cartão e chame de novo com cartao.",
+                ImportarFaturaArgs,
+                self.importar_fatura,
             ),
             "area_transferencia": (
                 "Lê (pede permissão) ou escreve na área de transferência.",

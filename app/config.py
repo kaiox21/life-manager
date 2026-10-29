@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     noticias_modelo: str = ""  # vazio = model_primary
     noticias_max_buscas: int = 8
 
+    # Conselho de compra (change conselheiro-financeiro): sobra mínima, em % da renda, para "segura"
+    conselho_folga_pct: int = 20
+
     # Google Calendar (espelho da agenda). JSON da service account em base64 (ou caminho).
     google_service_account_json: SecretStr = SecretStr("")
     google_service_account_file: str = ""

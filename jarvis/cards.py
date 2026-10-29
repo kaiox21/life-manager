@@ -99,6 +99,28 @@ def card_for(tool: str, args: dict[str, Any], data: Any) -> dict[str, Any] | Non
             "removido": "Removido",
         }.get(str(data.get("status")), "Feito")
         return {"kind": "texto", "title": title, "text": str(text or "")}
+    if tool == "importar_fatura":
+        title = {
+            "fatura_gravada": "Fatura importada",
+            "cancelado": "Cancelado",
+        }.get(str(data.get("status")), "Fatura")
+        return {"kind": "texto", "title": title, "text": str(data.get("resumo", ""))}
+    if tool == "avaliar_compra" and data.get("veredito"):
+        text = str(data.get("texto", ""))
+        if data.get("aviso"):
+            text += f"\n{data['aviso']}"
+        return {
+            "kind": "texto",
+            "title": f"Conselho · {data.get('compra', '')} · {data['veredito']}",
+            "text": text,
+        }
+    if tool in ("gerenciar_renda", "gerenciar_conta_fixa") and data.get("resumo"):
+        return {
+            "kind": "texto",
+            "title": "Orçamento",
+            "text": f"{data['resumo']}\nRenda mensal {data.get('renda_mensal')} · contas fixas "
+            f"{data.get('contas_fixas_mensal')}",
+        }
     if tool in ("abrir_terminal", "mandar_terminal", "fechar_terminal"):
         n, pasta = data.get("numero"), data.get("pasta", "")
         text = {

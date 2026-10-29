@@ -56,6 +56,8 @@ Regras:
 8. "O que eu tenho" num dia ou período: busque todos os tipos de evento (sem filtrar kind), a não ser que o Kaio peça um tipo.
 9. Você não aprova nem nega pedidos de permissão dos terminais, nem quando o Kaio pede: diga que isso se responde no botão Permitir/Negar do aviso ou na própria aba. Você não vê a tela dos terminais; sobre eles, sabe só número, pasta, tipo (Claude Code ou terminal) e estado (listar_terminais).
 10. Rascunhos (rascunho): o texto é do Kaio, em primeira pessoa, português do Brasil, no tom pedido, assinado "Kaio", sem "senhor" e sem mencionar você; vai inteiro no argumento texto. Você nunca envia e-mail nem mensagem a ninguém e nunca propõe terminal ou app para enviar: se o Kaio pedir para mandar, diga que não envia e que o texto está na área de transferência para ele colar.
+11. "Posso comprar...?", "cabe no orçamento?", "é seguro?": chame avaliar_compra e diga só o veredito, o mês decisivo e a sobra que ela devolver; não calcule, não mude o veredito, não recomende investimento nem crédito. Se ela pedir a renda, pergunte a renda mensal e o dia. Renda e contas fixas: gerenciar_renda e gerenciar_conta_fixa.
+12. Fatura em PDF baixada ("lê a fatura do Nubank"): importar_fatura. O resumo e a confirmação aparecem na tela; depois diga em uma frase o que foi lançado ou cancelado.
 
 Contexto atual:
 """
@@ -112,9 +114,12 @@ CORE_WRITES = {
     "gerenciar_pessoa",
     "confirmar_pendente",
     "dispensar_vaga",
+    "gerenciar_renda",
+    "gerenciar_conta_fixa",
+    "importar_fatura",
 }
 # Só para a interface, nunca para o modelo.
-HIDDEN_CORE_TOOLS = {"contexto", "painel"}
+HIDDEN_CORE_TOOLS = {"contexto", "painel", "importar_fatura_pdf"}  # o PDF vem de importar_fatura
 PANEL_QUESTIONS = 5
 
 # fechamento do dia e lembrete de lançamento (jarvis-proativo): texto fixo, sem o modelo
@@ -204,6 +209,10 @@ STEP_LABELS = {
     "modo_estudo": "montando o modo estudo…",
     "abrir_projeto": "abrindo o projeto…",
     "rascunho": "escrevendo o rascunho…",
+    "importar_fatura": "lendo a fatura…",
+    "avaliar_compra": "fazendo as contas do orçamento…",
+    "gerenciar_renda": "atualizando a renda…",
+    "gerenciar_conta_fixa": "atualizando as contas fixas…",
 }
 
 
@@ -815,31 +824,39 @@ class JarvisBrain:
         await emit(events.step(rid, _label(call.name, args)))
 
         if call.name in core_names:
-            result = await self._core.call(call.name, args)
-            if not result.ok:
-                return False, result.for_model()
-            data = result.data
-            if isinstance(data, dict) and data.get("status") == "aguardando_confirmacao":
-                accepted = await self._ask_user(rid, emit, data.get("resumo", "Confirma?"), data)
-                confirmed = await self._core.call(
-                    "confirmar_pendente",
-                    {"pending_id": data.get("pending_id"), "decisao": "sim" if accepted else "nao"},
-                )
-                data = confirmed.data
-            await self._emit_card(rid, emit, call.name, args, data)
-            return True, json.dumps(data, ensure_ascii=False, default=str)
+            return await self._core_call(rid, emit, call.name, args, call.name)
 
         ok, local = await self._local.call(call.name, args)
         if not ok:
             return False, json.dumps({"erro_validacao": local}, ensure_ascii=False)
-        await self._emit_card(rid, emit, call.name, args, local)
         assert isinstance(local, dict)
+        if isinstance(local.get("_core"), str):  # ação local que entrega dados ao núcleo
+            return await self._core_call(rid, emit, local["_core"], local["_core_args"], call.name)
+        await self._emit_card(rid, emit, call.name, args, local)
         if isinstance(local.get("_fala"), str) and self._turn is not None:
             self._turn.fixed_reply = local["_fala"]
         if local.get("_painel_fechar"):  # o editor acabou de abrir: o painel sai da frente
             await emit(events.panel_close(rid))
         for_model = self._local.for_model(call.name, local)
         return True, json.dumps(for_model, ensure_ascii=False, default=str)
+
+    async def _core_call(
+        self, rid: str, emit: Emit, name: str, args: dict[str, Any], card_name: str
+    ) -> tuple[bool, str]:
+        """Ferramenta do núcleo; pendência vira o cartão de confirmação (o clique decide)."""
+        result = await self._core.call(name, args)
+        if not result.ok:
+            return False, result.for_model()
+        data = result.data
+        if isinstance(data, dict) and data.get("status") == "aguardando_confirmacao":
+            accepted = await self._ask_user(rid, emit, data.get("resumo", "Confirma?"), data)
+            confirmed = await self._core.call(
+                "confirmar_pendente",
+                {"pending_id": data.get("pending_id"), "decisao": "sim" if accepted else "nao"},
+            )
+            data = confirmed.data
+        await self._emit_card(rid, emit, card_name, {} if card_name != name else args, data)
+        return True, json.dumps(data, ensure_ascii=False, default=str)
 
     async def _emit_card(
         self, rid: str, emit: Emit, name: str, args: dict[str, Any], data: Any

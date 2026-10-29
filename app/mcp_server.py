@@ -4,6 +4,7 @@ As funções são as mesmas do agente do WhatsApp (app/agent/tools): mesmos nome
 validação Pydantic, mesmas confirmações. Nada de regra de negócio aqui.
 """
 
+import base64
 import inspect
 import json
 import logging
@@ -37,6 +38,8 @@ INSTRUCTIONS = (
 )
 
 AfterWrite = Callable[[], Awaitable[None]]
+# Importação da fatura (precisa do LLM): (sessão, pdf, cartão) -> resultado com `resumo`.
+Importer = Callable[[AsyncSession, bytes, str | None], Awaitable[dict[str, Any]]]
 
 
 def _signature(tool: Tool) -> inspect.Signature:
@@ -111,6 +114,7 @@ def build_mcp(
     get_sessions: Sessions,
     clock: Clock,
     after_write: AfterWrite | None = None,
+    importer: Importer | None = None,
 ) -> MCPServer:
     server = MCPServer("life-manager", instructions=INSTRUCTIONS)
     for tool in ALL_TOOLS.values():
@@ -155,6 +159,25 @@ def build_mcp(
         return json.dumps(data, ensure_ascii=False)
 
     server.add_tool(avisos_recentes, name="avisos_recentes")
+
+    if importer is not None:
+
+        async def importar_fatura_pdf(
+            pdf_base64: Annotated[str, Field(description="O PDF da fatura em base64")],
+            cartao: Annotated[
+                str | None, Field(description="Cartão de crédito, se o usuário disse")
+            ] = None,
+        ) -> str:
+            """Lê a fatura do cartão em PDF e devolve o resumo; quando há o que lançar, a
+            pendência (status 'aguardando_confirmacao'): só grava com confirmar_pendente."""
+            try:
+                pdf = base64.b64decode(pdf_base64, validate=True)
+            except ValueError:
+                raise McpToolError("pdf_base64 inválido") from None
+            async with get_sessions().begin() as session:
+                return json.dumps(await importer(session, pdf, cartao), ensure_ascii=False)
+
+        server.add_tool(importar_fatura_pdf, name="importar_fatura_pdf")
     return server
 
 

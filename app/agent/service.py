@@ -28,6 +28,7 @@ HISTORY_SIZE = 10
 MEDIA_FOLLOWUP = timedelta(minutes=15)
 MEDIA_SOURCE: dict[str, Source] = {"audio": "audio", "image": "foto"}
 PHOTO_PLACEHOLDER = "[foto de recibo]"
+PDF_PLACEHOLDER = "[fatura em PDF]"
 YES = {"sim", "s", "confirma", "confirmo", "pode", "ok", "isso", "pode gravar", "manda"}
 NO = {"nao", "n", "cancela", "cancelar", "nao grava", "deixa"}
 
@@ -46,7 +47,7 @@ async def load_history(
         select(Message)
         .where(
             Message.channel == "whatsapp",
-            or_(Message.body.is_not(None), Message.type == "image"),
+            or_(Message.body.is_not(None), Message.type.in_(("image", "document"))),
         )
         .order_by(Message.created_at.desc())
         .limit(HISTORY_SIZE + 1)
@@ -57,6 +58,8 @@ async def load_history(
         body = m.body or ""
         if m.direction == "in" and m.type == "image":
             body = f"{PHOTO_PLACEHOLDER} {body}".strip()
+        if m.direction == "in" and m.type == "document":
+            body = f"{PDF_PLACEHOLDER} {body}".strip()
         if m.direction == "out" and strip_prefix:
             body = body.removeprefix(strip_prefix)
         history.append({"role": "assistant" if m.direction == "out" else "user", "content": body})
@@ -128,6 +131,8 @@ def _direct_reply(result: dict[str, Any]) -> str:
     if status == "gravado":
         extra = f" Fatura vence {result['fatura_vence']}." if result.get("fatura_vence") else ""
         return f'Gravado: {result["resumo"]}.{extra} Diga "desfazer" para reverter.'
+    if status == "fatura_gravada":
+        return result["resumo"]
     if status == "cancelado":
         return f"Cancelado: {result['resumo']}."
     return "Não há nada aguardando confirmação."

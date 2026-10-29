@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-MessageType = Literal["text", "audio", "image", "other"]
+MessageType = Literal["text", "audio", "image", "document", "other"]
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,6 +16,8 @@ from app.db.models import Message, PaymentMethod, Person
 from app.db.repo import log_outgoing
 from app.integrations.gcal import CalendarClient, sync_pending
 from app.integrations.transcribe import Transcriber
+from app.statements.extract import MAX_PDF_BYTES
+from app.statements.service import import_statement
 from app.types import IncomingMessage, Media, OutgoingMessage
 
 log = logging.getLogger(__name__)
@@ -97,6 +99,28 @@ async def _process(
 
     if msg.type == "audio":
         return await _audio(msg.media, data_b64, message_id, deps, common)
+
+    if msg.type == "document":
+        # fatura em PDF: vai direto à importação, sem classificador; o PDF não é guardado
+        if len(data_b64) * 3 // 4 > MAX_PDF_BYTES:
+            raise _Refuse("PDF grande demais (máx. 10 MB). Pode mandar a fatura exportada do app?")
+        async with deps.sessions.begin() as session:
+            result = await import_statement(
+                llm=deps.llm,
+                primary=deps.models.primary,
+                escalation=deps.models.escalation,
+                session=session,
+                clock=deps.clock,
+                pdf=base64.b64decode(data_b64),
+                cartao=msg.text,
+                message_id=message_id,
+            )
+        if result["status"] == "qual_cartao":
+            return (
+                f"{result['resumo']} Mande o PDF de novo com o nome do cartão na legenda "
+                "(ex.: nubank)."
+            )
+        return str(result["resumo"])
 
     # foto: só o tamanho é limitado; o arquivo não é guardado
     if len(data_b64) * 3 // 4 > MAX_IMAGE_BYTES:

@@ -24,6 +24,7 @@ from app.mcp_server import build_mcp, mcp_http_app
 from app.noticias.job import boletim_cycle
 from app.scheduler import build_scheduler
 from app.security import is_owner, secret_matches
+from app.statements.service import import_statement
 from app.vagas.job import radar_cycle
 
 log = logging.getLogger(__name__)
@@ -132,6 +133,11 @@ def create_app(
         if engine:
             await engine.dispose()
 
+    models = Models(
+        classifier=settings.model_classifier or settings.model_primary,
+        primary=settings.model_primary,
+        escalation=settings.model_escalation or settings.model_primary,
+    )
     mcp = None
     if settings.mcp_token.get_secret_value():
 
@@ -139,8 +145,23 @@ def create_app(
             if app.state.calendar is not None:
                 await sync_pending(app.state.sessions, app.state.calendar)
 
+        async def importer(session: AsyncSession, pdf: bytes, cartao: str | None) -> dict[str, Any]:
+            return await import_statement(
+                llm=app.state.llm,
+                primary=models.primary,
+                escalation=models.escalation,
+                session=session,
+                clock=clock,
+                pdf=pdf,
+                cartao=cartao,
+                channel="desktop",
+            )
+
         mcp = build_mcp(
-            get_sessions=lambda: app.state.sessions, clock=clock, after_write=after_write
+            get_sessions=lambda: app.state.sessions,
+            clock=clock,
+            after_write=after_write,
+            importer=importer,
         )
 
     app = FastAPI(title="life-manager", lifespan=lifespan)
@@ -168,11 +189,6 @@ def create_app(
         else LogNotifier()
     )
     app.state.monitor = ConnectionMonitor(notifier)
-    models = Models(
-        classifier=settings.model_classifier or settings.model_primary,
-        primary=settings.model_primary,
-        escalation=settings.model_escalation or settings.model_primary,
-    )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -219,7 +235,7 @@ def create_app(
         if not is_owner(msg.sender, settings.owner_phone):
             log.info("remetente fora da allowlist ignorado (%s)", msg.wa_message_id)
             return {"status": "ignored", "reason": "not_owner"}
-        if msg.type not in ("text", "audio", "image"):
+        if msg.type not in ("text", "audio", "image", "document"):
             return {"status": "ignored", "reason": "unsupported_type"}
 
         sessions: async_sessionmaker[AsyncSession] = request.app.state.sessions

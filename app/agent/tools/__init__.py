@@ -1,6 +1,6 @@
 """Registro das ferramentas. O LLM só toca o banco por aqui."""
 
-from app.agent.tools import agenda, confirmacao, consultas, gastos, pessoas, vagas
+from app.agent.tools import agenda, confirmacao, conselho, consultas, gastos, pessoas, vagas
 from app.agent.tools.base import Group, Tool, ToolContext, ToolError
 
 ALL_TOOLS: dict[str, Tool] = {
@@ -12,6 +12,7 @@ ALL_TOOLS: dict[str, Tool] = {
         *pessoas.TOOLS,
         *confirmacao.TOOLS,
         *vagas.TOOLS,
+        *conselho.TOOLS,
     )
 }
 

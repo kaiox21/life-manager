@@ -76,8 +76,14 @@ class Category(Base):
 class Expense(Base):
     __tablename__ = "expenses"
     __table_args__ = (
-        CheckConstraint("amount_cents > 0", name="expenses_amount_check"),
-        CheckConstraint("source in ('texto','audio','foto')", name="expenses_source_check"),
+        # Estorno da fatura é o único gasto negativo.
+        CheckConstraint(
+            "amount_cents <> 0 AND (amount_cents > 0 OR source = 'fatura')",
+            name="expenses_amount_check",
+        ),
+        CheckConstraint(
+            "source in ('texto','audio','foto','fatura')", name="expenses_source_check"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -263,3 +269,44 @@ class NewsItem(Base):
     run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agent_runs.id"))
     found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class StatementImport(Base):
+    """Fatura em PDF importada (gravada no "sim"). Serve para dizer "já importada em …"."""
+
+    __tablename__ = "statement_imports"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    payment_method_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("payment_methods.id"), nullable=False
+    )
+    statement_month: Mapped[date] = mapped_column(Date, nullable=False)
+    printed_total_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    file_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    items_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BudgetItem(Base):
+    """Renda ou conta fixa mensal, base do conselho de compra (nome único entre os ativos)."""
+
+    __tablename__ = "budget_items"
+    __table_args__ = (
+        CheckConstraint("kind in ('renda','fixa')", name="budget_items_kind_check"),
+        CheckConstraint("amount_cents > 0", name="budget_items_amount_check"),
+        CheckConstraint("day between 1 and 31", name="budget_items_day_check"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    amount_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    day: Mapped[int] = mapped_column(Integer, nullable=False)
+    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("payment_methods.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

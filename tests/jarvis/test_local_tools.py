@@ -153,6 +153,7 @@ def test_schemas_para_o_modelo():
         "modo_estudo",
         "abrir_projeto",
         "rascunho",
+        "importar_fatura",
     }
 
 

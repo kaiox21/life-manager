@@ -26,6 +26,18 @@ def _jid_user(jid: str) -> str:
     return normalize_phone(jid.split("@", 1)[0].split(":", 1)[0])
 
 
+def _document(message: dict[str, Any]) -> dict[str, Any] | None:
+    """PDF anexado: `documentMessage`, ou dentro de `documentWithCaptionMessage` com legenda."""
+    doc = message.get("documentMessage")
+    if doc is None:
+        inner = (message.get("documentWithCaptionMessage") or {}).get("message") or {}
+        doc = inner.get("documentMessage")
+    if not isinstance(doc, dict):
+        return None
+    mimetype = (doc.get("mimetype") or "").split(";")[0].strip().lower()
+    return doc if mimetype == "application/pdf" else None
+
+
 def _extract_text(message: dict[str, Any]) -> tuple[MessageType, str | None]:
     if text := message.get("conversation"):
         return "text", text
@@ -35,6 +47,8 @@ def _extract_text(message: dict[str, Any]) -> tuple[MessageType, str | None]:
         return "audio", None
     if "imageMessage" in message:
         return "image", (message["imageMessage"] or {}).get("caption")
+    if (doc := _document(message)) is not None:
+        return "document", doc.get("caption") or None
     return "other", None
 
 
@@ -51,6 +65,12 @@ def _extract_media(key: dict[str, Any], message: dict[str, Any]) -> Media | None
             mimetype=(info.get("mimetype") or default_mime).split(";")[0].strip(),
             data_b64=message.get("base64") or None,
             seconds=seconds,
+            ref={"key": key, "message": {k: v for k, v in message.items() if k != "base64"}},
+        )
+    if _document(message) is not None:
+        return Media(
+            mimetype="application/pdf",
+            data_b64=message.get("base64") or None,
             ref={"key": key, "message": {k: v for k, v in message.items() if k != "base64"}},
         )
     return None
@@ -107,7 +127,7 @@ def parse_webhook(payload: dict[str, Any]) -> IncomingMessage | None:
         type=msg_type,
         text=text,
         sent_at=_parse_timestamp(data.get("messageTimestamp")),
-        media=_extract_media(key, message) if msg_type in ("audio", "image") else None,
+        media=_extract_media(key, message) if msg_type in ("audio", "image", "document") else None,
     )
 
 

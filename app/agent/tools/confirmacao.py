@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.agent.tools.agenda import CriarEventoArgs, delete_event, record_event
 from app.agent.tools.base import Tool, ToolArgs, ToolContext
+from app.agent.tools.fatura import record_statement
 from app.agent.tools.gastos import LancarGastoArgs, record_expense
 from app.db.models import PendingAction
 
@@ -75,6 +76,7 @@ async def _exec_remover_evento(ctx: ToolContext, raw: dict[str, Any]) -> dict[st
 
 EXECUTORS = {
     "lancar_gasto": _exec_lancar_gasto,
+    "gravar_fatura": record_statement,
     "criar_evento": _exec_criar_evento,
     "remover_evento": _exec_remover_evento,
 }

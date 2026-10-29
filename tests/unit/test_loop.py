@@ -282,3 +282,25 @@ async def test_stop_at_first_tool_nao_executa(ctx):
     assert out.first_call and out.first_call.name == "lancar_gasto"
     assert out.first_call.args["amount_cents"] == 4790
     assert (await ctx.session.scalars(select(Expense))).all() == []
+
+
+async def test_conselho_recebe_so_as_ferramentas_do_conselho(seeded):
+    llm = ScriptedLLM(cls("conselho"), reply("Qual é a sua renda mensal?"))
+    await _answer(seeded, llm, "posso comprar um fone de 400 em 4x?")
+    offered = {t["function"]["name"] for t in llm.calls[1]["tools"]}
+    assert offered == {"avaliar_compra", "gerenciar_renda", "gerenciar_conta_fixa", "resumo_gastos"}
+    assert "conselho:" in llm.calls[0]["messages"][0]["content"]  # classificador conhece
+
+
+async def test_conselho_sem_ferramenta_escala(seeded):
+    llm = ScriptedLLM(
+        cls("conselho"),
+        reply("Pode comprar, cabe tranquilo."),  # opinou sem calcular
+        call("avaliar_compra", {"amount_cents": 40000, "installments": 4}),
+        reply("Antes, qual é a sua renda mensal e o dia em que cai?"),
+    )
+    out = await _answer(seeded, llm, "posso comprar um fone de 400 em 4x?")
+    assert "renda" in out
+    (run,) = await _all(seeded, AgentRun)
+    assert run.escalated and run.intent == "conselho"
+    assert run.tools_called[-1]["result"]["falta"] == "renda"

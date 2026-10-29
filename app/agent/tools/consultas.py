@@ -233,7 +233,7 @@ TOOLS = [
     ),
     Tool(
         "resumo_gastos",
-        ("consulta_gasto",),
+        ("consulta_gasto", "conselho"),
         "Totais agrupados por categoria, meio ou dia num período. Ex.: 'quanto gastei em "
         "setembro por categoria' -> de='2026-09-01', ate='2026-09-30', agrupar_por='categoria'.",
         ResumoGastosArgs,
